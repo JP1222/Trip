@@ -4,12 +4,6 @@ import { type DbExecutor, getPool, withTransaction } from "./db";
 import { locationFromDays } from "./plan";
 import { normalizeStopCategory } from "./stop-categories";
 import type { DayPlan, Trip, TripBudget, TripLocation } from "./types";
-import * as tripsJson from "./trips-json";
-
-/** PostgreSQL when DATABASE_URL is set; otherwise local data/trips.json. */
-function useDatabase(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
-}
 
 type TripRow = QueryResultRow & {
   id: string;
@@ -183,12 +177,10 @@ async function getTripFrom(
 }
 
 export async function getTrips(): Promise<Trip[]> {
-  if (!useDatabase()) return tripsJson.getTrips();
   return getTripsFrom(getPool());
 }
 
 export async function getTrip(id: string): Promise<Trip | null> {
-  if (!useDatabase()) return tripsJson.getTrip(id);
   return getTripFrom(getPool(), id);
 }
 
@@ -405,7 +397,6 @@ export async function updateTrip(
   id: string,
   patch: Partial<TripEditable>,
 ): Promise<Trip | null> {
-  if (!useDatabase()) return tripsJson.updateTrip(id, patch);
   return withTransaction(async (client) => {
     const locked = await client.query<{ id: string }>(
       "SELECT id FROM trips WHERE id = $1 FOR UPDATE",
@@ -506,7 +497,6 @@ export async function updateTrip(
 
 /** Reorder trips as they appear on the home wall. Unknown ids ignored; missing ids appended. */
 export async function reorderTrips(orderedIds: string[]): Promise<Trip[]> {
-  if (!useDatabase()) return tripsJson.reorderTrips(orderedIds);
   return withTransaction(async (client) => {
     const current = await client.query<{ id: string }>(`
       SELECT id FROM trips ORDER BY position, id FOR UPDATE

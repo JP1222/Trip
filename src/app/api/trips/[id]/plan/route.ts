@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeAuditEvent } from "@/lib/audit";
 import { sanitizeBudget } from "@/lib/budget";
 import { attachRequestId, getRequestId } from "@/lib/observability/request-id";
-import { authorizeTripWrite } from "@/lib/security/access";
+import {
+  actorId,
+  actorType,
+  authorizeTripWrite,
+} from "@/lib/security/access";
 import { validateRequestOrigin } from "@/lib/security/origin";
 import {
   consumeRateLimit,
@@ -49,13 +53,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       bucketKey: createRateLimitKey("plan-write", getClientIp(req), id),
       limit: 120,
       windowMs: 15 * 60 * 1000,
-    }).catch(() => null);
-    if (!rateLimit) {
-      return attachRequestId(
-        NextResponse.json({ error: "Service unavailable" }, { status: 503 }),
-        requestId,
-      );
-    }
+    });
     if (!rateLimit.allowed) {
       return attachRequestId(
         NextResponse.json(
@@ -108,25 +106,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     await writeAuditEvent({
-      actorType:
-        actor.kind === "admin"
-          ? "admin"
-          : actor.kind === "capability"
-            ? "capability"
-            : "system",
-      actorId:
-        actor.kind === "admin"
-          ? actor.session.id
-          : actor.kind === "capability"
-            ? actor.capability.id
-            : "legacy-collab",
+      actorType: actorType(actor),
+      actorId: actorId(actor),
       action: "trip.plan_updated",
       entityType: "trip",
       entityId: id,
       requestId,
       ipHash: getClientIpHash(req),
       details: { fields: Object.keys(patch) },
-    }).catch(() => undefined);
+    });
 
     const { collabToken: _, ...safe } = updated;
     return attachRequestId(

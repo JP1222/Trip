@@ -57,17 +57,6 @@ export async function consumeRateLimit({
     throw new Error("Rate-limit window must be between 1 second and 24 hours");
   }
 
-  // Local JSON mode has no rate_limit_buckets table.
-  if (!process.env.DATABASE_URL?.trim()) {
-    return {
-      allowed: true,
-      limit,
-      remaining: limit,
-      resetAt: new Date(Date.now() + windowMs),
-      retryAfterSeconds: 0,
-    };
-  }
-
   const result = await query<RateLimitRow>(
     `WITH bucket AS (
        SELECT to_timestamp(

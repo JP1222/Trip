@@ -118,7 +118,11 @@ Costs and risks:
 1. Deploy PostgreSQL, migrations, private/public media volumes, and the worker without routing writes to them.
 2. Run the importer in dry-run mode, review counts and quarantined directories, then import idempotently.
 3. Generate legacy derivatives in the background and validate checksums/sample playback.
-4. Enable database reads, then writes, while retaining the JSON metadata and legacy upload tree read-only for at least two weeks.
-5. Rotate all admin and collaboration secrets at cutover.
+4. Cut over web traffic to the Postgres-backed image. Keep the legacy upload tree mounted read-only for nginx until derivatives and cover URLs are fully migrated.
+5. Rotate all admin and collaboration secrets at cutover (plaintext collab tokens are not imported).
 
-Rollback switches the application to the read-only legacy snapshot and the previous image. New writes made after cutover are exported before rollback; persistent database/media volumes are never deleted by an application rollback.
+### Follow-up decision (2026-07-29)
+
+Runtime dual-mode (JSON files when `DATABASE_URL` is unset) was **removed**. PostgreSQL is mandatory for web, worker, auth, rate limits, and comments. `data/trips.json` and `data/comments/*` remain import sources only via `pnpm db:import:legacy`.
+
+Rollback switches the application to the previous image and a restored Postgres/media backup. Persistent database/media volumes are never deleted by an application rollback.

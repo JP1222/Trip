@@ -1,9 +1,6 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { randomUUID } from "crypto";
+import path from "path";
 import type { PhotoMeta } from "./types";
-import { processUploadImage } from "./image-process";
-import { extractPhotoExif, type PhotoExif } from "./exif";
 import { pairLivePhotoFiles, type MediaUploadUnit } from "./photos-client";
 import {
   createQueuedMedia,
@@ -14,13 +11,13 @@ import {
   softDeleteMedia,
   updateMediaMetadata,
 } from "./media/repository";
+import { mediaMetaAfterQueue } from "./media/inline";
 import {
   assertStorageKey,
   localMediaStorage,
   mediaAssetKey,
 } from "./media/storage";
-
-const uploadsRoot = path.join(process.cwd(), "public", "uploads");
+import type { MediaJobType } from "./media/types";
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -51,29 +48,6 @@ const ALLOWED_VIDEO_MIME = new Set([
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|hei[cf]|avif|bmp|tiff?)$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogg|ogv)$/i;
 
-function databaseMediaEnabled(): boolean {
-  const configured = (process.env.MEDIA_BACKEND || "").toLowerCase();
-  if (configured === "legacy" || configured === "json") return false;
-  return configured === "db" || configured === "postgres" || Boolean(process.env.DATABASE_URL);
-}
-
-function tripDir(tripId: string) {
-  return path.join(uploadsRoot, tripId);
-}
-
-function metaPath(tripId: string) {
-  return path.join(tripDir(tripId), "photos.json");
-}
-
-async function ensureTripDir(tripId: string) {
-  await fs.mkdir(tripDir(tripId), { recursive: true });
-  try {
-    await fs.access(metaPath(tripId));
-  } catch {
-    await fs.writeFile(metaPath(tripId), "[]", "utf-8");
-  }
-}
-
 /** Featured first (by featuredAt), then newest upload. */
 export function sortPhotos(photos: PhotoMeta[]): PhotoMeta[] {
   return [...photos].sort((a, b) => {
@@ -95,27 +69,24 @@ export async function getPhotos(
   tripId: string,
   options: { includePending?: boolean } = {},
 ): Promise<PhotoMeta[]> {
-  if (databaseMediaEnabled()) {
-    return listPhotoMetaForTrip(tripId, options);
-  }
-  await ensureTripDir(tripId);
-  const raw = await fs.readFile(metaPath(tripId), "utf-8");
-  const photos = JSON.parse(raw) as PhotoMeta[];
-  return sortPhotos(photos);
+  return listPhotoMetaForTrip(tripId, options);
 }
 
 export async function getPhoto(
   tripId: string,
   photoId: string,
 ): Promise<PhotoMeta | null> {
-  if (databaseMediaEnabled()) {
-    const media = await getTripMediaById(tripId, photoId);
-    return media ? mediaToPhotoMeta(media) : null;
-  }
-  const photos = await getPhotos(tripId);
-  return photos.find((p) => p.id === photoId) || null;
+  const media = await getTripMediaById(tripId, photoId, {
+    includeNonReady: true,
+  });
+  return media ? mediaToPhotoMeta(media) : null;
 }
 
+/**
+ * Resolve a gallery filename to an on-disk path.
+ * Public derivatives live under MEDIA_PUBLIC_ROOT (/media/...).
+ * Legacy import keys may still reference basename files under LEGACY_UPLOADS.
+ */
 export function photoFilePath(tripId: string, filename: string): string {
   if (filename.startsWith("/media/")) {
     return localMediaStorage.absolutePath(
@@ -126,39 +97,17 @@ export function photoFilePath(tripId: string, filename: string): string {
   if (filename.includes("/") || filename.includes("\\")) {
     throw new Error("Invalid media filename");
   }
-  return path.join(tripDir(tripId), filename);
+  const legacyRoot =
+    process.env.LEGACY_UPLOADS_ROOT ||
+    path.join(process.cwd(), "public", "uploads");
+  return path.join(legacyRoot, tripId, filename);
 }
 
 export async function getPhotosPage(
   tripId: string,
   options: { limit?: number; cursor?: string } = {},
 ): Promise<{ items: PhotoMeta[]; nextCursor: string | null; total: number }> {
-  if (databaseMediaEnabled()) return getPhotoMetaPage(tripId, options);
-  const photos = await getPhotos(tripId);
-  const limit = Math.max(1, Math.min(100, Math.floor(options.limit || 48)));
-  let start = 0;
-  if (options.cursor) {
-    try {
-      const parsed = JSON.parse(
-        Buffer.from(options.cursor, "base64url").toString("utf8"),
-      ) as { id?: string };
-      const index = photos.findIndex((photo) => photo.id === parsed.id);
-      if (index < 0) throw new Error("missing cursor item");
-      start = index + 1;
-    } catch {
-      throw new Error("Invalid media cursor");
-    }
-  }
-  const items = photos.slice(start, start + limit);
-  const last = items[items.length - 1];
-  return {
-    items,
-    nextCursor:
-      start + items.length < photos.length && last
-        ? Buffer.from(JSON.stringify({ id: last.id }), "utf8").toString("base64url")
-        : null,
-    total: photos.length,
-  };
+  return getPhotoMetaPage(tripId, options);
 }
 
 export async function getAllPhotos(tripIds: string[]): Promise<PhotoMeta[]> {
@@ -173,7 +122,6 @@ export function getFeaturedPhotos(photos: PhotoMeta[]): PhotoMeta[] {
 function isAllowedImage(file: File): boolean {
   const mime = (file.type || "").toLowerCase();
   if (ALLOWED_IMAGE_MIME.has(mime) || mime.startsWith("image/")) return true;
-  // Empty MIME from some mobile/folder picks — trust extension
   return IMAGE_EXT.test(file.name);
 }
 
@@ -187,56 +135,17 @@ function isAllowedMedia(file: File): boolean {
   return isAllowedImage(file) || isAllowedVideo(file);
 }
 
-function videoExtAndMime(file: {
-  name: string;
-  type?: string;
-}): { ext: string; mimeType: string } {
-  const mime = (file.type || "").toLowerCase();
-  const name = file.name.toLowerCase();
-  if (mime === "video/webm" || name.endsWith(".webm")) {
-    return { ext: ".webm", mimeType: "video/webm" };
-  }
-  if (mime === "video/ogg" || name.endsWith(".ogv") || name.endsWith(".ogg")) {
-    return { ext: ".ogv", mimeType: "video/ogg" };
-  }
-  if (
-    mime === "video/quicktime" ||
-    name.endsWith(".mov") ||
-    mime === "video/x-m4v" ||
-    name.endsWith(".m4v")
-  ) {
-    // Keep .mov for QuickTime; browsers that support it play natively
-    if (name.endsWith(".m4v") || mime === "video/x-m4v") {
-      return { ext: ".m4v", mimeType: "video/x-m4v" };
-    }
-    return { ext: ".mov", mimeType: "video/quicktime" };
-  }
-  return { ext: ".mp4", mimeType: mime.startsWith("video/") ? mime : "video/mp4" };
-}
-
-function applyExifToMeta(meta: PhotoMeta, exif: PhotoExif): void {
-  if (exif.device) meta.device = exif.device;
-  if (exif.aperture != null) meta.aperture = exif.aperture;
-  if (exif.shutter) meta.shutter = exif.shutter;
-  if (exif.iso != null) meta.iso = exif.iso;
-  if (exif.focalLength != null) meta.focalLength = exif.focalLength;
-  if (exif.focalLength35 != null) meta.focalLength35 = exif.focalLength35;
-  if (exif.lens) meta.lens = exif.lens;
-  if (exif.takenAt) meta.takenAt = exif.takenAt;
-}
-
 export type SavePhotoOptions = {
   uploader?: string;
   caption?: string;
   featured?: boolean;
-  /** Apple Live Photo companion video (only valid with still images). */
   liveVideo?: File;
-  /** When true, do not unshift — caller manages photos.json */
-  skipMetaWrite?: boolean;
 };
 
 function safeOriginalUploadName(name: string, fallback: string): string {
-  const basename = path.basename(name || fallback).replace(/[\u0000-\u001f\u007f]/g, "_");
+  const basename = path
+    .basename(name || fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, "_");
   return (basename || fallback).slice(0, 255);
 }
 
@@ -244,23 +153,59 @@ function sourceExtension(name: string, isVideo: boolean): string {
   const extension = path.extname(name).toLowerCase();
   const allowed = isVideo
     ? new Set([".mp4", ".webm", ".mov", ".m4v", ".ogg", ".ogv"])
-    : new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif", ".avif", ".bmp", ".tif", ".tiff"]);
+    : new Set([
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".gif",
+        ".heic",
+        ".heif",
+        ".avif",
+        ".bmp",
+        ".tif",
+        ".tiff",
+      ]);
   if (allowed.has(extension)) return extension;
   return isVideo ? ".video" : ".image";
 }
 
-async function queueMediaBuffer(
+/**
+ * Buffer-based ingest used by import tooling and any non-stream callers.
+ * Prefer stream staging (queueStagedMedia) for HTTP uploads.
+ */
+export async function savePhotoBuffer(
   tripId: string,
   raw: Buffer,
   originalFileName: string,
   mimeHint: string,
-  isVideo: boolean,
-  options: SavePhotoOptions,
+  options: SavePhotoOptions = {},
 ): Promise<PhotoMeta> {
+  const name = originalFileName || "photo.jpg";
+  const mimeLower = (mimeHint || "").toLowerCase();
+  const isVideo =
+    mimeLower.startsWith("video/") ||
+    (!mimeLower.startsWith("image/") && VIDEO_EXT.test(name));
+
+  if (isVideo) {
+    if (raw.length > MAX_VIDEO_BYTES) {
+      throw new Error("Each video must be under 100MB");
+    }
+    if (options.liveVideo) {
+      throw new Error(
+        "Live Photo companion can only be attached to a still image",
+      );
+    }
+  } else if (raw.length > 80 * 1024 * 1024) {
+    throw new Error("Each image must be under 80MB");
+  } else if (raw.length > MAX_IMAGE_BYTES) {
+    // Larger sources are accepted; worker/sharp will downscale derivatives.
+  }
+
   const id = randomUUID();
   const version = 1;
   const originalName = safeOriginalUploadName(
-    originalFileName,
+    name,
     isVideo ? "video.mp4" : "photo.jpg",
   );
   const uploader = (options.uploader || "").trim() || "Anonymous traveler";
@@ -331,6 +276,12 @@ async function queueMediaBuffer(
     }
 
     const kind = options.liveVideo ? "live_photo" : isVideo ? "video" : "image";
+    const jobType: MediaJobType =
+      kind === "live_photo"
+        ? "process_live_photo"
+        : kind === "video"
+          ? "process_video"
+          : "process_image";
     const queued = await createQueuedMedia({
       id,
       tripId,
@@ -342,14 +293,9 @@ async function queueMediaBuffer(
       sourceBytes: raw.length,
       featured: options.featured,
       assets,
-      jobType:
-        kind === "live_photo"
-          ? "process_live_photo"
-          : kind === "video"
-            ? "process_video"
-            : "process_image",
+      jobType,
     });
-    return mediaToPhotoMeta(queued);
+    return mediaMetaAfterQueue(id, jobType, queued);
   } catch (error) {
     await Promise.all(staged.map((key) => localMediaStorage.discardStaged(key)));
     await Promise.all(
@@ -363,160 +309,6 @@ async function queueMediaBuffer(
     );
     throw error;
   }
-}
-
-/**
- * Write Live Photo companion .mov next to the still and patch meta fields.
- */
-async function writeLiveVideoCompanion(
-  tripId: string,
-  photoId: string,
-  liveVideo: File,
-): Promise<
-  Pick<
-    PhotoMeta,
-    | "liveVideoFilename"
-    | "liveVideoOriginalName"
-    | "liveVideoSize"
-    | "liveVideoMimeType"
-  >
-> {
-  if (!isAllowedVideo(liveVideo)) {
-    throw new Error("Live Photo companion must be a video (.mov / .mp4)");
-  }
-  if (liveVideo.size > MAX_VIDEO_BYTES) {
-    throw new Error("Live Photo video must be under 100MB");
-  }
-  const raw = Buffer.from(await liveVideo.arrayBuffer());
-  const { ext, mimeType } = videoExtAndMime(liveVideo);
-  const liveVideoFilename = `${photoId}-live${ext}`;
-  const base =
-    path.basename(liveVideo.name, path.extname(liveVideo.name)).trim() ||
-    "live";
-  await fs.writeFile(path.join(tripDir(tripId), liveVideoFilename), raw);
-  return {
-    liveVideoFilename,
-    liveVideoOriginalName: `${base}${ext}`,
-    liveVideoSize: raw.length,
-    liveVideoMimeType: mimeType,
-  };
-}
-
-/**
- * Save an image/video buffer into a trip gallery (shared by HTTP upload + import script).
- */
-export async function savePhotoBuffer(
-  tripId: string,
-  raw: Buffer,
-  originalFileName: string,
-  mimeHint: string,
-  options: SavePhotoOptions = {},
-): Promise<PhotoMeta> {
-  await ensureTripDir(tripId);
-
-  const name = originalFileName || "photo.jpg";
-  const mimeLower = (mimeHint || "").toLowerCase();
-  const isVideo =
-    mimeLower.startsWith("video/") ||
-    (!mimeLower.startsWith("image/") && VIDEO_EXT.test(name));
-
-  if (isVideo) {
-    if (raw.length > MAX_VIDEO_BYTES) {
-      throw new Error("Each video must be under 100MB");
-    }
-    if (options.liveVideo) {
-      throw new Error("Live Photo companion can only be attached to a still image");
-    }
-  } else if (raw.length > MAX_IMAGE_BYTES) {
-    // Allow slightly larger sources; processUploadImage will shrink
-    if (raw.length > 80 * 1024 * 1024) {
-      throw new Error("Each image must be under 80MB");
-    }
-  }
-
-  if (databaseMediaEnabled()) {
-    return queueMediaBuffer(
-      tripId,
-      raw,
-      name,
-      mimeHint || "application/octet-stream",
-      isVideo,
-      options,
-    );
-  }
-
-  const id = randomUUID();
-  const base =
-    path.basename(name, path.extname(name)).trim() ||
-    (isVideo ? "video" : "photo");
-
-  let filename: string;
-  let originalName: string;
-  let mimeType: string;
-  let size: number;
-  let exif: PhotoExif = {};
-
-  if (isVideo) {
-    const { ext, mimeType: vMime } = videoExtAndMime({
-      name,
-      type: mimeHint || "video/mp4",
-    });
-    filename = `${id}${ext}`;
-    originalName = `${base}${ext}`;
-    mimeType = vMime;
-    size = raw.length;
-    await fs.writeFile(path.join(tripDir(tripId), filename), raw);
-    exif = await extractPhotoExif(raw, name).catch(() => ({}));
-  } else {
-    // Read full EXIF before re-encode strips metadata
-    exif = await extractPhotoExif(raw, name).catch(() => ({}));
-    const processed = await processUploadImage(
-      raw,
-      name,
-      mimeHint || "application/octet-stream",
-    );
-    filename = `${id}${processed.ext}`;
-    originalName = `${base}.jpg`;
-    mimeType = processed.mimeType;
-    size = processed.buffer.length;
-    await fs.writeFile(path.join(tripDir(tripId), filename), processed.buffer);
-  }
-
-  const meta: PhotoMeta = {
-    id,
-    tripId,
-    filename,
-    originalName,
-    uploader: (options.uploader || "").trim() || "Anonymous traveler",
-    caption: options.caption?.trim() || undefined,
-    mimeType,
-    size,
-    uploadedAt: new Date().toISOString(),
-  };
-  applyExifToMeta(meta, exif);
-
-  if (options.featured) {
-    meta.featured = true;
-    meta.featuredAt = new Date().toISOString();
-  }
-
-  // Apple Live Photo: still + companion video → one gallery item
-  if (options.liveVideo && !isVideo) {
-    const live = await writeLiveVideoCompanion(tripId, id, options.liveVideo);
-    Object.assign(meta, live);
-  }
-
-  if (!options.skipMetaWrite) {
-    const photos = await getPhotos(tripId);
-    photos.unshift(meta);
-    await fs.writeFile(
-      metaPath(tripId),
-      JSON.stringify(photos, null, 2),
-      "utf-8",
-    );
-  }
-
-  return meta;
 }
 
 export async function savePhoto(
@@ -548,8 +340,7 @@ export async function savePhoto(
 }
 
 /**
- * Save one or more files, auto-pairing Apple Live Photos by basename
- * (IMG_1234.HEIC + IMG_1234.MOV). Sequential writes avoid photos.json races.
+ * Save one or more files, auto-pairing Apple Live Photos by basename.
  */
 export async function saveMediaFiles(
   tripId: string,
@@ -584,27 +375,13 @@ export async function saveMediaFiles(
   return { saved, errors };
 }
 
-/** Re-export pairing type for API callers that want unit counts. */
 export type { MediaUploadUnit };
 
-/** Replace photos.json entirely (import / sync scripts). */
-export async function writePhotosMeta(
-  tripId: string,
-  photos: PhotoMeta[],
-): Promise<void> {
-  if (databaseMediaEnabled()) {
-    throw new Error("writePhotosMeta is only available for the legacy JSON backend");
-  }
-  await ensureTripDir(tripId);
-  await fs.writeFile(
-    metaPath(tripId),
-    JSON.stringify(photos, null, 2),
-    "utf-8",
-  );
-}
-
 export function tripUploadsDir(tripId: string) {
-  return tripDir(tripId);
+  const legacyRoot =
+    process.env.LEGACY_UPLOADS_ROOT ||
+    path.join(process.cwd(), "public", "uploads");
+  return path.join(legacyRoot, tripId);
 }
 
 export function photoPublicUrl(tripId: string, filename: string) {
@@ -620,58 +397,20 @@ export async function deletePhoto(
   return result.deleted.includes(photoId);
 }
 
-/** Batch delete. Returns deleted ids and public URLs that were removed (for cover cleanup). */
 export async function deletePhotos(
   tripId: string,
   photoIds: string[],
 ): Promise<{ deleted: string[]; removedUrls: string[] }> {
-  if (databaseMediaEnabled()) {
-    const removed = await softDeleteMedia(tripId, photoIds.filter(Boolean));
-    const removedUrls: string[] = [];
-    for (const media of removed) {
-      const meta = mediaToPhotoMeta(media);
-      removedUrls.push(photoPublicUrl(tripId, meta.filename));
-      if (meta.liveVideoFilename) {
-        removedUrls.push(photoPublicUrl(tripId, meta.liveVideoFilename));
-      }
-    }
-    return { deleted: removed.map((media) => media.id), removedUrls };
-  }
-  await ensureTripDir(tripId);
-  const idSet = new Set(photoIds.filter(Boolean));
-  if (idSet.size === 0) return { deleted: [], removedUrls: [] };
-
-  const photos = await getPhotos(tripId);
-  const toRemove = photos.filter((p) => idSet.has(p.id));
-  if (toRemove.length === 0) return { deleted: [], removedUrls: [] };
-
-  const removeIds = new Set(toRemove.map((p) => p.id));
-  const next = photos.filter((p) => !removeIds.has(p.id));
-  await fs.writeFile(metaPath(tripId), JSON.stringify(next, null, 2), "utf-8");
-
+  const removed = await softDeleteMedia(tripId, photoIds.filter(Boolean));
   const removedUrls: string[] = [];
-  for (const photo of toRemove) {
-    removedUrls.push(photoPublicUrl(tripId, photo.filename));
-    try {
-      await fs.unlink(path.join(tripDir(tripId), photo.filename));
-    } catch {
-      // file may already be gone
-    }
-    // Also remove Apple Live Photo companion video
-    if (photo.liveVideoFilename) {
-      removedUrls.push(photoPublicUrl(tripId, photo.liveVideoFilename));
-      try {
-        await fs.unlink(path.join(tripDir(tripId), photo.liveVideoFilename));
-      } catch {
-        // companion may already be gone
-      }
+  for (const media of removed) {
+    const meta = mediaToPhotoMeta(media);
+    removedUrls.push(photoPublicUrl(tripId, meta.filename));
+    if (meta.liveVideoFilename) {
+      removedUrls.push(photoPublicUrl(tripId, meta.liveVideoFilename));
     }
   }
-
-  return {
-    deleted: toRemove.map((p) => p.id),
-    removedUrls,
-  };
+  return { deleted: removed.map((media) => media.id), removedUrls };
 }
 
 export async function updatePhotoCaption(
@@ -689,54 +428,12 @@ export type PhotoPatch = {
   featured?: boolean;
 };
 
-/**
- * Patch caption and/or featured flag. Pass `caption: undefined` via empty
- * string through updatePhotoCaption; for featured, true stars, false unstars.
- */
 export async function updatePhoto(
   tripId: string,
   photoId: string,
   patch: PhotoPatch,
 ): Promise<PhotoMeta | null> {
-  if (databaseMediaEnabled()) {
-    return updateMediaMetadata(tripId, photoId, patch);
-  }
-  await ensureTripDir(tripId);
-  const raw = await fs.readFile(metaPath(tripId), "utf-8");
-  const photos = JSON.parse(raw) as PhotoMeta[];
-  const index = photos.findIndex((p) => p.id === photoId);
-  if (index < 0) return null;
-
-  const prev = photos[index];
-  const next: PhotoMeta = { ...prev };
-
-  if ("caption" in patch) {
-    next.caption = patch.caption?.trim() || undefined;
-  }
-
-  if (typeof patch.featured === "boolean") {
-    if (patch.featured) {
-      next.featured = true;
-      next.featuredAt = prev.featured
-        ? prev.featuredAt || new Date().toISOString()
-        : new Date().toISOString();
-    } else {
-      // Drop keys so disk JSON stays clean; response still needs an
-      // explicit false (JSON omits undefined, and clients merge by spread).
-      delete next.featured;
-      delete next.featuredAt;
-    }
-  }
-
-  photos[index] = next;
-  await fs.writeFile(metaPath(tripId), JSON.stringify(photos, null, 2), "utf-8");
-
-  // Always include a boolean so PATCH clients can clear featured via spread merge
-  return {
-    ...next,
-    featured: next.featured === true,
-    featuredAt: next.featured ? next.featuredAt : undefined,
-  };
+  return updateMediaMetadata(tripId, photoId, patch);
 }
 
 export async function setPhotoFeatured(

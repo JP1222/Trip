@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeAuditEvent } from "@/lib/audit";
 import { queueStagedMedia } from "@/lib/media/ingest";
+import { pairStagedUploads, stagedToSource } from "@/lib/media/pairing";
 import { attachRequestId, getRequestId } from "@/lib/observability/request-id";
-import { getPhotos, savePhoto } from "@/lib/photos";
-import { authorizeTripWrite } from "@/lib/security/access";
+import { logger } from "@/lib/observability/logger";
+import { getPhotos } from "@/lib/photos";
 import { validateRequestOrigin } from "@/lib/security/origin";
 import {
   consumeRateLimit,
   createRateLimitKey,
   rateLimitHeaders,
 } from "@/lib/security/rate-limit";
-import { getClientIp, getClientIpHash } from "@/lib/security/request";
+import { getClientIp } from "@/lib/security/request";
 import { getTrip } from "@/lib/trips";
 import {
   parseMediaUpload,
@@ -25,16 +25,6 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function databaseMediaEnabled(): boolean {
-  const configured = (process.env.MEDIA_BACKEND || "").toLowerCase();
-  if (configured === "legacy" || configured === "json") return false;
-  return (
-    configured === "db" ||
-    configured === "postgres" ||
-    Boolean(process.env.DATABASE_URL)
-  );
-}
-
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const trip = await getTrip(id);
@@ -45,6 +35,10 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   return NextResponse.json(photos);
 }
 
+/**
+ * Public gallery upload (product: open album for friends).
+ * Streamed to disk, enqueued for media-worker. Rate-limited per IP + trip.
+ */
 export async function POST(req: NextRequest, ctx: Ctx) {
   const requestId = getRequestId(req);
   if (!validateRequestOrigin(req).ok) {
@@ -67,13 +61,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     bucketKey: createRateLimitKey("photo-upload", getClientIp(req), id),
     limit: 30,
     windowMs: 15 * 60 * 1000,
-  }).catch(() => null);
-  if (!rateLimit) {
-    return attachRequestId(
-      NextResponse.json({ error: "Service unavailable" }, { status: 503 }),
-      requestId,
-    );
-  }
+  });
   if (!rateLimit.allowed) {
     return attachRequestId(
       NextResponse.json(
@@ -84,163 +72,59 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     );
   }
 
-  if (databaseMediaEnabled()) {
-    let staged: StagedUpload[] = [];
-    try {
-      const parsed = await parseMediaUpload(req, {
-        maxFiles: uploadLimits.publicFiles,
-      });
-      staged = parsed.files;
-
-      // Public gallery stays open. A supplied invite token must be valid.
-      if (parsed.fields.token) {
-        const actor = await authorizeTripWrite(
-          req,
-          id,
-          "upload",
-          parsed.fields.token,
-        );
-        if (!actor) {
-          await removeStagedUploads(staged);
-          return attachRequestId(
-            NextResponse.json(
-              { error: "Invalid upload access" },
-              { status: 401 },
-            ),
-            requestId,
-          );
-        }
-      }
-
-      const primary =
-        parsed.files.find((file) => file.fieldName === "file") ||
-        parsed.files.find((file) => file.fieldName === "files") ||
-        parsed.files[0];
-      const liveVideo = parsed.files.find(
-        (file) => file.fieldName === "liveVideo",
-      );
-      if (!primary) {
-        await removeStagedUploads(staged);
-        return attachRequestId(
-          NextResponse.json(
-            { error: "Please choose a photo or video file" },
-            { status: 400 },
-          ),
-          requestId,
-        );
-      }
-
-      const meta = await queueStagedMedia({
-        tripId: id,
-        uploader: parsed.fields.uploader || "Anonymous traveler",
-        caption: parsed.fields.caption,
-        primary: {
-          path: primary.path,
-          originalName: primary.originalName,
-          declaredMimeType: primary.declaredMimeType,
-          byteSize: primary.byteSize,
-          sha256: primary.sha256,
-        },
-        liveVideo: liveVideo
-          ? {
-              path: liveVideo.path,
-              originalName: liveVideo.originalName,
-              declaredMimeType: liveVideo.declaredMimeType,
-              byteSize: liveVideo.byteSize,
-              sha256: liveVideo.sha256,
-            }
-          : undefined,
-      });
-      staged = staged.filter(
-        (file) => file.path !== primary.path && file.path !== liveVideo?.path,
-      );
-      await removeStagedUploads(staged);
-
-      const actor = await authorizeTripWrite(
-        req,
-        id,
-        "upload",
-        parsed.fields.token,
-      );
-      if (actor) {
-        await writeAuditEvent({
-          actorType:
-            actor.kind === "admin"
-              ? "admin"
-              : actor.kind === "capability"
-                ? "capability"
-                : "system",
-          actorId:
-            actor.kind === "admin"
-              ? actor.session.id
-              : actor.kind === "capability"
-                ? actor.capability.id
-                : "legacy-collab",
-          action: "media.uploaded",
-          entityType: "media",
-          entityId: meta.id,
-          requestId,
-          ipHash: getClientIpHash(req),
-          details: { tripId: id },
-        });
-      }
-
-      return attachRequestId(
-        NextResponse.json(meta, {
-          status: 201,
-          headers: {
-            "Cache-Control": "no-store",
-            ...rateLimitHeaders(rateLimit),
-          },
-        }),
-        requestId,
-      );
-    } catch (err) {
-      await removeStagedUploads(staged);
-      const message = err instanceof Error ? err.message : "Upload failed";
-      return attachRequestId(
-        NextResponse.json({ error: message }, { status: 400 }),
-        requestId,
-      );
-    }
-  }
-
-  // Legacy JSON/file backend (local without DATABASE_URL).
+  let staged: StagedUpload[] = [];
   try {
-    const form = await req.formData();
-    const file = form.get("file");
-    const uploader = String(form.get("uploader") || "");
-    const caption = form.get("caption");
-    const liveRaw = form.get("liveVideo");
-    const liveVideo =
-      liveRaw instanceof File && liveRaw.size > 0 ? liveRaw : undefined;
+    const parsed = await parseMediaUpload(req, {
+      maxFiles: uploadLimits.publicFiles,
+    });
+    staged = parsed.files;
 
-    if (!(file instanceof File)) {
-      return attachRequestId(
-        NextResponse.json(
-          { error: "Please choose a photo or video file" },
-          { status: 400 },
-        ),
-        requestId,
-      );
+    const units = pairStagedUploads(parsed.files);
+    if (units.length !== 1) {
+      throw new Error("Upload one photo/video (or one Live Photo pair) at a time");
     }
+    const unit = units[0];
+    const primary = unit.kind === "live" ? unit.still : unit.file;
+    const liveVideo = unit.kind === "live" ? unit.live : undefined;
 
-    const meta = await savePhoto(
-      id,
-      file,
-      uploader,
-      typeof caption === "string" ? caption : undefined,
-      liveVideo,
+    const meta = await queueStagedMedia({
+      tripId: id,
+      uploader: parsed.fields.uploader || "Anonymous traveler",
+      caption: parsed.fields.caption,
+      primary: stagedToSource(primary),
+      liveVideo: liveVideo ? stagedToSource(liveVideo) : undefined,
+    });
+
+    const adopted = new Set(
+      [primary.path, liveVideo?.path].filter(Boolean) as string[],
     );
+    await removeStagedUploads(staged.filter((file) => !adopted.has(file.path)));
+    staged = [];
+
+    logger.info("media_public_upload", {
+      requestId,
+      tripId: id,
+      mediaId: meta.id,
+    });
+
     return attachRequestId(
       NextResponse.json(meta, {
         status: 201,
-        headers: rateLimitHeaders(rateLimit),
+        headers: {
+          "Cache-Control": "no-store",
+          ...rateLimitHeaders(rateLimit),
+        },
       }),
       requestId,
     );
   } catch (err) {
+    await removeStagedUploads(staged);
     const message = err instanceof Error ? err.message : "Upload failed";
+    logger.warn("media_public_upload_failed", {
+      requestId,
+      tripId: id,
+      error: message,
+    });
     return attachRequestId(
       NextResponse.json({ error: message }, { status: 400 }),
       requestId,

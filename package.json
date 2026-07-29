@@ -18,7 +18,10 @@
     "db:migrate": "tsx scripts/migrate-db.ts",
     "db:import:legacy": "tsx scripts/migrate-legacy-data.ts",
     "worker:media": "tsx scripts/media-worker.ts",
-    "import:photos": "node scripts/import-desktop-photos.mjs"
+    "import:photos": "node scripts/import-desktop-photos.mjs",
+    "smoke:backend": "tsx scripts/smoke-backend.ts",
+    "backup": "bash scripts/backup.sh",
+    "restore": "bash scripts/restore.sh"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",

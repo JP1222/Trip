@@ -11,6 +11,7 @@ import { query } from "@/lib/db";
 import { logger } from "@/lib/observability/logger";
 import { getSecurityEnvironment } from "@/lib/security/env";
 
+/** Cleared on login/logout so pre-cutover cookies cannot linger. */
 const LEGACY_ADMIN_COOKIE = "wander_admin";
 const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
@@ -40,10 +41,6 @@ export type CreatedAdminSession = AdminSession & {
   token: string;
 };
 
-function useDatabase(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
-}
-
 function asDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
 }
@@ -70,15 +67,6 @@ function hashSessionToken(token: string): string {
     .digest("hex");
 }
 
-/** Deterministic local-only token when PostgreSQL is not configured. */
-function legacyExpectedToken(): string | null {
-  const { adminUsername, adminPassword, appSecret } = getSecurityEnvironment();
-  if (!adminUsername || !adminPassword) return null;
-  return createHash("sha256")
-    .update(`wander:${adminUsername}:${adminPassword}:${appSecret}`)
-    .digest("hex");
-}
-
 export function verifyCredentials(
   inputUser: string,
   inputPassword: string,
@@ -102,20 +90,6 @@ export async function createAdminSession(input: {
   const username = input.username?.trim() || environment.adminUsername;
   if (!username || username !== environment.adminUsername) {
     throw new Error("Cannot create a session for an unknown administrator");
-  }
-
-  if (!useDatabase()) {
-    const token = legacyExpectedToken();
-    if (!token) throw new Error("Admin credentials are not configured");
-    const now = new Date();
-    return {
-      id: "legacy-local",
-      username,
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + environment.sessionTtlSeconds * 1000),
-      lastSeenAt: now,
-      token,
-    };
   }
 
   const id = randomUUID();
@@ -152,32 +126,7 @@ export async function createAdminSession(input: {
 export async function getAdminSessionFromToken(
   token: string | null | undefined,
 ): Promise<AdminSession | null> {
-  if (!token) return null;
-
-  if (!useDatabase()) {
-    const expected = legacyExpectedToken();
-    if (!expected || token.length !== expected.length) return null;
-    try {
-      if (!timingSafeEqual(Buffer.from(token), Buffer.from(expected))) {
-        return null;
-      }
-    } catch {
-      return null;
-    }
-    const { adminUsername, sessionTtlSeconds } = getSecurityEnvironment();
-    const now = new Date();
-    return {
-      id: "legacy-local",
-      username: adminUsername,
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + sessionTtlSeconds * 1000),
-      lastSeenAt: now,
-    };
-  }
-
-  // The previous deterministic token was a 64-character hex value. Requiring
-  // the exact random-token format makes it impossible to accept by accident.
-  if (!SESSION_TOKEN_PATTERN.test(token)) return null;
+  if (!token || !SESSION_TOKEN_PATTERN.test(token)) return null;
 
   const { adminUsername } = getSecurityEnvironment();
   const result = await query<AdminSessionRow>(
@@ -199,13 +148,7 @@ export async function getAdminSessionFromToken(
 
 export async function getCurrentAdminSession(): Promise<AdminSession | null> {
   const jar = await cookies();
-  const primary = await getAdminSessionFromToken(jar.get(ADMIN_COOKIE)?.value);
-  if (primary) return primary;
-  // Cutover: accept the legacy cookie only when still on JSON mode.
-  if (!useDatabase()) {
-    return getAdminSessionFromToken(jar.get(LEGACY_ADMIN_COOKIE)?.value);
-  }
-  return null;
+  return getAdminSessionFromToken(jar.get(ADMIN_COOKIE)?.value);
 }
 
 export async function isAdmin(): Promise<boolean> {
@@ -220,9 +163,7 @@ export async function isAdmin(): Promise<boolean> {
 export async function revokeAdminSessionToken(
   token: string | null | undefined,
 ): Promise<boolean> {
-  if (!token) return false;
-  if (!useDatabase()) return true;
-  if (!SESSION_TOKEN_PATTERN.test(token)) return false;
+  if (!token || !SESSION_TOKEN_PATTERN.test(token)) return false;
   const result = await query(
     `UPDATE admin_sessions
      SET revoked_at = COALESCE(revoked_at, now())
@@ -250,7 +191,6 @@ export function setAdminSessionCookie(
   maxAgeSec = getSecurityEnvironment().sessionTtlSeconds,
 ): void {
   response.cookies.set(ADMIN_COOKIE, token, adminCookieOptions(maxAgeSec));
-  // Explicitly remove the deterministic legacy cookie during cutover.
   response.cookies.set(LEGACY_ADMIN_COOKIE, "", {
     ...adminCookieOptions(0),
     maxAge: 0,

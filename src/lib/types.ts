@@ -108,8 +108,9 @@ export type Trip = {
   /** Planning checklist / tips */
   tips?: string[];
   /**
-   * Secret for shared collab edit link: /trips/{id}?edit={collabToken}
-   * Anyone with the link can edit plan + budget (not admin photos).
+   * @deprecated Not stored in Postgres. Collaboration uses hashed trip
+   * capabilities (admin Share invite). Kept optional on the type for
+   * import/legacy payload compatibility only.
    */
   collabToken?: string;
   /** Shared group budget */

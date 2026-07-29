@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
         {
           status: result.ready ? "ready" : "not_ready",
           checks: result.checks,
+          details: result.details,
         },
         {
           status: result.ready ? 200 : 503,

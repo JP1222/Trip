@@ -10,6 +10,7 @@ import {
   mediaErrorMessage,
   processMediaJob,
 } from "../src/lib/media";
+import { collectQueueSnapshot } from "../src/lib/observability/metrics";
 
 const workerId = process.env.MEDIA_WORKER_ID || `media-${randomUUID()}`;
 const leaseSeconds = Math.max(
@@ -60,12 +61,26 @@ async function wait(milliseconds: number): Promise<void> {
 
 async function run(): Promise<void> {
   log("info", "worker_started", { leaseSeconds, pollMilliseconds });
+  let idlePolls = 0;
   while (!stopping) {
     const job = await claimMediaJob(workerId, leaseSeconds);
     if (!job) {
+      idlePolls += 1;
+      // Periodic queue snapshot while idle so ops can see backlog without scraping.
+      if (idlePolls === 1 || idlePolls % 20 === 0) {
+        try {
+          const snapshot = await collectQueueSnapshot();
+          log("info", "queue_snapshot", snapshot);
+        } catch (error) {
+          log("warn", "queue_snapshot_failed", {
+            error: mediaErrorMessage(error),
+          });
+        }
+      }
       await wait(pollMilliseconds);
       continue;
     }
+    idlePolls = 0;
 
     const started = Date.now();
     activeAbort = new AbortController();

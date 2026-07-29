@@ -12,6 +12,16 @@ export type ReadinessChecks = {
   mediaPublic: "ok" | "error";
 };
 
+export type ReadinessDetails = {
+  queue?: {
+    pending: number;
+    processing: number;
+    failed: number;
+    oldestPendingAgeSeconds: number | null;
+  };
+  warnings: string[];
+};
+
 function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(
@@ -77,6 +87,7 @@ async function resultOf(check: Promise<void>): Promise<"ok" | "error"> {
 export async function runReadinessChecks(): Promise<{
   ready: boolean;
   checks: ReadinessChecks;
+  details: ReadinessDetails;
 }> {
   const environment = getSecurityEnvironment();
   const [database, mediaPrivate, mediaPublic] = await Promise.all([
@@ -95,8 +106,28 @@ export async function runReadinessChecks(): Promise<{
     ),
   ]);
   const checks = { database, mediaPrivate, mediaPublic } satisfies ReadinessChecks;
-  return {
-    ready: Object.values(checks).every((status) => status === "ok"),
-    checks,
-  };
+  const ready = Object.values(checks).every((status) => status === "ok");
+  const details: ReadinessDetails = { warnings: [] };
+
+  if (ready) {
+    try {
+      const { collectQueueSnapshot } = await import(
+        "@/lib/observability/metrics"
+      );
+      const queue = await withTimeout(collectQueueSnapshot(), "queue snapshot");
+      details.queue = queue;
+      if (queue.pending > 0 && (queue.oldestPendingAgeSeconds ?? 0) > 900) {
+        details.warnings.push(
+          "Pending media jobs are older than 15 minutes; check media-worker",
+        );
+      }
+      if (queue.failed > 0) {
+        details.warnings.push(`${queue.failed} media job(s) failed`);
+      }
+    } catch {
+      details.warnings.push("Could not collect media queue snapshot");
+    }
+  }
+
+  return { ready, checks, details };
 }

@@ -20,7 +20,6 @@ export type AuditEvent = {
  * structured error instead of turning a successful user action into a retry.
  */
 export async function writeAuditEvent(event: AuditEvent): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return;
   try {
     await query(
       `INSERT INTO audit_events (

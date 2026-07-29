@@ -38,8 +38,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     bucketKey: createRateLimitKey("photo-download", getClientIp(req), tripId),
     limit: 120,
     windowMs: 15 * 60 * 1000,
-  }).catch(() => null);
-  if (rateLimit && !rateLimit.allowed) {
+  });
+  if (!rateLimit.allowed) {
     return attachRequestId(
       NextResponse.json(
         { error: "Too many downloads. Try again later." },
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const headersBase: HeadersInit = {
     "Cache-Control": "private, no-store",
     "X-Content-Type-Options": "nosniff",
-    ...(rateLimit ? rateLimitHeaders(rateLimit) : {}),
+    ...rateLimitHeaders(rateLimit),
   };
 
   if (part === "live") {

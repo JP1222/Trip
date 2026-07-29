@@ -10,20 +10,14 @@ import {
   type TripCapability,
   type TripCapabilityScope,
 } from "@/lib/security/capabilities";
-import { getTrip } from "@/lib/trips";
 
 export type WriteActor =
   | { kind: "admin"; session: AdminSession }
-  | { kind: "capability"; capability: TripCapability; token: string }
-  | { kind: "legacy-token"; token: string };
-
-function useDatabase(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
-}
+  | { kind: "capability"; capability: TripCapability; token: string };
 
 /**
  * Admin session or a trip capability with the required scope.
- * Without DATABASE_URL, falls back to the legacy plaintext collabToken on the trip.
+ * Token may come from the request body/header or the httpOnly cookie.
  */
 export async function authorizeTripWrite(
   request: NextRequest,
@@ -33,15 +27,6 @@ export async function authorizeTripWrite(
 ): Promise<WriteActor | null> {
   const session = await getCurrentAdminSession().catch(() => null);
   if (session) return { kind: "admin", session };
-
-  if (!useDatabase()) {
-    const trip = await getTrip(tripId);
-    const token = (bodyToken || "").trim();
-    if (trip?.collabToken && token && token === trip.collabToken) {
-      return { kind: "legacy-token", token };
-    }
-    return null;
-  }
 
   const candidates = [
     (bodyToken || "").trim(),
@@ -65,10 +50,6 @@ export async function requireAdminSession(): Promise<AdminSession | null> {
 
 /** True when the trip has at least one unexpired, non-revoked invite. */
 export async function hasActiveTripInvite(tripId: string): Promise<boolean> {
-  if (!useDatabase()) {
-    const trip = await getTrip(tripId);
-    return Boolean(trip?.collabToken);
-  }
   const now = Date.now();
   const capabilities = await listTripCapabilities(tripId).catch(() => []);
   return capabilities.some(
@@ -81,20 +62,22 @@ export async function hasActiveTripInvite(tripId: string): Promise<boolean> {
 export async function verifyInviteToken(
   tripId: string,
   token: string | null | undefined,
-): Promise<TripCapability | { legacy: true } | null> {
+): Promise<TripCapability | null> {
   const value = (token || "").trim();
   if (!value) return null;
-
-  if (!useDatabase()) {
-    const trip = await getTrip(tripId);
-    return trip?.collabToken && value === trip.collabToken
-      ? { legacy: true }
-      : null;
-  }
-
   for (const scope of ["plan", "comment", "upload"] as const) {
     const capability = await verifyTripCapability(tripId, value, scope);
     if (capability) return capability;
   }
   return null;
+}
+
+export function actorType(
+  actor: WriteActor,
+): "admin" | "capability" {
+  return actor.kind;
+}
+
+export function actorId(actor: WriteActor): string {
+  return actor.kind === "admin" ? actor.session.id : actor.capability.id;
 }

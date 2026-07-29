@@ -1,5 +1,7 @@
 # Production deploy (Oracle ARM + Traefik)
 
+PostgreSQL is the **only** metadata store. JSON file mode has been removed.
+
 ## Topology
 
 - `trip` — Next.js web (standalone)
@@ -8,15 +10,15 @@
 - `media` — nginx serving public derivatives + legacy `/uploads`
 - Traefik terminates TLS (external)
 
-See [ADR 0001](./adr/0001-production-backend.md) for design decisions.
+See [ADR 0001](./adr/0001-production-backend.md).
 
 ## First cutover
 
 1. Fill `.env` from `.env.example` with strong `ADMIN_PASSWORD`, `APP_SECRET` (≥32 bytes), `POSTGRES_PASSWORD`, `APP_ORIGIN=https://your.host`, `DATABASE_URL`.
-2. Copy legacy tree if needed:
+2. Stage legacy inputs (import only):
    - `data/trips.json` + `data/comments/`
-   - upload binaries at `LEGACY_UPLOADS_PATH` (default `./uploads` or `./public/uploads`)
-3. Create media dirs: `mkdir -p runtime/media-private runtime/media-public runtime/postgres`
+   - binaries at `LEGACY_UPLOADS_PATH` (often `./public/uploads`)
+3. `mkdir -p runtime/media-private runtime/media-public runtime/postgres runtime/backups`
 4. Build and start:
 
 ```bash
@@ -30,35 +32,62 @@ docker compose run --rm migrate pnpm db:import:legacy -- --dry-run
 docker compose run --rm migrate pnpm db:import:legacy -- --commit
 ```
 
-6. Confirm worker is processing:
+6. Smoke check:
+
+```bash
+docker compose run --rm -e BASE_URL=http://trip:3000 migrate pnpm smoke:backend
+# or from host once the site is reachable:
+# BASE_URL=https://trip.example.com DATABASE_URL=... pnpm smoke:backend
+```
+
+7. Confirm worker:
 
 ```bash
 docker compose logs -f media-worker
+# look for queue_snapshot / job_succeeded
 ```
 
-7. Rotate admin password and recreate collaboration invites (old plaintext `collabToken` values are not migrated).
+8. **Rotate collaboration invites.** Plaintext `collabToken` values are not migrated; create new Share links in admin.
 
-## Local backend (without Traefik)
+## Local backend
 
 ```bash
 docker compose -f docker-compose.local.yml up -d postgres
 export DATABASE_URL=postgresql://trip:trip@127.0.0.1:5432/trip
 export APP_SECRET=development-only-session-secret-not-for-prod
-export ADMIN_PASSWORD=your-local-password
+export ADMIN_PASSWORD=your-local-password-at-least-16
+export APP_ORIGIN=http://localhost:3000
 pnpm db:migrate
 pnpm db:import:legacy -- --commit   # optional
 pnpm worker:media                   # terminal 1
-MEDIA_INLINE_PROCESS=1 pnpm dev     # or keep worker and omit inline
+pnpm dev                            # terminal 2
+# optional without worker: MEDIA_INLINE_PROCESS=1 pnpm dev
+pnpm smoke:backend
 ```
 
-Without `DATABASE_URL`, the app still runs on JSON files (`data/trips.json`, `data/comments`, `public/uploads`) for offline UI work.
+## Observability
 
-## Health
+| Endpoint | Who | Purpose |
+|----------|-----|---------|
+| `GET /api/health/live` | load balancer | process up |
+| `GET /api/health/ready` | orchestrator | DB + media roots; includes queue snapshot + warnings |
+| `GET /api/admin/ops/metrics` | admin session | media/job counts, 24h failures, disk usage, hints |
 
-- Liveness: `GET /api/health/live`
-- Readiness: `GET /api/health/ready` (Postgres + media volumes)
+Worker logs emit `queue_snapshot` while idle and structured `job_*` events while busy.
 
-## Backup
+## Backup / restore
 
-- Postgres: `pg_dump` / volume snapshot of `runtime/postgres`
-- Media: both `runtime/media-private` and `runtime/media-public` (and legacy uploads until derivatives finish)
+```bash
+pnpm backup
+# → runtime/backups/<timestamp>/{postgres.dump,media-*.tar.gz,MANIFEST.txt}
+
+./scripts/restore.sh runtime/backups/<timestamp>
+```
+
+Keep off-host copies of `runtime/backups`. Test restore before trusting cutover.
+
+## Health after deploy
+
+- Ready returns 200 with `checks.*.ok`
+- `details.queue.pending` should drain under worker load
+- `GET /api/admin/ops/metrics` `healthHints` should be empty or explainable

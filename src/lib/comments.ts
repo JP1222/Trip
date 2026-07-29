@@ -2,11 +2,6 @@ import { randomUUID } from "crypto";
 import type { QueryResultRow } from "pg";
 import { query, withTransaction } from "./db";
 import type { Comment } from "./types";
-import * as commentsJson from "./comments-json";
-
-function useDatabase(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
-}
 
 type CommentRow = QueryResultRow & {
   id: string;
@@ -18,7 +13,9 @@ type CommentRow = QueryResultRow & {
 };
 
 function isoTimestamp(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function rowToComment(row: CommentRow): Comment {
@@ -44,11 +41,12 @@ export type CommentScope =
 
 /** Trip-level notes only (no photoId). */
 export async function getTripComments(tripId: string): Promise<Comment[]> {
-  if (!useDatabase()) return commentsJson.getTripComments(tripId);
-  const result = await query<CommentRow>(`${COMMENT_SELECT}
+  const result = await query<CommentRow>(
+    `${COMMENT_SELECT}
     WHERE trip_id = $1 AND media_id IS NULL
-    ORDER BY created_at DESC, id DESC
-  `, [tripId]);
+    ORDER BY created_at DESC, id DESC`,
+    [tripId],
+  );
   return result.rows.map(rowToComment);
 }
 
@@ -57,21 +55,23 @@ export async function getPhotoComments(
   tripId: string,
   photoId: string,
 ): Promise<Comment[]> {
-  if (!useDatabase()) return commentsJson.getPhotoComments(tripId, photoId);
-  const result = await query<CommentRow>(`${COMMENT_SELECT}
+  const result = await query<CommentRow>(
+    `${COMMENT_SELECT}
     WHERE trip_id = $1 AND media_id = $2
-    ORDER BY created_at DESC, id DESC
-  `, [tripId, photoId]);
+    ORDER BY created_at DESC, id DESC`,
+    [tripId, photoId],
+  );
   return result.rows.map(rowToComment);
 }
 
 /** Every comment on the trip (trip notes + photo comments). */
 export async function getComments(tripId: string): Promise<Comment[]> {
-  if (!useDatabase()) return commentsJson.getComments(tripId);
-  const result = await query<CommentRow>(`${COMMENT_SELECT}
+  const result = await query<CommentRow>(
+    `${COMMENT_SELECT}
     WHERE trip_id = $1
-    ORDER BY created_at DESC, id DESC
-  `, [tripId]);
+    ORDER BY created_at DESC, id DESC`,
+    [tripId],
+  );
   return result.rows.map(rowToComment);
 }
 
@@ -79,7 +79,6 @@ export async function getCommentsByScope(
   tripId: string,
   scope: CommentScope,
 ): Promise<Comment[]> {
-  if (!useDatabase()) return commentsJson.getCommentsByScope(tripId, scope);
   if (scope.kind === "trip") return getTripComments(tripId);
   if (scope.kind === "photo") return getPhotoComments(tripId, scope.photoId);
   return getComments(tripId);
@@ -89,13 +88,15 @@ export async function getCommentsByScope(
 export async function getPhotoCommentCounts(
   tripId: string,
 ): Promise<Record<string, number>> {
-  if (!useDatabase()) return commentsJson.getPhotoCommentCounts(tripId);
-  const result = await query<{ media_id: string; comment_count: string }>(`
+  const result = await query<{ media_id: string; comment_count: string }>(
+    `
     SELECT media_id, count(*)::text AS comment_count
     FROM comments
     WHERE trip_id = $1 AND media_id IS NOT NULL
     GROUP BY media_id
-  `, [tripId]);
+  `,
+    [tripId],
+  );
   return Object.fromEntries(
     result.rows.map((row) => [row.media_id, Number(row.comment_count)]),
   );
@@ -107,9 +108,6 @@ export async function addComment(
   body: string,
   photoId?: string,
 ): Promise<Comment> {
-  if (!useDatabase()) {
-    return commentsJson.addComment(tripId, author, body, photoId);
-  }
   const name = author.trim();
   const text = body.trim();
   if (!name) throw new Error("Please add your name");
@@ -136,7 +134,6 @@ export async function deleteComment(
   tripId: string,
   commentId: string,
 ): Promise<boolean> {
-  if (!useDatabase()) return commentsJson.deleteComment(tripId, commentId);
   return withTransaction(async (client) => {
     const result = await client.query<{ id: string }>(
       `DELETE FROM comments WHERE trip_id = $1 AND id = $2 RETURNING id`,

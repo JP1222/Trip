@@ -62,13 +62,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     bucketKey: createRateLimitKey("comment", getClientIp(req), id),
     limit: 40,
     windowMs: 15 * 60 * 1000,
-  }).catch(() => null);
-  if (!rateLimit) {
-    return attachRequestId(
-      NextResponse.json({ error: "Service unavailable" }, { status: 503 }),
-      requestId,
-    );
-  }
+  });
   if (!rateLimit.allowed) {
     return attachRequestId(
       NextResponse.json(
