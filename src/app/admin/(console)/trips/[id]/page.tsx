@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminComments } from "@/components/admin/AdminComments";
 import { AdminPhotos } from "@/components/admin/AdminPhotos";
+import { AdminPlanEditor } from "@/components/admin/AdminPlanEditor";
+import { AdminTripShare } from "@/components/admin/AdminTripShare";
 import { TripAdminForm } from "@/components/admin/TripAdminForm";
 import { getComments } from "@/lib/comments";
 import { getPhotos } from "@/lib/photos";
@@ -22,55 +24,65 @@ export default async function AdminTripPage({ params }: Props) {
   ]);
 
   return (
-    <div className="space-y-12">
-      <div>
-        <Link
-          href="/admin"
-          className="text-sm text-ink-muted transition hover:text-sea"
-        >
-          ← All trips
-        </Link>
-        <h1 className="mt-3 font-serif text-3xl text-ink">{trip.title}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          <Link href={`/trips/${trip.id}`} className="hover:text-sea">
-            Open public page
+    <div className="min-h-screen bg-sand-50">
+      <div className="mx-auto max-w-6xl space-y-8 px-5 pt-20 pb-16 sm:px-8 xl:max-w-7xl">
+        <AdminTripShare tripId={trip.id} collabToken={trip.collabToken} />
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <Link
+              href="/admin"
+              className="text-sm text-ink-muted transition hover:text-sea"
+            >
+              ← Admin wall
+            </Link>
+            <h1 className="mt-2 font-serif text-2xl text-ink sm:text-3xl">
+              {trip.title}
+            </h1>
+          </div>
+          <Link
+            href={`/trips/${trip.id}`}
+            className="text-sm text-sea hover:underline"
+          >
+            Open public page →
           </Link>
-        </p>
-      </div>
-
-      <section>
-        <h2 className="font-serif text-xl text-ink">Trip details</h2>
-        <div className="mt-4 rounded-2xl border border-sand-200 bg-white/80 p-5 sm:p-6">
-          <TripAdminForm trip={trip} photos={photos} />
         </div>
-        <p className="mt-3 text-xs text-ink-muted">
-          Day-by-day itinerary still lives in{" "}
-          <code className="rounded bg-sand-200/60 px-1">data/trips.json</code>{" "}
-          for now (structured editor can come later).
-        </p>
-      </section>
 
-      <section>
-        <h2 className="font-serif text-xl text-ink">
-          Uploaded photos ({photos.length})
-        </h2>
-        <div className="mt-4">
+        {/* Compact meta — collapsed visual weight so Plan stays primary */}
+        <section className="rounded-2xl border border-sand-200 bg-white/80 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            <h2 className="text-xs font-medium tracking-[0.12em] text-ink-muted uppercase">
+              Trip details
+            </h2>
+          </div>
+          <TripAdminForm trip={trip} />
+        </section>
+
+        <section>
+          <h2 className="font-serif text-xl text-ink">Plan</h2>
+          <div className="mt-3 rounded-2xl border border-sand-200 bg-sand-50/50 p-4 sm:p-5">
+            <AdminPlanEditor trip={trip} />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-sand-200 bg-white/80 p-5 sm:p-6">
           <AdminPhotos
             tripId={trip.id}
+            tripTitle={trip.title}
             photos={photos}
             coverImage={trip.coverImage}
           />
-        </div>
-      </section>
+        </section>
 
-      <section>
-        <h2 className="font-serif text-xl text-ink">
-          Comments ({comments.length})
-        </h2>
-        <div className="mt-4">
-          <AdminComments tripId={trip.id} comments={comments} />
-        </div>
-      </section>
+        <section>
+          <h2 className="font-serif text-xl text-ink">
+            Comments ({comments.length})
+          </h2>
+          <div className="mt-4">
+            <AdminComments tripId={trip.id} comments={comments} />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

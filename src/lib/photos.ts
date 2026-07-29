@@ -127,20 +127,41 @@ export async function deletePhoto(
   tripId: string,
   photoId: string,
 ): Promise<boolean> {
-  await ensureTripDir(tripId);
-  const photos = await getPhotos(tripId);
-  const photo = photos.find((p) => p.id === photoId);
-  if (!photo) return false;
+  const result = await deletePhotos(tripId, [photoId]);
+  return result.deleted.includes(photoId);
+}
 
-  const next = photos.filter((p) => p.id !== photoId);
+/** Batch delete. Returns deleted ids and public URLs that were removed (for cover cleanup). */
+export async function deletePhotos(
+  tripId: string,
+  photoIds: string[],
+): Promise<{ deleted: string[]; removedUrls: string[] }> {
+  await ensureTripDir(tripId);
+  const idSet = new Set(photoIds.filter(Boolean));
+  if (idSet.size === 0) return { deleted: [], removedUrls: [] };
+
+  const photos = await getPhotos(tripId);
+  const toRemove = photos.filter((p) => idSet.has(p.id));
+  if (toRemove.length === 0) return { deleted: [], removedUrls: [] };
+
+  const removeIds = new Set(toRemove.map((p) => p.id));
+  const next = photos.filter((p) => !removeIds.has(p.id));
   await fs.writeFile(metaPath(tripId), JSON.stringify(next, null, 2), "utf-8");
 
-  try {
-    await fs.unlink(path.join(tripDir(tripId), photo.filename));
-  } catch {
-    // file may already be gone
+  const removedUrls: string[] = [];
+  for (const photo of toRemove) {
+    removedUrls.push(photoPublicUrl(tripId, photo.filename));
+    try {
+      await fs.unlink(path.join(tripDir(tripId), photo.filename));
+    } catch {
+      // file may already be gone
+    }
   }
-  return true;
+
+  return {
+    deleted: toRemove.map((p) => p.id),
+    removedUrls,
+  };
 }
 
 export async function updatePhotoCaption(

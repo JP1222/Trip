@@ -1,0 +1,40 @@
+# deps & build
+node_modules
+.next
+out
+dist
+coverage
+
+# git / editor
+.git
+.gitignore
+.DS_Store
+*.swp
+.idea
+.vscode
+*.md
+!README.md
+
+# env & secrets — never bake into image
+.env
+.env.*
+!.env.example
+
+# local uploads are large; mount as volume in production
+# (seed empty structure via .gitkeep only)
+public/uploads/**
+!public/uploads/.gitkeep
+# Host bind-mount dir used on Oracle (not part of image)
+uploads
+uploads/**
+
+# comments are runtime; trips.json is seeded from data/
+data/comments/**
+!data/comments/.gitkeep
+# Don't bake full data volume into context either (seed is copied selectively)
+# keep data/trips.json for seed in image — only exclude huge runtime dirs
+
+# logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*

@@ -1,50 +1,53 @@
-import Link from "next/link";
+import { AdminPolaroidWall } from "@/components/admin/AdminPolaroidWall";
 import { getComments } from "@/lib/comments";
 import { getPhotos } from "@/lib/photos";
 import { getTrips } from "@/lib/trips";
+import { formatPolaroidMeta } from "@/lib/wall";
+import { photoPublicUrl } from "@/lib/photos-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminHomePage() {
   const trips = await getTrips();
-  const stats = await Promise.all(
+  const items = await Promise.all(
     trips.map(async (t) => {
       const [photos, comments] = await Promise.all([
         getPhotos(t.id),
         getComments(t.id),
       ]);
-      return { trip: t, photoCount: photos.length, commentCount: comments.length };
+      const fallback =
+        photos[0] != null
+          ? photoPublicUrl(t.id, photos[0].filename)
+          : undefined;
+
+      const planned = t.status === "planned";
+      const meta = planned
+        ? `Planning · ${t.destination}`
+        : formatPolaroidMeta(t.startDate, t.endDate, t.destination);
+
+      return {
+        kind: "trip" as const,
+        id: `admin-trip-${t.id}`,
+        tripId: t.id,
+        href: `/admin/trips/${t.id}`,
+        src: t.coverImage || fallback,
+        caption: t.title,
+        sub: t.destination,
+        meta,
+        dateLabel: meta,
+        planned,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        photoCount: photos.length,
+        commentCount: comments.length,
+      };
     }),
   );
 
   return (
-    <div>
-      <h1 className="font-serif text-3xl text-ink">Trips</h1>
-      <p className="mt-2 text-sm text-ink-muted">
-        Edit trip info, remove photos, and moderate comments. Friends only
-        upload and comment on the public pages.
-      </p>
-
-      <ul className="mt-8 space-y-3">
-        {stats.map(({ trip, photoCount, commentCount }) => (
-          <li key={trip.id}>
-            <Link
-              href={`/admin/trips/${trip.id}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sand-200/80 bg-white/80 px-5 py-4 transition hover:border-sea/30 hover:shadow-sm"
-            >
-              <div>
-                <p className="font-medium text-ink">{trip.title}</p>
-                <p className="text-sm text-ink-muted">{trip.destination}</p>
-              </div>
-              <div className="flex gap-4 text-xs text-ink-muted">
-                <span>{photoCount} photos</span>
-                <span>{commentCount} comments</span>
-                <span className="text-sea">Edit →</span>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <>
+      <h1 className="sr-only">Admin — manage trips</h1>
+      <AdminPolaroidWall items={items} />
+    </>
   );
 }

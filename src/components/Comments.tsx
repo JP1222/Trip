@@ -54,71 +54,82 @@ export function Comments({ tripId, initialComments }: Props) {
     }
   }
 
+  const fieldClass =
+    "w-full rounded-xl border border-sand-200 bg-sand-50/80 px-3.5 py-2.5 text-sm leading-normal text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-sea/50 focus:ring-2 focus:ring-sea/15";
+
   return (
-    <div className="space-y-8">
+    <div className="w-full space-y-6">
       <form
         onSubmit={(e) => void onSubmit(e)}
-        className="rounded-3xl border border-sand-200/80 bg-white/60 p-5 sm:p-7"
+        className="w-full rounded-2xl border border-sand-200/80 bg-white/70 p-4 sm:p-6"
       >
-        <h3 className="font-serif text-xl text-ink">Leave a note</h3>
-        <p className="mt-1 text-sm text-ink-muted">
-          A short comment for the group — no account needed.
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h3 className="font-serif text-lg text-ink">Leave a note</h3>
+          <p className="text-xs text-ink-muted">No account needed</p>
+        </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-[160px_1fr]">
+        {/* Stacked full-width fields — same width / radius so the form feels even */}
+        <div className="mt-4 space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-sm text-ink-soft">Name *</span>
+            <span className="mb-1.5 block text-xs text-ink-soft">Name *</span>
             <input
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               maxLength={40}
               placeholder="Your name"
-              className="w-full rounded-2xl border border-sand-200 bg-sand-50/80 px-4 py-3 text-ink outline-none transition focus:border-sea/50 focus:ring-2 focus:ring-sea/15"
+              autoComplete="name"
+              className={fieldClass}
             />
           </label>
+
           <label className="block">
-            <span className="mb-1.5 block text-sm text-ink-soft">Comment *</span>
+            <span className="mb-1.5 block text-xs text-ink-soft">Note *</span>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               maxLength={1000}
-              rows={3}
+              rows={4}
               placeholder="That sunset was unreal…"
-              className="w-full resize-y rounded-2xl border border-sand-200 bg-sand-50/80 px-4 py-3 text-ink outline-none transition focus:border-sea/50 focus:ring-2 focus:ring-sea/15"
+              className={`${fieldClass} min-h-[7rem] resize-y`}
             />
           </label>
         </div>
 
-        {error && (
-          <p className="mt-3 text-sm text-coral">{error}</p>
+        {(error || okMsg) && (
+          <p
+            className={`mt-3 text-sm ${error ? "text-coral" : "text-sea"}`}
+          >
+            {error || okMsg}
+          </p>
         )}
-        {okMsg && <p className="mt-3 text-sm text-sea">{okMsg}</p>}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="mt-5 rounded-full bg-ink px-6 py-2.5 text-sm text-white transition hover:bg-ink-soft disabled:opacity-60"
-        >
-          {busy ? "Posting…" : "Post comment"}
-        </button>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-full bg-ink px-5 py-2.5 text-sm text-white transition hover:bg-ink-soft disabled:opacity-60"
+          >
+            {busy ? "Posting…" : "Post note"}
+          </button>
+        </div>
       </form>
 
-      <div className="space-y-4">
+      <div className="w-full space-y-3">
         {comments.length === 0 ? (
-          <p className="text-sm text-ink-muted">No comments yet — say hello.</p>
+          <p className="text-sm text-ink-muted">No notes yet — say hello.</p>
         ) : (
           comments.map((c) => (
             <article
               key={c.id}
-              className="rounded-2xl border border-sand-200/70 bg-white/40 px-5 py-4"
+              className="rounded-xl border border-sand-200/70 bg-white/50 px-4 py-3 sm:px-5"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="font-medium text-ink">{c.author}</p>
+                <p className="text-sm font-medium text-ink">{c.author}</p>
                 <time className="text-xs text-ink-muted">
                   {formatWhen(c.createdAt)}
                 </time>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-soft">
                 {c.body}
               </p>
             </article>

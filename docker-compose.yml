@@ -1,0 +1,71 @@
+# Trip journal — Docker Compose for Oracle + Traefik
+#
+# Server (oracle):
+#   cd ~/docker/trip
+#   cp .env.example .env   # set ADMIN_* and map keys
+#   docker compose up -d --build
+#
+# Public URL: https://trip.jpzen.cn  (Traefik TLS via Cloudflare DNS challenge)
+# Join external network: traefik-servicenet (same as photosite / lumen)
+
+services:
+  trip:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Baked into client bundle during `next build` (from host `.env`)
+      args:
+        NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+        NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-}
+    image: trip:latest
+    container_name: trip
+    restart: unless-stopped
+    # No host port publish — Traefik reaches the container on the docker network
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      # Also available at runtime (server components / API)
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-}
+    volumes:
+      # Bind mounts so rsync/backup are simple
+      - ./data:/app/data
+      - ./uploads:/app/public/uploads
+    networks:
+      - traefik-servicenet
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-servicenet
+      - "traefik.http.routers.trip.rule=Host(`trip.jpzen.cn`)"
+      - traefik.http.routers.trip.entrypoints=websecure
+      - traefik.http.routers.trip.tls=true
+      - traefik.http.routers.trip.tls.certresolver=production
+      - traefik.http.services.trip.loadbalancer.server.port=3000
+      # Photo uploads can be multi‑MB
+      - traefik.http.middlewares.trip-buffer.buffering.maxRequestBodyBytes=52428800
+      - traefik.http.middlewares.trip-buffer.buffering.memRequestBodyBytes=2097152
+      - traefik.http.routers.trip.middlewares=trip-buffer
+      - com.centurylinklabs.watchtower.enable=false
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+networks:
+  traefik-servicenet:
+    external: true

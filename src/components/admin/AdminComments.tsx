@@ -50,6 +50,7 @@ export function AdminComments({
               </p>
               <p className="mt-1 text-xs text-ink-muted">
                 {new Date(c.createdAt).toLocaleString()}
+                {c.photoId ? " · on a photo" : " · trip note"}
               </p>
             </div>
             <button

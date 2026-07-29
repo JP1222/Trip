@@ -1,3 +1,7 @@
-ignoredBuiltDependencies:
+# Allow sharp native install scripts (required for image processing)
+onlyBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Docker/CI: do not reject freshly published transitive packages
+minimumReleaseAge: 0

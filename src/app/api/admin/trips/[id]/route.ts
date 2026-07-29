@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
+import { sanitizeBudget } from "@/lib/budget";
 import { updateTrip, type TripEditable } from "@/lib/trips";
+import type { DayPlan, TripLocation } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,7 +13,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   try {
-    const body = (await req.json()) as Partial<TripEditable>;
+    const body = (await req.json()) as Partial<TripEditable> & {
+      collabToken?: string | null;
+    };
     const patch: Partial<TripEditable> = {};
 
     if (typeof body.title === "string") patch.title = body.title.trim();
@@ -32,6 +36,25 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     if (Array.isArray(body.tips)) {
       patch.tips = body.tips.map((t) => String(t).trim()).filter(Boolean);
+    }
+    if (body.status === "planned" || body.status === "lived") {
+      patch.status = body.status;
+    }
+    if (Array.isArray(body.days)) {
+      patch.days = body.days as DayPlan[];
+    }
+    if (body.location && typeof body.location === "object") {
+      patch.location = body.location as TripLocation;
+    }
+    if ("collabToken" in body) {
+      patch.collabToken =
+        body.collabToken == null ? "" : String(body.collabToken);
+    }
+    if (body.budget !== undefined) {
+      patch.budget = sanitizeBudget(body.budget) ?? {
+        currency: "USD",
+        items: [],
+      };
     }
 
     const trip = await updateTrip(id, patch);

@@ -28,7 +28,23 @@ Photos live under `public/uploads/<trip-id>/`, with metadata in `photos.json` in
 
 - Next.js (App Router) + TypeScript
 - Tailwind CSS v4
-- Local filesystem for photos (fine for a small group; swap to object storage for production cloud deploy)
+- Local filesystem for photos (fine for a small group on one Docker host)
+
+## Deploy with Docker (Oracle Cloud + Traefik)
+
+No separate database — trips and photos live on disk bind mounts.
+
+**Production:** [https://trip.jpzen.cn](https://trip.jpzen.cn) · Admin: `/admin`
+
+```bash
+# On Oracle (after rsync) — see deploy/oracle-traefik.md
+cp .env.example .env   # set strong ADMIN_* + map keys
+docker compose up -d --build
+```
+
+Traefik (existing `traefik-servicenet`) terminates TLS for `Host(trip.jpzen.cn)`.
+
+Full notes: [`deploy/oracle-traefik.md`](./deploy/oracle-traefik.md) · older Caddy notes: [`deploy/oracle-docker.md`](./deploy/oracle-docker.md).
 
 ## Roles
 

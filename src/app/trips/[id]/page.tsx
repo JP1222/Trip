@@ -1,15 +1,25 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { CollabPlanShell } from "@/components/CollabPlanShell";
 import { Comments } from "@/components/Comments";
-import { Itinerary } from "@/components/Itinerary";
 import { PhotoGallery } from "@/components/PhotoGallery";
-import { OpenUploadButton, PhotoUpload } from "@/components/PhotoUpload";
-import { getComments } from "@/lib/comments";
+import { PhotoUpload } from "@/components/PhotoUpload";
+import { TripPlanner } from "@/components/TripPlanner";
+import { TripSectionNav } from "@/components/TripSectionNav";
+import { getComments, getTripComments } from "@/lib/comments";
 import { getPhotos } from "@/lib/photos";
-import { formatDateRange, getTrip, tripDurationDays } from "@/lib/trips";
+import {
+  formatDateRange,
+  getTrip,
+  isPlannedTrip,
+  tripDurationDays,
+} from "@/lib/trips";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -23,16 +33,87 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function TripPage({ params }: Props) {
+export default async function TripPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = await searchParams;
   const trip = await getTrip(id);
   if (!trip) notFound();
 
-  const [photos, comments] = await Promise.all([
+  const [photos, allComments, tripNotes] = await Promise.all([
     getPhotos(trip.id),
     getComments(trip.id),
+    getTripComments(trip.id),
   ]);
   const days = tripDurationDays(trip.startDate, trip.endDate);
+  const planned = isPlannedTrip(trip);
+
+  const editParam = (sp.edit || "").trim();
+  const verifiedToken =
+    trip.collabToken && editParam && editParam === trip.collabToken
+      ? editParam
+      : null;
+
+  // Never ship collabToken to the public client (page source scrape)
+  const publicTrip = { ...trip, collabToken: undefined };
+
+  const navTabs = planned
+    ? [
+        { id: "plan", label: "Plan" },
+        { id: "notes", label: "Notes" },
+        { id: "photos", label: "Photos" },
+      ]
+    : [
+        { id: "plan", label: "Itinerary" },
+        { id: "photos", label: "Photos" },
+        { id: "notes", label: "Notes" },
+      ];
+
+  const notesSection = (
+    <section id="notes" className="mt-14 scroll-mt-28 pb-2 sm:mt-16">
+      <div className="mb-5">
+        <h2 className="font-serif text-3xl text-ink">Notes</h2>
+        <p className="mt-1.5 text-sm text-ink-muted">
+          {planned
+            ? "Group chat for this trip — who’s in, ideas, reminders."
+            : "For the whole group. Photo comments live on each photo."}
+        </p>
+      </div>
+      <Comments tripId={trip.id} initialComments={tripNotes} />
+    </section>
+  );
+
+  const photosSection = (
+    <section id="photos" className="mt-14 scroll-mt-28 sm:mt-16">
+      <div className="mb-5">
+        <h2 className="font-serif text-3xl text-ink">Photos</h2>
+        <p className="mt-1.5 text-sm text-ink-muted">
+          {planned
+            ? photos.length === 0
+              ? "Empty until you’re back — plan above, shoot later."
+              : "Early frames. Open a photo to comment."
+            : "Open a photo to comment · share & download in the viewer."}
+        </p>
+      </div>
+
+      {planned && photos.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-sand-300/90 bg-white/40 px-6 py-12 text-center">
+          <p className="font-serif text-xl text-ink">Album after the trip</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
+            Focus on the plan and notes for now. Upload photos when you’re home.
+          </p>
+        </div>
+      ) : (
+        <>
+          <PhotoGallery
+            tripId={trip.id}
+            initialPhotos={photos}
+            initialComments={allComments}
+          />
+          <PhotoUpload tripId={trip.id} />
+        </>
+      )}
+    </section>
+  );
 
   return (
     <div className="relative overflow-hidden pb-20">
@@ -49,88 +130,87 @@ export default async function TripPage({ params }: Props) {
         className={`relative border-b border-sand-200/60 bg-gradient-to-br ${trip.coverGradient}`}
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.5),transparent_50%)]" />
-        <div className="relative mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-sm text-ink-soft transition hover:text-sea"
-          >
-            ← Wall
-          </Link>
-
-          <div className="mt-6 max-w-2xl">
-            <p className="text-sm tracking-[0.18em] text-ink-soft/80 uppercase">
+        <div className="relative mx-auto max-w-7xl px-5 pt-14 pb-8 sm:px-8 sm:pt-16 sm:pb-10 xl:px-10">
+          <div className="flex flex-wrap items-center gap-2">
+            {planned && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-white/60 px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] text-ink-soft uppercase backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-sea" aria-hidden />
+                Planning
+              </span>
+            )}
+            <p className="text-xs tracking-[0.16em] text-ink-soft/80 uppercase sm:text-sm">
               {trip.destination}
-            </p>
-            <h1 className="mt-2 font-serif text-4xl text-ink sm:text-5xl">
-              {trip.title}
-            </h1>
-            <p className="mt-3 text-lg text-ink-soft">{trip.subtitle}</p>
-            <p className="mt-5 max-w-xl text-sm leading-relaxed text-ink-soft sm:text-base">
-              {trip.summary}
             </p>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-2 text-sm sm:gap-3">
-            <span className="rounded-full bg-white/60 px-4 py-2 text-ink-soft backdrop-blur-sm">
+          <h1 className="mt-2 max-w-3xl font-serif text-3xl text-ink sm:text-5xl">
+            {trip.title}
+          </h1>
+          {trip.subtitle && (
+            <p className="mt-2 max-w-2xl text-base text-ink-soft sm:text-lg">
+              {trip.subtitle}
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
+            <span className="rounded-full bg-white/65 px-3.5 py-1.5 text-ink-soft backdrop-blur-sm">
               {formatDateRange(trip.startDate, trip.endDate)}
+              {planned ? " · draft" : ""}
             </span>
-            <span className="rounded-full bg-white/60 px-4 py-2 text-ink-soft backdrop-blur-sm">
+            <span className="rounded-full bg-white/65 px-3.5 py-1.5 text-ink-soft backdrop-blur-sm">
               {days} {days === 1 ? "day" : "days"}
             </span>
             {trip.members.map((m) => (
               <span
                 key={m}
-                className="rounded-full bg-white/60 px-4 py-2 text-ink-soft backdrop-blur-sm"
+                className="rounded-full bg-white/65 px-3.5 py-1.5 text-ink-soft backdrop-blur-sm"
               >
                 {m}
               </span>
             ))}
           </div>
+
+          {trip.summary && (
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-soft/90 sm:text-[15px]">
+              {trip.summary}
+            </p>
+          )}
         </div>
       </section>
 
-      <div className="relative mx-auto max-w-6xl px-5 sm:px-8">
-        <section id="plan" className="mt-14 scroll-mt-24">
-          <div className="mb-6">
-            <p className="text-sm tracking-[0.18em] text-sea uppercase">
-              Itinerary
-            </p>
-            <h2 className="mt-1 font-serif text-3xl text-ink">Travel plan</h2>
-          </div>
-          <Itinerary days={trip.days} />
-        </section>
+      <TripSectionNav tabs={navTabs} />
 
-        <section id="photos" className="mt-16 scroll-mt-24">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm tracking-[0.18em] text-sea uppercase">
-                Gallery
-              </p>
-              <h2 className="mt-1 font-serif text-3xl text-ink">Trip photos</h2>
-              <p className="mt-2 text-sm text-ink-muted">
-                Share yours, or browse and download the group’s shots.
-              </p>
-            </div>
-            <OpenUploadButton className="hidden rounded-full bg-sea px-5 py-2.5 text-sm text-white transition hover:bg-sea-soft sm:inline-flex" />
-          </div>
+      {/* Wide workspace on desktop — itinerary | map+budget */}
+      <div className="relative mx-auto max-w-7xl px-5 sm:px-8 xl:px-10">
+        <Suspense
+          fallback={
+            <TripPlanner
+              trip={publicTrip}
+              planned={planned}
+              dayCount={days}
+            />
+          }
+        >
+          <CollabPlanShell
+            trip={publicTrip}
+            planned={planned}
+            dayCount={days}
+            collabEnabled={Boolean(trip.collabToken)}
+            verifiedToken={verifiedToken}
+          />
+        </Suspense>
 
-          <PhotoGallery tripId={trip.id} initialPhotos={photos} />
-          {/* FAB + upload sheet — does not take layout space */}
-          <PhotoUpload tripId={trip.id} />
-        </section>
-
-        <section id="comments" className="mt-16 scroll-mt-24 pb-8">
-          <div className="mb-6">
-            <p className="text-sm tracking-[0.18em] text-sea uppercase">
-              Notes
-            </p>
-            <h2 className="mt-1 font-serif text-3xl text-ink">Comments</h2>
-            <p className="mt-2 text-sm text-ink-muted">
-              Leave a short note for everyone on this trip.
-            </p>
-          </div>
-          <Comments tripId={trip.id} initialComments={comments} />
-        </section>
+        {planned ? (
+          <>
+            {notesSection}
+            <div className="pb-8">{photosSection}</div>
+          </>
+        ) : (
+          <>
+            {photosSection}
+            <div className="pb-8">{notesSection}</div>
+          </>
+        )}
       </div>
     </div>
   );

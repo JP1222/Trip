@@ -87,23 +87,53 @@ body {
   }
 }
 
+/* Gallery: Xiaohongshu-style dual column on phone, 3 cols on desktop */
 .photo-grid {
-  columns: 1;
-  column-gap: 1rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.4rem;
+  align-items: start;
 }
 @media (min-width: 640px) {
   .photo-grid {
-    columns: 2;
+    gap: 0.75rem;
   }
 }
 @media (min-width: 1024px) {
   .photo-grid {
-    columns: 3;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
   }
 }
-.photo-grid > * {
-  break-inside: avoid;
-  margin-bottom: 1rem;
+
+/* True waterfall: two (then three) independent columns */
+.photo-grid-xhs {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+.photo-grid-xhs__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+@media (min-width: 640px) {
+  .photo-grid-xhs {
+    gap: 0.65rem;
+  }
+  .photo-grid-xhs__col {
+    gap: 0.65rem;
+  }
+}
+@media (min-width: 1024px) {
+  .photo-grid-xhs {
+    gap: 0.85rem;
+  }
+  .photo-grid-xhs__col {
+    gap: 0.85rem;
+  }
 }
 
 /* ─── Home wall: mobile = full cork; desktop = framed board ─── */
@@ -433,68 +463,33 @@ body {
   }
 }
 
-/* Round pushpin sits on the top edge (partly over cork) */
+/* Solid SVG pushpin — fully opaque fills (no glass alpha) */
 .instant__thumbtack {
   position: absolute;
   z-index: 8;
-  top: -8px;
+  top: -11px;
   left: 50%;
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 22px;
   transform: translateX(-50%);
-  border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(
-    circle at 35% 30%,
-    #ffffff 0%,
-    #eae6e0 28%,
-    #b0aaa0 62%,
-    #6e6860 100%
-  );
-  box-shadow:
-    0 1px 2px rgba(40, 30, 15, 0.28),
-    0 3px 6px rgba(40, 30, 15, 0.16),
-    inset 0 1px 2px rgba(255, 255, 255, 0.75),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.18);
+  opacity: 1;
+  line-height: 0;
+  filter: drop-shadow(0 2px 2px rgba(40, 30, 15, 0.45));
 }
 
-/* short needle into the white border only */
-.instant__thumbtack::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 70%;
-  width: 2px;
-  height: 7px;
-  transform: translateX(-50%);
-  border-radius: 0 0 1px 1px;
-  background: linear-gradient(180deg, #9a958c 0%, #5a554e 100%);
-  box-shadow: 0 1px 2px rgba(40, 30, 15, 0.2);
-  z-index: -1;
-}
-
-/* soft highlight */
-.instant__thumbtack::after {
-  content: "";
-  position: absolute;
-  left: 22%;
-  top: 18%;
-  width: 5px;
-  height: 4px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.75);
-  filter: blur(0.4px);
+.instant__thumbtack svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 @media (min-width: 768px) {
   .instant__thumbtack {
-    top: -9px;
-    width: 16px;
-    height: 16px;
-  }
-
-  .instant__thumbtack::before {
-    height: 8px;
+    top: -12px;
+    width: 20px;
+    height: 24px;
   }
 }
 
@@ -645,20 +640,21 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 0 calc(var(--w) * 0.08) calc(var(--w) * 0.04);
+  /* slightly tighter side padding so longer titles/meta fit */
+  padding: 0 calc(var(--w) * 0.055) calc(var(--w) * 0.035);
   text-align: center;
-  gap: 0.08em;
+  gap: 0.06em;
 }
 
 /* Handwritten title — scales with card width */
 .instant__caption {
   font-family: var(--font-hand), "Segoe Print", "Comic Sans MS", cursive;
-  font-size: calc(var(--w) * 0.095);
+  font-size: calc(var(--w) * 0.078);
   font-style: normal;
   font-weight: 500;
-  line-height: 1.15;
+  line-height: 1.12;
   color: #2c2620;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
@@ -668,15 +664,477 @@ body {
 /* Date · place */
 .instant__date {
   font-family: var(--font-hand), "Segoe Print", "Comic Sans MS", cursive;
-  font-size: calc(var(--w) * 0.068);
+  font-size: calc(var(--w) * 0.052);
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.15;
   color: #6a6158;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Planning polaroid — dashed frame, soft fill */
+.instant--planned {
+  background: #fffdf9;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 2px 4px rgba(80, 55, 30, 0.08),
+    0 12px 28px rgba(80, 55, 30, 0.12) !important;
+}
+.instant--planned .instant__pad {
+  outline: 1.5px dashed rgba(90, 70, 50, 0.28);
+  outline-offset: -6px;
+  border-radius: 2px;
+}
+.instant__badge {
+  position: absolute;
+  top: calc(var(--w) * 0.12);
+  right: calc(var(--w) * 0.06);
+  z-index: 4;
+  padding: 0.2em 0.55em;
+  border-radius: 999px;
+  background: rgba(61, 102, 100, 0.92);
+  color: #faf8f4;
+  font-size: calc(var(--w) * 0.042);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 6px rgba(28, 26, 23, 0.18);
+}
+.instant__cover--planned {
+  background:
+    linear-gradient(165deg, #ebe4d8 0%, #d9cfc0 45%, #c4b6a4 100%) !important;
+  color: #3a322a;
+}
+.instant__cover--planned .instant__cover-label {
+  opacity: 0.65;
+  color: #3d6664;
+}
+.instant__cover--planned .instant__cover-name {
+  color: #2c2620;
+}
+
+/* Empty “coming soon” slot */
+.instant--empty {
+  background: rgba(255, 252, 247, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 2px 8px rgba(80, 55, 30, 0.08) !important;
+  cursor: default;
+  pointer-events: none;
+}
+.instant--empty .instant__pad {
+  outline: 1.5px dashed rgba(90, 70, 50, 0.32);
+  outline-offset: -5px;
+  border-radius: 2px;
+}
+.instant__image--empty {
+  background:
+    repeating-linear-gradient(
+      -12deg,
+      transparent,
+      transparent 6px,
+      rgba(90, 70, 50, 0.03) 6px,
+      rgba(90, 70, 50, 0.03) 7px
+    ),
+    #f0e8dc !important;
+}
+.instant__empty-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  color: #7a6c5c;
+}
+.instant__empty-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(90, 70, 50, 0.35);
+  font-size: 1.35rem;
+  font-weight: 300;
+  line-height: 1;
+  color: #8a7a68;
+}
+.instant__empty-hint {
+  font-size: calc(var(--w) * 0.048);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.instant--empty .instant__caption {
+  color: #6a6158;
+  font-style: italic;
+}
+
+/* Sticky note on cork */
+.wall-note-wrap {
+  list-style: none;
+  z-index: 3;
+}
+.wall-note {
+  position: relative;
+  width: min(42vw, 148px);
+  min-height: 132px;
+  padding: 1.15rem 0.9rem 1rem;
+  background: linear-gradient(165deg, #fff6c8 0%, #f5e6a0 55%, #efd88a 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 2px 4px rgba(80, 55, 30, 0.12),
+    0 10px 22px rgba(80, 55, 30, 0.14);
+  transform-origin: center top;
+}
+.wall-note__pin {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    #ffe8c8 0%,
+    #e8a050 55%,
+    #9a5820 100%
+  );
+  box-shadow: 0 2px 4px rgba(60, 40, 20, 0.35);
+}
+.wall-note__title {
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #4a3c28;
+  margin-bottom: 0.4rem;
+}
+.wall-note__line {
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #5c4a32;
+  opacity: 0.9;
+}
+
+/* Decorative washi strips on board (desktop) */
+.cork-board__tape {
+  display: none;
+}
+@media (min-width: 768px) {
+  .cork-board__tape {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .cork-tape {
+    position: absolute;
+    height: 18px;
+    border-radius: 1px;
+    opacity: 0.72;
+    box-shadow: 0 1px 2px rgba(80, 55, 30, 0.12);
+  }
+  .cork-tape--a {
+    top: 7%;
+    left: 18%;
+    width: 72px;
+    transform: rotate(-8deg);
+    background: linear-gradient(
+      90deg,
+      rgba(180, 210, 200, 0.15),
+      rgba(140, 180, 168, 0.55),
+      rgba(180, 210, 200, 0.15)
+    );
+  }
+  .cork-tape--b {
+    bottom: 12%;
+    right: 14%;
+    width: 58px;
+    transform: rotate(12deg);
+    background: linear-gradient(
+      90deg,
+      rgba(230, 190, 170, 0.12),
+      rgba(210, 150, 130, 0.5),
+      rgba(230, 190, 170, 0.12)
+    );
+  }
+  .wall-note {
+    width: 156px;
+    min-height: 148px;
+  }
+}
+
+/* ─── Trip map (Mapbox / Google) ─── */
+.trip-map-canvas {
+  font: inherit;
+}
+.trip-map-canvas--mapbox .mapboxgl-ctrl-attrib {
+  font-size: 9px;
+  background: rgba(255, 252, 247, 0.85) !important;
+}
+.trip-map-canvas--mapbox .mapboxgl-ctrl-group {
+  border: none !important;
+  box-shadow: 0 2px 10px rgba(28, 26, 23, 0.12) !important;
+  overflow: hidden;
+  border-radius: 10px !important;
+}
+.trip-map-canvas--google {
+  /* Google injects its own UI */
+}
+.trip-map-marker {
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer;
+}
+/* Wrapper: core disc + corner category badge */
+.trip-map-marker__pin {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 6px rgba(28, 26, 23, 0.28));
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.trip-map-marker__core {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #3d6664;
+  color: #fff;
+  box-shadow: 0 0 0 2.5px #fffcf7;
+}
+.trip-map-marker__num {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: system-ui, sans-serif;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: #fff;
+}
+.trip-map-marker__glyph {
+  display: flex;
+  line-height: 0;
+  color: #fff;
+}
+.trip-map-marker__glyph svg {
+  display: block;
+}
+/* Category icon sits on the rim — doesn’t inflate pin height */
+.trip-map-marker__badge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fffcf7;
+  box-shadow: 0 1px 3px rgba(28, 26, 23, 0.2);
+  color: inherit;
+}
+.trip-map-marker__badge svg {
+  display: block;
+  color: currentColor;
+}
+.trip-map-marker--active .trip-map-marker__pin {
+  transform: scale(1.14);
+  filter: drop-shadow(0 3px 10px rgba(28, 26, 23, 0.35));
+  z-index: 2;
+}
+.trip-map-marker--active .trip-map-marker__core {
+  box-shadow:
+    0 0 0 2.5px #fffcf7,
+    0 0 0 4px rgba(181, 106, 78, 0.45);
+}
+
+/* ─── Admin cork wall (reorder + edit) ─── */
+.gallery-wall--admin {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.admin-wall-hint {
+  position: relative;
+  z-index: 4;
+  text-align: center;
+  padding: 3.75rem 1rem 0.25rem;
+}
+
+.admin-wall-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.admin-wall-sort {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(44, 36, 28, 0.88);
+  background: rgba(255, 252, 247, 0.82);
+  box-shadow:
+    0 1px 2px rgba(40, 30, 15, 0.08),
+    0 6px 16px rgba(40, 30, 15, 0.1);
+  backdrop-filter: blur(12px);
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.admin-wall-sort:hover:not(:disabled) {
+  background: rgba(255, 252, 247, 0.95);
+  transform: translateY(-1px);
+}
+
+.admin-wall-sort:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.admin-wall-sort:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-wall-hint__title {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.35rem;
+  color: rgba(44, 36, 28, 0.72);
+  letter-spacing: 0.02em;
+}
+
+.admin-wall-hint__text {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: rgba(70, 55, 40, 0.65);
+}
+
+.admin-wall-hint__status {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(45, 90, 70, 0.9);
+}
+
+/* Slot wrapper — FLIP animates this node when order changes */
+.admin-wall-slot {
+  position: relative;
+  will-change: transform;
+}
+
+/* iOS-style: source slot dims while you drag — pin stays solid */
+.admin-wall-slot--source .admin-instant {
+  opacity: 0.4;
+  filter: saturate(0.9);
+}
+
+.admin-wall-slot--source .instant__thumbtack {
+  opacity: 1 !important;
+  filter: drop-shadow(0 2px 2px rgba(40, 30, 15, 0.45)) !important;
+}
+
+button.admin-instant {
+  appearance: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  background: #fffcf7;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  transition:
+    opacity 0.2s ease,
+    filter 0.2s ease,
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.admin-instant--dragging {
+  z-index: 5 !important;
+  box-shadow:
+    0 0 0 0.5px rgba(28, 26, 23, 0.04),
+    0 2px 8px rgba(28, 26, 23, 0.06) !important;
+}
+
+/* Slightly tighter wrap so cards feel like icon grid when sliding */
+.gallery-wall--admin .cork-board__photos.admin-wall-photos {
+  gap: 1.35rem 1.15rem;
+}
+
+.admin-instant__meta {
+  display: block;
+  margin-top: 0.08em;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: calc(var(--w) * 0.042);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #8a8278;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-instant__edit {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 6;
+  border-radius: 999px;
+  background: rgba(28, 26, 23, 0.72);
+  color: #fff;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.28em 0.65em;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none;
+}
+
+.admin-instant:hover .admin-instant__edit,
+.admin-instant:focus-visible .admin-instant__edit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (hover: none) {
+  .admin-instant__edit {
+    opacity: 0.85;
+    transform: none;
+  }
 }
 
 

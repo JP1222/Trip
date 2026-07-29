@@ -33,6 +33,13 @@ export const metadata: Metadata = {
   },
   description:
     "A private travel site for friends: itineraries, photo sharing, and downloads.",
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/branding/logo-icon.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 export default function RootLayout({

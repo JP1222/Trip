@@ -2,16 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { PhotoMeta, Trip } from "@/lib/types";
-import { photoPublicUrl } from "@/lib/photos-client";
+import type { Trip } from "@/lib/types";
 
-export function TripAdminForm({
-  trip,
-  photos,
-}: {
-  trip: Trip;
-  photos: PhotoMeta[];
-}) {
+export function TripAdminForm({ trip }: { trip: Trip }) {
   const router = useRouter();
   const [title, setTitle] = useState(trip.title);
   const [subtitle, setSubtitle] = useState(trip.subtitle);
@@ -19,8 +12,10 @@ export function TripAdminForm({
   const [startDate, setStartDate] = useState(trip.startDate);
   const [endDate, setEndDate] = useState(trip.endDate);
   const [summary, setSummary] = useState(trip.summary);
-  const [coverImage, setCoverImage] = useState(trip.coverImage || "");
   const [members, setMembers] = useState(trip.members.join(", "));
+  const [tripStatus, setTripStatus] = useState<"lived" | "planned">(
+    trip.status === "planned" ? "planned" : "lived",
+  );
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,7 +36,7 @@ export function TripAdminForm({
           startDate,
           endDate,
           summary,
-          coverImage,
+          status: tripStatus,
           members: members
             .split(",")
             .map((m) => m.trim())
@@ -59,43 +54,42 @@ export function TripAdminForm({
     }
   }
 
-  function selectCover(url: string) {
-    setCoverImage(url);
-    setStatus(null);
-  }
-
   const field =
-    "w-full rounded-xl border border-sand-200 bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-sea/40 focus:ring-2 focus:ring-sea/10";
+    "w-full rounded-lg border border-sand-200 bg-white px-2.5 py-1.5 text-sm text-ink outline-none focus:border-sea/40 focus:ring-1 focus:ring-sea/15";
+  const label = "mb-0.5 block text-[11px] text-ink-muted";
 
   return (
-    <form onSubmit={(e) => void onSave(e)} className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block sm:col-span-2">
-          <span className="mb-1 block text-xs text-ink-muted">Title</span>
+    <form onSubmit={(e) => void onSave(e)} className="space-y-3">
+      <div className="grid gap-2.5 sm:grid-cols-6">
+        <label className="block sm:col-span-3">
+          <span className={label}>Title</span>
           <input
             className={field}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
         </label>
-        <label className="block sm:col-span-2">
-          <span className="mb-1 block text-xs text-ink-muted">Subtitle</span>
+        <label className="block sm:col-span-3">
+          <span className={label}>Destination</span>
+          <input
+            className={field}
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            placeholder="Place · Region · Country"
+          />
+        </label>
+
+        <label className="block sm:col-span-6">
+          <span className={label}>Subtitle</span>
           <input
             className={field}
             value={subtitle}
             onChange={(e) => setSubtitle(e.target.value)}
           />
         </label>
+
         <label className="block sm:col-span-2">
-          <span className="mb-1 block text-xs text-ink-muted">Destination</span>
-          <input
-            className={field}
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-ink-muted">Start date</span>
+          <span className={label}>Start</span>
           <input
             type="date"
             className={field}
@@ -103,8 +97,8 @@ export function TripAdminForm({
             onChange={(e) => setStartDate(e.target.value)}
           />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-ink-muted">End date</span>
+        <label className="block sm:col-span-2">
+          <span className={label}>End</span>
           <input
             type="date"
             className={field}
@@ -113,120 +107,60 @@ export function TripAdminForm({
           />
         </label>
         <label className="block sm:col-span-2">
-          <span className="mb-1 block text-xs text-ink-muted">Summary</span>
-          <textarea
-            className={field}
-            rows={4}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-          />
-        </label>
-        <label className="block sm:col-span-2">
-          <span className="mb-1 block text-xs text-ink-muted">
-            Members (comma-separated)
-          </span>
+          <span className={label}>Members</span>
           <input
             className={field}
             value={members}
             onChange={(e) => setMembers(e.target.value)}
+            placeholder="Peng, Friends"
           />
         </label>
-      </div>
 
-      {/* Polaroid face on the home wall */}
-      <div>
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="text-sm font-medium text-ink">
-              Polaroid photo (home wall)
-            </p>
-            <p className="mt-0.5 text-xs text-ink-muted">
-              This is the picture on the trip’s polaroid. Click one, then Save
-              trip.
-            </p>
-          </div>
-          {coverImage && (
+        <label className="block sm:col-span-6">
+          <span className={label}>Summary</span>
+          <textarea
+            className={`${field} resize-y`}
+            rows={2}
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+          />
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2 sm:col-span-4">
+          <span className="text-[11px] text-ink-muted">Status</span>
+          {(
+            [
+              { id: "lived" as const, label: "Lived" },
+              { id: "planned" as const, label: "Planning" },
+            ] as const
+          ).map((opt) => (
             <button
+              key={opt.id}
               type="button"
-              onClick={() => selectCover("")}
-              className="text-xs text-ink-muted underline hover:text-coral"
+              onClick={() => setTripStatus(opt.id)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                tripStatus === opt.id
+                  ? "bg-ink text-white"
+                  : "border border-sand-200 bg-white text-ink-soft hover:border-sand-300"
+              }`}
             >
-              Clear
+              {opt.label}
             </button>
-          )}
+          ))}
         </div>
 
-        {coverImage && (
-          <div className="mb-4">
-            <div
-              className="instant pointer-events-none shadow-md"
-              style={{ ["--w" as string]: "180px" }}
-            >
-              <div className="instant__pad">
-                <div className="instant__image">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={coverImage} alt="Polaroid preview" />
-                </div>
-              </div>
-              <div className="instant__foot">
-                <span className="instant__caption">{title || "Trip"}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {photos.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-sand-300 px-4 py-8 text-center text-sm text-ink-muted">
-            No photos yet — upload some, then pick which one sits on the
-            polaroid.
-          </p>
-        ) : (
-          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-            {photos.map((p) => {
-              const url = photoPublicUrl(p.tripId, p.filename);
-              const selected = coverImage === url;
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => selectCover(url)}
-                    className={`group relative aspect-square w-full overflow-hidden rounded-lg border-2 transition ${
-                      selected
-                        ? "border-sea ring-2 ring-sea/30"
-                        : "border-transparent hover:border-sand-300"
-                    }`}
-                    title={p.originalName}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={p.caption || p.originalName}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                    {selected && (
-                      <span className="absolute inset-x-0 bottom-0 bg-sea/90 py-1 text-center text-[10px] font-medium tracking-wide text-white uppercase">
-                        On polaroid
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div className="flex items-center justify-end gap-2 sm:col-span-2">
+          {error && <p className="text-xs text-coral">{error}</p>}
+          {status && <p className="text-xs text-sea">{status}</p>}
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-white hover:bg-ink-soft disabled:opacity-60"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
-
-      {error && <p className="text-sm text-coral">{error}</p>}
-      {status && <p className="text-sm text-sea">{status}</p>}
-
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-full bg-ink px-6 py-2.5 text-sm text-white hover:bg-ink-soft disabled:opacity-60"
-      >
-        {busy ? "Saving…" : "Save trip"}
-      </button>
     </form>
   );
 }

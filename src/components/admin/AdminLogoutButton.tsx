@@ -19,7 +19,7 @@ export function AdminLogoutButton() {
       type="button"
       onClick={() => void logout()}
       disabled={busy}
-      className="text-sm text-ink-muted transition hover:text-coral disabled:opacity-60"
+      className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition hover:bg-white/70 hover:text-coral disabled:opacity-60"
     >
       {busy ? "…" : "Log out"}
     </button>

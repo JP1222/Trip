@@ -3,31 +3,83 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+const pill =
+  "pointer-events-auto inline-flex h-9 items-center rounded-full bg-white/55 text-[15px] font-medium tracking-tight text-ink/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 transition-[transform,background-color,box-shadow] duration-200 hover:bg-white/72 active:scale-[0.96] sm:h-10";
+
+/**
+ * Public site chrome (admin has AdminChrome).
+ * Home → Admin (right). Trip pages → Wall (left).
+ */
 export function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
   const isAdmin = pathname.startsWith("/admin");
 
-  // Home is just the photo wall — no brand bar
-  if (isHome) return null;
+  if (isAdmin) return null;
 
-  return (
-    <header className="sticky top-0 z-40 border-b border-sand-200/50 bg-sand-50/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 sm:h-16 sm:px-8">
+  if (isHome) {
+    return (
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center justify-between gap-3 px-3 sm:px-5"
+        style={{
+          paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
+        }}
+      >
         <Link
           href="/"
-          className="text-[0.7rem] tracking-[0.16em] text-ink-muted uppercase transition hover:text-ink"
+          className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center sm:h-11 sm:w-11"
+          aria-label="Our trips — home"
         >
-          ← Wall
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/branding/logo.png"
+            alt=""
+            width={40}
+            height={40}
+            className="h-9 w-9 object-contain drop-shadow-sm sm:h-10 sm:w-10"
+          />
         </Link>
-        {isAdmin ? (
-          <span className="text-[0.7rem] tracking-[0.16em] text-ink-muted uppercase">
-            Admin
-          </span>
-        ) : (
-          <span />
-        )}
+        <Link
+          href="/admin"
+          className={`${pill} px-3.5 sm:px-4`}
+          aria-label="Open admin"
+        >
+          Admin
+        </Link>
       </div>
-    </header>
+    );
+  }
+
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-start px-3 sm:px-5"
+      style={{
+        paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
+      }}
+    >
+      <Link
+        href="/"
+        aria-label="Back to wall"
+        className={`${pill} gap-0.5 pl-2 pr-3.5 sm:pl-2.5 sm:pr-4`}
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          className="-ml-0.5 text-ink/80"
+          aria-hidden
+        >
+          <path
+            d="M14.5 6.5L9 12l5.5 5.5"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span>Wall</span>
+      </Link>
+    </div>
   );
 }
