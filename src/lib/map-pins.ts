@@ -16,25 +16,26 @@ export function categoryPinColor(category?: string | null): string {
   return map[category];
 }
 
-/** Minimal SVG path (viewBox 0 0 24 24) for pin glyphs */
+/** Minimal SVG path (viewBox 0 0 24 24) for pin glyphs — match list icon set */
 function glyphPath(category?: string | null): string {
   const id =
     category && isStopCategoryId(category) ? category : ("other" as const);
+  const s = `fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"`;
   switch (id) {
     case "food":
-      return `<path d="M8 3v8a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V3M10 13v8M16 3v18M16 3c2 0 3 1.5 3 4s-1 4-3 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`;
+      return `<path d="M5 9h11v7a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V9zM16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 4.5c.5 1 .5 2 0 3M11 4.5c.5 1 .5 2 0 3" ${s}/>`;
     case "stay":
-      return `<path d="M3 19V9a2 2 0 0 1 2-2h6v12M13 19V7h6a2 2 0 0 1 2 2v10M3 19h18M3 14h18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`;
+      return `<path d="M4 11 12 4l8 7M6 10.5V20h12v-9.5M10 20v-5h4v5" ${s}/>`;
     case "sight":
-      return `<path d="M4 18 9.5 9l3 4.5L15 10l5 8H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/>`;
+      return `<rect x="3" y="7" width="18" height="13" rx="2" ${s}/><path d="M8 7 9.5 4.5h5L16 7" ${s}/><circle cx="12" cy="13.5" r="3.25" ${s}/>`;
     case "activity":
-      return `<circle cx="14" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 22v-5l-2.5-3 2-4.5 3.5 2 3 6M7 13l3 1.5M5 22 8.5 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`;
+      return `<path d="M12 3.5 14.4 9.2l6.1.5-4.7 4 1.5 6-5.3-3.2L6.7 19.7l1.5-6-4.7-4 6.1-.5L12 3.5z" ${s}/>`;
     case "transport":
-      return `<path d="M4 16h12a3 3 0 0 0 0-6H9L5 6M4 16 2 20m14-10 4-2v8l-4-2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="15" cy="16" r="1.2" fill="currentColor"/>`;
+      return `<path d="M4 14h16v3.5a1 1 0 0 1-1 1h-1.2M5.5 14 7.5 8.5h9L18.5 14M8 11.5h8" ${s}/><circle cx="8" cy="17.5" r="1.75" ${s}/><circle cx="16" cy="17.5" r="1.75" ${s}/>`;
     case "shop":
-      return `<path d="M6 8h12l-1 12H7L6 8zM9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`;
+      return `<path d="M6 8h12l-1.1 12.5a1 1 0 0 1-1 .9H8.1a1 1 0 0 1-1-.9L6 8zM9 8V6.2A3 3 0 0 1 12 3.2 3 3 0 0 1 15 6.2V8" ${s}/>`;
     default:
-      return `<circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 9v3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="15.5" r="0.9" fill="currentColor"/>`;
+      return `<path d="M12 21s6.5-5 6.5-10.5a6.5 6.5 0 1 0-13 0C5.5 16 12 21 12 21z" ${s}/><circle cx="12" cy="10.5" r="2.25" ${s}/>`;
   }
 }
 
