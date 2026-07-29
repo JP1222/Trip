@@ -10,6 +10,10 @@ import {
   photoDownloadUrl,
   photoPublicUrl,
 } from "@/lib/photos-client";
+import {
+  photoFullPublicUrl,
+  photoListPublicUrl,
+} from "@/lib/media-url";
 import { openPhotoUpload } from "@/components/PhotoUpload";
 import { ZoomableImage } from "@/components/ZoomableImage";
 import { LivePhotoStage, LivePhotoThumb } from "@/components/LivePhoto";
@@ -137,8 +141,8 @@ function MediaThumb({
   liveBadgeClassName?: string;
   loading?: "lazy" | "eager";
 }) {
-  const imageName = photo.thumbnailFilename || photo.filename;
-  const url = photoPublicUrl(photo.tripId, imageName);
+  // Masonry / waterfall: grid-1080 only (not full original).
+  const url = photoListPublicUrl(photo);
   const alt = photo.caption || photo.originalName;
   if (isVideoMedia(photo)) {
     if (photo.posterFilename || photo.thumbnailFilename) {
@@ -955,10 +959,7 @@ export function PhotoGallery({
                   <LivePhotoStage
                     key={active.id}
                     resetKey={active.id}
-                    stillSrc={photoPublicUrl(
-                      active.tripId,
-                      active.previewFilename || active.filename,
-                    )}
+                    stillSrc={photoFullPublicUrl(active)}
                     videoSrc={liveVideoPublicUrl(
                       active.tripId,
                       active.liveVideoFilename,
@@ -969,10 +970,7 @@ export function PhotoGallery({
                     still={
                       <ZoomableImage
                         resetKey={active.id}
-                        src={photoPublicUrl(
-                          active.tripId,
-                          active.previewFilename || active.filename,
-                        )}
+                        src={photoFullPublicUrl(active)}
                         alt={active.caption || active.originalName}
                         imgClassName="media-viewer__media rounded-lg"
                         onTap={() => setUiVisible((v) => !v)}
@@ -988,10 +986,7 @@ export function PhotoGallery({
                   <ZoomableImage
                     key={active.id}
                     resetKey={active.id}
-                    src={photoPublicUrl(
-                      active.tripId,
-                      active.previewFilename || active.filename,
-                    )}
+                    src={photoFullPublicUrl(active)}
                     alt={active.caption || active.originalName}
                     imgClassName="media-viewer__media rounded-lg"
                     onTap={() => setUiVisible((v) => !v)}

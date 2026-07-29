@@ -1,6 +1,8 @@
 # Future: Custom wall & collab
 
-> Captured 2026-07-28 from product chat. Do **not** build yet unless asked — wrap-up / ship first. This is the long-term vision for the polaroid wall.
+> Captured 2026-07-28 from product chat.  
+> **Executable roadmap (phases, frames, decor, acceptance):** see [`WALL-ROADMAP.md`](./WALL-ROADMAP.md).  
+> This file remains the short vision note.
 
 ## Vision
 

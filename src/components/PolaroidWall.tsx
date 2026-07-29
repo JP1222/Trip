@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BoardWidgetLayer } from "@/components/board/BoardWidgetLayer";
 import { Pushpin } from "@/components/Pushpin";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
+import type { WallObject } from "@/lib/wall-objects";
 
 function hash(s: string) {
   let h = 0;
@@ -33,9 +35,10 @@ const decorPins = [
 
 type Props = {
   items: WallItem[];
+  widgets?: WallObject[];
 };
 
-export function PolaroidWall({ items }: Props) {
+export function PolaroidWall({ items, widgets = [] }: Props) {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<WallItem | null>(null);
   const previewDialogRef = useRef<HTMLDialogElement>(null);
@@ -93,6 +96,8 @@ export function PolaroidWall({ items }: Props) {
             <span className="cork-tape cork-tape--a" />
             <span className="cork-tape cork-tape--b" />
           </div>
+
+          <BoardWidgetLayer objects={widgets} />
 
           <ul className="cork-board__photos">
             {laidOut.map(({ item, rotate }, index) => {
@@ -165,6 +170,13 @@ export function PolaroidWall({ items }: Props) {
 
               // Trip card or standalone wall photo.
               const line2 = item.meta || item.dateLabel;
+              const frameStyle = item.frameStyle || "polaroid";
+              const displaySize = item.displaySize || "md";
+              const showLabels =
+                item.kind !== "photo" ||
+                (frameStyle !== "borderless" &&
+                  !item.hideLabels &&
+                  Boolean(item.caption?.trim() || line2?.trim()));
               const orientation =
                 item.orientation ||
                 (item.src
@@ -172,6 +184,18 @@ export function PolaroidWall({ items }: Props) {
                   : item.planned
                     ? "portrait"
                     : "square");
+              const printClasses = [
+                `instant--${orientation}`,
+                item.kind === "photo" ? `instant--frame-${frameStyle}` : "",
+                item.kind === "photo" ? `instant--size-${displaySize}` : "",
+                item.kind === "photo" && !showLabels ? "instant--no-labels" : "",
+                item.planned ? "instant--planned" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              const altText =
+                item.caption?.trim() ||
+                (item.kind === "photo" ? "Board photo" : "Photo");
               const inner = (
                 <>
                   <Pushpin />
@@ -184,7 +208,7 @@ export function PolaroidWall({ items }: Props) {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.src}
-                          alt={item.caption}
+                          alt={altText}
                           loading={index < 6 ? "eager" : "lazy"}
                           ref={(image) => {
                             if (
@@ -267,10 +291,16 @@ export function PolaroidWall({ items }: Props) {
                       )}
                     </div>
                   </div>
-                  <div className="instant__foot">
-                    <span className="instant__caption">{item.caption}</span>
-                    {line2 && <span className="instant__date">{line2}</span>}
-                  </div>
+                  {showLabels ? (
+                    <div className="instant__foot">
+                      {item.caption?.trim() ? (
+                        <span className="instant__caption">{item.caption}</span>
+                      ) : null}
+                      {line2?.trim() ? (
+                        <span className="instant__date">{line2}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </>
               );
               const itemTypeClass =
@@ -301,7 +331,7 @@ export function PolaroidWall({ items }: Props) {
                     {item.href ? (
                       <Link
                         href={item.href}
-                        className={`instant instant--${orientation} group${item.planned ? " instant--planned" : ""}`}
+                        className={`instant ${printClasses} group`}
                         style={{
                           transform: active
                             ? "rotate(0deg)"
@@ -313,20 +343,20 @@ export function PolaroidWall({ items }: Props) {
                     ) : item.kind === "photo" ? (
                       <button
                         type="button"
-                        className={`instant instant--standalone instant--${orientation}`}
+                        className={`instant instant--standalone ${printClasses}`}
                         style={{
                           transform: active
                             ? "rotate(0deg)"
                             : `rotate(${rotate}deg)`,
                         }}
-                        aria-label={`Enlarge ${item.caption}`}
+                        aria-label={`Enlarge ${altText}`}
                         onClick={() => setPreviewPhoto(item)}
                       >
                         {inner}
                       </button>
                     ) : (
                       <div
-                        className={`instant instant--${orientation}${item.planned ? " instant--planned" : ""}`}
+                        className={`instant ${printClasses}`}
                         style={{
                           transform: active
                             ? "rotate(0deg)"
@@ -376,12 +406,18 @@ export function PolaroidWall({ items }: Props) {
             <img
               className="wall-lightbox__image"
               src={previewPhoto.src}
-              alt={previewPhoto.caption}
+              alt={previewPhoto.caption?.trim() || "Board photo"}
             />
-            <figcaption className="wall-lightbox__caption">
-              <span id="wall-lightbox-title">{previewPhoto.caption}</span>
-              {previewPhoto.meta && <small>{previewPhoto.meta}</small>}
-            </figcaption>
+            {(previewPhoto.caption?.trim() || previewPhoto.meta?.trim()) && (
+              <figcaption className="wall-lightbox__caption">
+                <span id="wall-lightbox-title">
+                  {previewPhoto.caption?.trim() || "Photo"}
+                </span>
+                {previewPhoto.meta?.trim() ? (
+                  <small>{previewPhoto.meta}</small>
+                ) : null}
+              </figcaption>
+            )}
           </figure>
         )}
       </dialog>

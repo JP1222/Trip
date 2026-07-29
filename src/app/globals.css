@@ -316,6 +316,218 @@ body {
   box-shadow: none;
 }
 
+/* Free-placed board widgets (vinyl, pins, …) over the cork surface.
+ * Layer never steals clicks — only each widget is interactive (admin). */
+.board-widget-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/*
+ * Public wall: trinkets paint *above* polaroids (scrapbook-on-top look)
+ * but the whole layer is pointer-events: none so clicks reach photos.
+ * Hover motion is driven by JS class `.board-widget--hovered`.
+ */
+.gallery-wall--public .board-widget-layer {
+  z-index: 14; /* above .cork-board__photos (z-index: 3) */
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gallery-wall--public .board-widget {
+  pointer-events: none;
+}
+
+/* Mobile public: hard clip at surface edge */
+@media (max-width: 767px) {
+  .gallery-wall--public .cork-board__surface {
+    overflow: hidden;
+  }
+
+  .gallery-wall--public .board-widget-layer {
+    overflow: hidden;
+  }
+
+  .gallery-wall--public .board-widget {
+    opacity: 0.92;
+  }
+}
+
+/* Desktop framed board: clip widgets at cork (don't spill onto cream wall) */
+@media (min-width: 768px) {
+  .gallery-wall--public .cork-board__surface {
+    overflow: hidden;
+  }
+
+  .gallery-wall--public .board-widget-layer {
+    overflow: hidden;
+  }
+}
+
+/* Admin: interactive layer above photos */
+.gallery-wall--admin .board-widget-layer {
+  z-index: 12;
+  overflow: visible;
+}
+
+.board-widget {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  will-change: left, top, transform;
+  filter: drop-shadow(0 2px 4px rgba(40, 30, 15, 0.12));
+  transition: filter 0.2s ease;
+}
+
+.board-widget--editable {
+  cursor: grab;
+}
+
+.board-widget--dragging {
+  cursor: grabbing;
+  z-index: 200 !important;
+  filter: drop-shadow(0 8px 18px rgba(40, 30, 15, 0.28));
+  transition: none;
+}
+
+.board-widget--resizing {
+  cursor: nwse-resize;
+  z-index: 200 !important;
+  filter: drop-shadow(0 8px 18px rgba(40, 30, 15, 0.28));
+  transition: none;
+}
+
+.board-widget--rotating {
+  cursor: grabbing;
+  z-index: 200 !important;
+  filter: drop-shadow(0 8px 18px rgba(40, 30, 15, 0.28));
+  transition: none;
+}
+
+.board-widget--selected {
+  outline: 2px solid rgba(61, 102, 100, 0.55);
+  outline-offset: 8px;
+  border-radius: 10px;
+}
+
+/* Keep chrome (× / handles) at readable size under parent scale() */
+.board-widget__remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 3;
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(28, 26, 23, 0.82);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transform-origin: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.board-widget__remove:hover {
+  background: var(--coral);
+}
+
+/* Rotate handle — sits above the selection, Figma-style */
+.board-widget__rotate {
+  position: absolute;
+  top: -34px;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #fffef9;
+  border: 2px solid rgba(61, 102, 100, 0.85);
+  color: rgba(61, 102, 100, 0.95);
+  box-shadow: 0 1px 4px rgba(40, 30, 15, 0.2);
+  transform-origin: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.board-widget__rotate::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1.5px;
+  height: 10px;
+  margin-left: -0.75px;
+  background: rgba(61, 102, 100, 0.55);
+  pointer-events: none;
+}
+
+.board-widget__rotate:hover {
+  background: color-mix(in srgb, var(--sea) 18%, #fffef9);
+  border-color: var(--sea);
+  color: var(--sea);
+}
+
+.board-widget--rotating .board-widget__rotate {
+  cursor: grabbing;
+  background: color-mix(in srgb, var(--sea) 22%, #fffef9);
+}
+
+/* Proportional corner handles — drag any corner to scale (aspect locked) */
+.board-widget__handle {
+  position: absolute;
+  z-index: 4;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: #fffef9;
+  border: 2px solid rgba(61, 102, 100, 0.85);
+  box-shadow: 0 1px 4px rgba(40, 30, 15, 0.2);
+  transform-origin: center;
+  touch-action: none;
+}
+
+.board-widget__handle--nw {
+  top: -7px;
+  left: -7px;
+  cursor: nwse-resize;
+}
+
+.board-widget__handle--ne {
+  top: -7px;
+  right: -7px;
+  cursor: nesw-resize;
+}
+
+.board-widget__handle--sw {
+  bottom: -7px;
+  left: -7px;
+  cursor: nesw-resize;
+}
+
+.board-widget__handle--se {
+  bottom: -7px;
+  right: -7px;
+  cursor: nwse-resize;
+}
+
+.board-widget__handle:hover {
+  background: color-mix(in srgb, var(--sea) 18%, #fffef9);
+  border-color: var(--sea);
+}
+
 .cork-board__surface::before {
   content: "";
   position: absolute;
@@ -865,8 +1077,25 @@ body {
   --instant-long-edge: min(88vw, 355px);
 }
 
+/* Relative board-print size (board photos). Default md = 1. */
+.gallery-wall .instant {
+  --print-scale: 1;
+}
+
+.gallery-wall .instant--size-sm {
+  --print-scale: 0.78;
+}
+
+.gallery-wall .instant--size-md {
+  --print-scale: 1;
+}
+
+.gallery-wall .instant--size-lg {
+  --print-scale: 1.22;
+}
+
 .gallery-wall .instant--landscape {
-  --landscape-edge: calc(var(--instant-long-edge) * 0.98);
+  --landscape-edge: calc(var(--instant-long-edge) * 0.98 * var(--print-scale, 1));
   --border: calc(var(--w) * 0.045);
   --w: var(--landscape-edge);
   height: calc(
@@ -880,8 +1109,8 @@ body {
 }
 
 .gallery-wall .instant--portrait {
-  --w: calc(var(--instant-long-edge) * 3 / 4);
-  height: var(--instant-long-edge);
+  --w: calc(var(--instant-long-edge) * 3 / 4 * var(--print-scale, 1));
+  height: calc(var(--instant-long-edge) * var(--print-scale, 1));
   aspect-ratio: 3 / 4;
 }
 
@@ -892,8 +1121,177 @@ body {
 }
 
 .gallery-wall .instant--square {
-  --w: min(78vw, 300px);
+  --w: calc(min(78vw, 300px) * var(--print-scale, 1));
   aspect-ratio: 89 / 108;
+}
+
+/*
+ * Board-photo frame skins — not scoped to .gallery-wall so the admin
+ * edit modal preview matches the cork board.
+ *
+ * Default .instant is Polaroid 89×108 (big bottom write strip). Borderless
+ * and thin-white must cancel that aspect-ratio or an empty white slab remains.
+ */
+
+/* ── Borderless: photo only, no paper margin ── */
+.instant--frame-borderless {
+  --border: 0px;
+  aspect-ratio: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  background: transparent;
+  border-radius: 3px;
+  box-shadow:
+    0 2px 6px rgba(40, 30, 15, 0.14),
+    0 10px 22px rgba(40, 30, 15, 0.12);
+}
+
+.instant--frame-borderless .instant__pad {
+  flex: 0 0 auto;
+  padding: 0 !important;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.instant--frame-borderless .instant__image {
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.instant--frame-borderless .instant__foot {
+  display: none !important;
+}
+
+.instant--frame-borderless.instant--landscape,
+.gallery-wall .instant--frame-borderless.instant--landscape {
+  width: var(--w);
+  height: auto !important;
+  aspect-ratio: 3 / 2 !important;
+}
+
+.instant--frame-borderless.instant--landscape .instant__image {
+  aspect-ratio: 3 / 2;
+}
+
+.instant--frame-borderless.instant--portrait,
+.gallery-wall .instant--frame-borderless.instant--portrait {
+  width: var(--w);
+  height: auto !important;
+  aspect-ratio: 2 / 3 !important;
+}
+
+.instant--frame-borderless.instant--portrait .instant__image {
+  aspect-ratio: 2 / 3;
+}
+
+.instant--frame-borderless.instant--square,
+.gallery-wall .instant--frame-borderless.instant--square {
+  width: var(--w);
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+}
+
+.instant--frame-borderless.instant--square .instant__image {
+  aspect-ratio: 1 / 1;
+}
+
+/* ── Thin white: even mat on all sides (no fat bottom strip) ── */
+.instant--frame-thin_white {
+  --border: max(5px, calc(var(--w) * 0.032));
+  aspect-ratio: auto !important;
+  height: auto !important;
+  background: #fffcf7;
+}
+
+.instant--frame-thin_white .instant__pad {
+  flex: 0 0 auto;
+  /* equal pad all around — not polaroid’s bottom-heavy strip */
+  padding: var(--border) !important;
+}
+
+.instant--frame-thin_white .instant__foot {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0.15em calc(var(--border) * 0.6) calc(var(--border) * 0.55);
+}
+
+.instant--frame-thin_white.instant--landscape,
+.gallery-wall .instant--frame-thin_white.instant--landscape {
+  width: var(--w);
+  height: auto !important;
+  aspect-ratio: auto !important;
+}
+
+.instant--frame-thin_white.instant--landscape .instant__image {
+  aspect-ratio: 3 / 2;
+}
+
+.instant--frame-thin_white.instant--portrait,
+.gallery-wall .instant--frame-thin_white.instant--portrait {
+  width: var(--w);
+  height: auto !important;
+  aspect-ratio: auto !important;
+}
+
+.instant--frame-thin_white.instant--portrait .instant__image {
+  aspect-ratio: 2 / 3;
+}
+
+.instant--frame-thin_white.instant--square,
+.gallery-wall .instant--frame-thin_white.instant--square {
+  width: var(--w);
+  height: auto !important;
+  aspect-ratio: auto !important;
+}
+
+.instant--frame-thin_white.instant--square .instant__image {
+  aspect-ratio: 1 / 1;
+}
+
+/* Thin white without labels: no foot, no extra bottom lip */
+.instant--frame-thin_white.instant--no-labels .instant__foot {
+  display: none !important;
+}
+
+.instant--frame-thin_white.instant--no-labels .instant__pad {
+  padding: var(--border) !important;
+}
+
+/* ── No caption / meta ── */
+.instant--no-labels .instant__foot {
+  display: none !important;
+}
+
+/* Polaroid without text: collapse 89×108 sheet, keep a short write-on lip */
+.instant--no-labels.instant--frame-polaroid,
+.instant--no-labels:not(.instant--frame-borderless):not(.instant--frame-thin_white) {
+  aspect-ratio: auto !important;
+  height: auto !important;
+}
+
+.instant--no-labels.instant--frame-polaroid .instant__pad,
+.instant--no-labels:not(.instant--frame-borderless):not(.instant--frame-thin_white)
+  .instant__pad {
+  padding: var(--border) var(--border) max(12px, calc(var(--w) * 0.09));
+}
+
+.instant--no-labels.instant--landscape .instant__image {
+  aspect-ratio: 3 / 2;
+}
+
+.instant--no-labels.instant--portrait .instant__image {
+  aspect-ratio: 2 / 3;
+}
+
+.instant--no-labels.instant--square .instant__image {
+  aspect-ratio: 1 / 1;
+}
+
+/* Gallery wall landscape height formula fights borderless/thin_white — override */
+.gallery-wall .instant--frame-borderless.instant--landscape,
+.gallery-wall .instant--frame-thin_white.instant--landscape,
+.gallery-wall .instant--no-labels.instant--landscape {
+  height: auto !important;
 }
 
 @media (min-width: 768px) {
@@ -902,7 +1300,7 @@ body {
   }
 
   .gallery-wall .instant--square {
-    --w: 230px;
+    --w: calc(230px * var(--print-scale, 1));
   }
 }
 
@@ -912,7 +1310,7 @@ body {
   }
 
   .gallery-wall .instant--square {
-    --w: 235px;
+    --w: calc(235px * var(--print-scale, 1));
   }
 }
 
@@ -922,7 +1320,7 @@ body {
   }
 
   .gallery-wall .instant--square {
-    --w: clamp(250px, 17vw, 286px);
+    --w: calc(clamp(250px, 17vw, 286px) * var(--print-scale, 1));
   }
 }
 
@@ -932,7 +1330,7 @@ body {
   }
 
   .gallery-wall .instant--square {
-    --w: 300px;
+    --w: calc(300px * var(--print-scale, 1));
   }
 }
 
@@ -1701,6 +2099,17 @@ body {
   color: #5c4a32;
 }
 
+.admin-wall-hint__text--soft {
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+  opacity: 0.78;
+}
+
+.instant__badge--photo {
+  background: rgba(61, 102, 100, 0.92);
+  color: #fff;
+}
+
 .admin-wall-hint__status {
   margin-top: 0.4rem;
   font-size: 0.75rem;
@@ -1749,4 +2158,273 @@ button.admin-instant {
   box-shadow:
     0 0 0 0.5px rgba(28, 26, 23, 0.04),
     0 2px 8px rgba(28, 26, 23, 0.06) !important;
+}
+
+/* ─── Board decoration catalog (pins / clips / notes / trinkets) ─── */
+.board-decor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+  transform-origin: 50% 55%;
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.35s ease;
+}
+
+.board-decor__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+/* 2.5D vinyl widget */
+.board-vinyl {
+  display: inline-flex;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.board-vinyl__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.board-vinyl__disc {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Vinyl disc spin — CSS :hover (admin/catalog) + JS --hovered (public) */
+.board-widget:hover .board-vinyl__disc,
+.board-widget--hovered .board-vinyl__disc,
+.decor-catalog-card:hover .board-vinyl__disc,
+.board-decor--spin:hover .board-vinyl__disc {
+  transform: rotate(28deg);
+}
+
+/*
+ * Hover “alive” motions — inner art only (placed transform stays on .board-widget).
+ * Public homepage uses .board-widget--hovered (JS hit-test) because the layer
+ * is pointer-events:none so polaroid clicks pass through.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .board-widget:hover .board-decor--bob,
+  .board-widget--hovered .board-decor--bob,
+  .decor-catalog-card:hover .board-decor--bob,
+  .decor-catalog-stage__row .board-decor--bob:hover {
+    transform: translateY(-6px) scale(1.08);
+    filter: drop-shadow(0 4px 6px rgba(40, 30, 15, 0.18));
+  }
+
+  .board-widget:hover .board-decor--wiggle,
+  .board-widget--hovered .board-decor--wiggle,
+  .decor-catalog-card:hover .board-decor--wiggle,
+  .decor-catalog-stage__row .board-decor--wiggle:hover {
+    transform: rotate(-8deg) translateY(-3px) scale(1.05);
+    filter: drop-shadow(0 4px 6px rgba(40, 30, 15, 0.16));
+  }
+
+  .board-widget:hover .board-decor--lift,
+  .board-widget--hovered .board-decor--lift,
+  .decor-catalog-card:hover .board-decor--lift,
+  .decor-catalog-stage__row .board-decor--lift:hover {
+    transform: translateY(-5px) rotate(-3deg) scale(1.06);
+    filter: drop-shadow(0 5px 8px rgba(40, 30, 15, 0.16));
+  }
+
+  .board-widget:hover .board-decor--spin,
+  .board-widget--hovered .board-decor--spin,
+  .decor-catalog-card:hover .board-decor--spin,
+  .decor-catalog-stage__row .board-decor--spin:hover {
+    transform: scale(1.06);
+    filter: drop-shadow(0 6px 10px rgba(40, 30, 15, 0.2));
+  }
+
+  .board-widget:hover .board-decor--peel,
+  .board-widget--hovered .board-decor--peel,
+  .decor-catalog-card:hover .board-decor--peel,
+  .decor-catalog-stage__row .board-decor--peel:hover {
+    transform: rotate(-4deg) skewX(-2deg) translateY(-2px) scale(1.04);
+    filter: drop-shadow(0 3px 5px rgba(40, 30, 15, 0.14));
+  }
+
+  .board-widget:hover .board-decor--fly,
+  .board-widget--hovered .board-decor--fly,
+  .decor-catalog-card:hover .board-decor--fly,
+  .decor-catalog-stage__row .board-decor--fly:hover {
+    transform: translate(6px, -8px) rotate(12deg) scale(1.06);
+    filter: drop-shadow(0 6px 8px rgba(40, 30, 15, 0.16));
+  }
+
+  .board-widget:hover .board-decor--nudge,
+  .board-widget--hovered .board-decor--nudge,
+  .decor-catalog-card:hover .board-decor--nudge,
+  .decor-catalog-stage__row .board-decor--nudge:hover {
+    transform: translateX(4px) rotate(2deg) scale(1.05);
+    filter: drop-shadow(0 4px 6px rgba(40, 30, 15, 0.14));
+  }
+
+  .board-widget:hover .board-decor--pulse,
+  .board-widget--hovered .board-decor--pulse,
+  .decor-catalog-card:hover .board-decor--pulse,
+  .decor-catalog-stage__row .board-decor--pulse:hover {
+    transform: scale(1.14);
+    filter: drop-shadow(0 5px 8px rgba(180, 80, 70, 0.22));
+  }
+
+  .board-widget:hover .board-decor--twirl,
+  .board-widget--hovered .board-decor--twirl,
+  .decor-catalog-card:hover .board-decor--twirl,
+  .decor-catalog-stage__row .board-decor--twirl:hover {
+    transform: rotate(18deg) scale(1.1);
+    filter: drop-shadow(0 5px 8px rgba(40, 30, 15, 0.16));
+  }
+
+  .board-widget:hover .board-decor--press,
+  .board-widget--hovered .board-decor--press,
+  .decor-catalog-card:hover .board-decor--press,
+  .decor-catalog-stage__row .board-decor--press:hover {
+    transform: scale(0.92) rotate(-6deg);
+    filter: drop-shadow(0 1px 2px rgba(40, 30, 15, 0.2));
+  }
+
+  .board-widget:hover .board-decor--sway,
+  .board-widget--hovered .board-decor--sway,
+  .decor-catalog-card:hover .board-decor--sway,
+  .decor-catalog-stage__row .board-decor--sway:hover {
+    transform: rotate(10deg) translateY(-4px) scale(1.05);
+    filter: drop-shadow(0 5px 7px rgba(40, 30, 15, 0.14));
+  }
+
+  .decor-catalog-stage__row .board-decor {
+    cursor: default;
+  }
+}
+
+/* While dragging / resizing / rotating, freeze hover jiggle */
+.board-widget--dragging .board-decor,
+.board-widget--resizing .board-decor,
+.board-widget--rotating .board-decor {
+  transition: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.board-widget--dragging .board-vinyl__disc,
+.board-widget--resizing .board-vinyl__disc,
+.board-widget--rotating .board-vinyl__disc {
+  transition: none !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-decor {
+    transition: none;
+  }
+
+  .board-vinyl__disc {
+    transition: none;
+  }
+
+  .board-widget:hover .board-decor,
+  .board-widget--hovered .board-decor,
+  .decor-catalog-card:hover .board-decor,
+  .decor-catalog-stage__row .board-decor:hover,
+  .board-widget:hover .board-vinyl__disc,
+  .board-widget--hovered .board-vinyl__disc,
+  .decor-catalog-card:hover .board-vinyl__disc,
+  .board-decor--spin:hover .board-vinyl__disc {
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+.decor-catalog-stage {
+  border-radius: 1rem;
+  padding: 0.85rem 1rem 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.12), rgba(40, 30, 15, 0.06)),
+    url("/textures/cork-tile.jpg") center / 180px repeat,
+    #c4a882;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(40, 30, 15, 0.12);
+}
+
+.decor-catalog-stage__label {
+  margin: 0 0 0.55rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(44, 36, 28, 0.55);
+}
+
+.decor-catalog-stage__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
+}
+
+.decor-catalog-card {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(207, 196, 180, 0.75);
+  background: rgba(255, 252, 247, 0.92);
+  padding: 0.75rem 0.7rem 0.85rem;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.decor-catalog-card:hover {
+  border-color: color-mix(in srgb, var(--sea) 35%, var(--sand-300));
+  box-shadow: 0 6px 18px rgba(40, 30, 15, 0.08);
+  transform: translateY(-1px);
+}
+
+.decor-catalog-card:active {
+  transform: scale(0.98);
+}
+
+.decor-catalog-card__art {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.2), rgba(40, 30, 15, 0.05)),
+    url("/textures/cork-tile.jpg") center / 140px repeat,
+    #d2b896;
+}
+
+.decor-catalog-card__name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.decor-catalog-card__desc {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

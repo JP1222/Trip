@@ -9,7 +9,10 @@ import {
   type ReactNode,
 } from "react";
 
+/** Apple-style hold delay before Live clip starts */
 const HOLD_MS = 280;
+/** Cancel hold if finger moves more than this (scroll / swipe) */
+const HOLD_MOVE_MAX = 12;
 
 type LiveBadgeProps = {
   className?: string;
@@ -50,12 +53,17 @@ type LivePhotoThumbProps = {
   alt: string;
   className?: string;
   badgeClassName?: string;
-  /** Hover/long-press play in the grid (default true on desktop hover). */
+  /**
+   * Interactive play (default true):
+   * desktop = hover; phone = finger press-and-hold.
+   */
   interactive?: boolean;
 };
 
 /**
- * Grid thumbnail: still by default; desktop hover plays the Live clip muted.
+ * Grid thumbnail: still by default.
+ * - Desktop (mouse): hover plays muted Live; leave stops. Click opens lightbox.
+ * - Phone (touch/pen): finger on photo ~280ms plays while held; lift stops. Tap opens lightbox.
  */
 export function LivePhotoThumb({
   stillSrc,
@@ -67,64 +75,213 @@ export function LivePhotoThumb({
 }: LivePhotoThumbProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const wantsPlayback = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdOrigin = useRef<{ x: number; y: number } | null>(null);
+  const holding = useRef(false);
+  /** How playback was started — only touch-hold suppresses the parent click. */
+  const playSource = useRef<"hover" | "hold" | null>(null);
+  /** After touch-hold play, suppress the following click (open lightbox). */
+  const suppressClick = useRef(false);
+  /** Bumps on each play request so stale async retries don't clobber a newer stop. */
+  const playGen = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
   const [videoRequested, setVideoRequested] = useState(false);
 
-  const play = useCallback(() => {
+  const clearHoldTimer = useCallback(() => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }, []);
+
+  /**
+   * Start muted playback. Retries when:
+   * - the <video> is not mounted yet (first hover)
+   * - play() is aborted while switching thumbs (AbortError)
+   */
+  const tryPlay = useCallback((gen: number, frame = 0) => {
+    if (!wantsPlayback.current || gen !== playGen.current) return;
     const v = videoRef.current;
-    if (!interactive) return;
-    wantsPlayback.current = true;
     if (!v) {
       setVideoRequested(true);
+      // Mount is async — retry a few frames until ref exists or cancelled.
+      if (frame < 45) {
+        requestAnimationFrame(() => tryPlay(gen, frame + 1));
+      }
       return;
     }
-    void v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-  }, [interactive]);
+    v.muted = true;
+    void v
+      .play()
+      .then(() => {
+        if (!wantsPlayback.current || gen !== playGen.current) {
+          v.pause();
+          return;
+        }
+        setPlaying(true);
+      })
+      .catch(() => {
+        if (!wantsPlayback.current || gen !== playGen.current) {
+          setPlaying(false);
+          return;
+        }
+        // Switching between Live thumbs often aborts the previous play(); retry once settled.
+        window.setTimeout(() => {
+          if (!wantsPlayback.current || gen !== playGen.current) return;
+          const el = videoRef.current;
+          if (!el) return;
+          void el
+            .play()
+            .then(() => {
+              if (wantsPlayback.current && gen === playGen.current) {
+                setPlaying(true);
+              }
+            })
+            .catch(() => setPlaying(false));
+        }, 40);
+      });
+  }, []);
+
+  const play = useCallback(
+    (source: "hover" | "hold") => {
+      if (!interactive) return;
+      wantsPlayback.current = true;
+      playSource.current = source;
+      const gen = ++playGen.current;
+      tryPlay(gen);
+    },
+    [interactive, tryPlay],
+  );
 
   const stop = useCallback(() => {
     wantsPlayback.current = false;
+    playSource.current = null;
+    playGen.current += 1; // invalidate in-flight retries
     const v = videoRef.current;
-    if (!v) return;
-    v.pause();
-    try {
-      v.currentTime = 0;
-    } catch {
-      /* ignore */
+    if (v) {
+      v.pause();
+      try {
+        v.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
     }
     setPlaying(false);
   }, []);
 
+  // When the video element first mounts, kick playback if hover/hold still active.
   useEffect(() => {
     if (!videoRequested || !interactive) return;
+    if (!wantsPlayback.current) return;
+    const gen = playGen.current;
     const video = videoRef.current;
     if (!video) return;
 
-    const startIfWanted = () => {
-      if (!wantsPlayback.current) return;
-      void video
-        .play()
-        .then(() => setPlaying(true))
-        .catch(() => setPlaying(false));
-    };
-
+    const startIfWanted = () => tryPlay(gen);
     if (video.readyState >= 2) startIfWanted();
     else video.addEventListener("loadeddata", startIfWanted, { once: true });
 
     return () => video.removeEventListener("loadeddata", startIfWanted);
-  }, [interactive, videoRequested]);
+  }, [interactive, videoRequested, tryPlay]);
+
+  useEffect(() => {
+    return () => clearHoldTimer();
+  }, [clearHoldTimer]);
+
+  function onPointerDown(e: ReactPointerEvent) {
+    if (!interactive) return;
+    // Desktop mouse → hover only; never press-and-hold on mouse.
+    if (e.pointerType === "mouse") return;
+    // Phone: finger on photo → play after short hold while finger stays
+    if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+
+    holding.current = true;
+    holdOrigin.current = { x: e.clientX, y: e.clientY };
+    clearHoldTimer();
+    holdTimer.current = setTimeout(() => {
+      if (!holding.current) return;
+      suppressClick.current = true;
+      play("hold");
+    }, HOLD_MS);
+  }
+
+  function onPointerMove(e: ReactPointerEvent) {
+    if (!holding.current || !holdOrigin.current) return;
+    const dx = e.clientX - holdOrigin.current.x;
+    const dy = e.clientY - holdOrigin.current.y;
+    if (Math.hypot(dx, dy) > HOLD_MOVE_MAX) {
+      // Scrolling the feed — cancel hold / stop if already playing from hold
+      clearHoldTimer();
+      holding.current = false;
+      holdOrigin.current = null;
+      if (playSource.current === "hold") stop();
+    }
+  }
+
+  function onPointerUp(e: ReactPointerEvent) {
+    if (!interactive) return;
+    if (e.pointerType === "mouse") return;
+
+    clearHoldTimer();
+    holding.current = false;
+    holdOrigin.current = null;
+
+    // Finger lifted after press-and-hold → stop + don't open lightbox
+    if (playSource.current === "hold") {
+      stop();
+      suppressClick.current = true;
+      e.preventDefault();
+      e.stopPropagation();
+      window.setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+    }
+  }
+
+  function onPointerCancel() {
+    clearHoldTimer();
+    holding.current = false;
+    holdOrigin.current = null;
+    if (playSource.current === "hold") stop();
+  }
+
+  function onClickCapture(e: React.MouseEvent) {
+    if (!suppressClick.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    suppressClick.current = false;
+  }
+
+  function onContextMenu(e: React.MouseEvent) {
+    // Avoid mobile callout / save-image while holding for Live play
+    if (interactive) e.preventDefault();
+  }
 
   return (
     <span
-      className="relative block w-full overflow-hidden"
-      onMouseEnter={interactive ? play : undefined}
-      onMouseLeave={interactive ? stop : undefined}
+      className="relative block h-full min-h-0 w-full touch-manipulation overflow-hidden select-none"
+      onMouseEnter={interactive ? () => play("hover") : undefined}
+      onMouseLeave={
+        interactive
+          ? () => {
+              // Hover-only stop; touch-hold ends via pointer up
+              if (playSource.current === "hover") stop();
+            }
+          : undefined
+      }
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onClickCapture={onClickCapture}
+      onContextMenu={onContextMenu}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={stillSrc}
         alt={alt}
-        className={`block w-full transition-opacity duration-200 ${
+        className={`pointer-events-none block w-full transition-opacity duration-200 ${
           playing && ready ? "opacity-0" : "opacity-100"
         } ${className}`}
         loading="lazy"
@@ -170,7 +327,7 @@ type LivePhotoStageProps = {
 /**
  * Lightbox stage for Live Photos:
  * - Still is default (zoomable via `still` slot)
- * - Hold / press LIVE to play the companion muted
+ * - Long-press still or LIVE badge to play the companion muted
  * - Tap LIVE badge to toggle play once through
  */
 export function LivePhotoStage({
@@ -185,6 +342,7 @@ export function LivePhotoStage({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdOrigin = useRef<{ x: number; y: number } | null>(null);
   const holding = useRef(false);
   const onPlayingChangeRef = useRef(onPlayingChange);
   useEffect(() => {
@@ -219,7 +377,6 @@ export function LivePhotoStage({
       .catch(() => setPlayState(false));
   }, [setPlayState]);
 
-  // Parent remounts via key={photoId}; clear pending hold timer on unmount
   useEffect(() => {
     return () => {
       if (holdTimer.current) clearTimeout(holdTimer.current);
@@ -233,47 +390,87 @@ export function LivePhotoStage({
     }
   }
 
-  function onBadgePointerDown(e: ReactPointerEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  function beginHold(e: ReactPointerEvent) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     holding.current = true;
+    holdOrigin.current = { x: e.clientX, y: e.clientY };
     clearHoldTimer();
-    // Hold to play (Apple style) — short tap handled on pointer up
     holdTimer.current = setTimeout(() => {
       if (holding.current) start();
     }, HOLD_MS);
   }
 
-  function onBadgePointerUp(e: ReactPointerEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const holdStartedPlay = holdTimer.current == null && playing;
+  function moveHold(e: ReactPointerEvent) {
+    if (!holding.current || !holdOrigin.current) return;
+    const dx = e.clientX - holdOrigin.current.x;
+    const dy = e.clientY - holdOrigin.current.y;
+    if (Math.hypot(dx, dy) > HOLD_MOVE_MAX) {
+      // Pinch/pan/swipe — cancel pending Live hold
+      clearHoldTimer();
+      if (!playing) {
+        holding.current = false;
+        holdOrigin.current = null;
+      }
+    }
+  }
+
+  function endHold(e: ReactPointerEvent, opts?: { fromBadge?: boolean }) {
     const wasShortTap = holdTimer.current != null;
+    const holdStartedPlay = holdTimer.current == null && playing;
     clearHoldTimer();
     holding.current = false;
+    holdOrigin.current = null;
 
-    // Short tap: toggle play-through
-    if (wasShortTap) {
-      if (playing) stop();
-      else start();
+    if (opts?.fromBadge) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Short tap on badge: toggle play-through
+      if (wasShortTap) {
+        if (playing) stop();
+        else start();
+        return;
+      }
+      if (holdStartedPlay) stop();
       return;
     }
 
-    // Released after hold-to-play → stop
-    if (holdStartedPlay) {
+    // Released after hold-to-play on the stage → stop
+    if (holdStartedPlay || playing) {
       stop();
     }
   }
 
-  function onBadgePointerCancel() {
+  function cancelHold() {
     clearHoldTimer();
     if (holding.current && playing) stop();
     holding.current = false;
+    holdOrigin.current = null;
+  }
+
+  function onBadgePointerDown(e: ReactPointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    beginHold(e);
+  }
+
+  function onBadgePointerUp(e: ReactPointerEvent) {
+    endHold(e, { fromBadge: true });
+  }
+
+  function onBadgePointerCancel() {
+    cancelHold();
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-1 items-center justify-center">
+    <div
+      className="relative flex h-full min-h-0 w-full flex-1 touch-manipulation items-center justify-center select-none"
+      onPointerDown={beginHold}
+      onPointerMove={moveHold}
+      onPointerUp={(e) => endHold(e)}
+      onPointerCancel={cancelHold}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {/* Still (zoomable) — hidden while playing so video sits on top cleanly */}
       <div
         className={`flex h-full w-full items-center justify-center transition-opacity duration-200 ${
@@ -295,7 +492,8 @@ export function LivePhotoStage({
         playsInline
         preload="metadata"
         onEnded={stop}
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           if (playing) stop();
           else onTap?.();
         }}

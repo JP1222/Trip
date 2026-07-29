@@ -121,9 +121,13 @@ export type PhotoMeta = {
   /** Durable processing state. Gallery reads normally include ready media only. */
   state?: "pending" | "processing" | "ready" | "failed";
   filename: string;
-  /** Smaller immutable derivative for dense admin/mobile grids. */
+  /**
+   * High-res list derivative (grid ~1080). Used by masonry / admin chips.
+   */
   thumbnailFilename?: string;
-  /** Larger immutable derivative for the lightbox. */
+  /**
+   * Full-resolution public still for lightbox (same as download / full.jpg).
+   */
   previewFilename?: string;
   /** Video poster derivative; avoids loading video metadata in a grid. */
   posterFilename?: string;

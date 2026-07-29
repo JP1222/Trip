@@ -7,7 +7,7 @@ PostgreSQL is the **only** metadata store. JSON file mode has been removed.
 - `trip` — Next.js web (standalone)
 - `media-worker` — Sharp/FFmpeg derivative pipeline
 - `postgres` — metadata, sessions, capabilities, job queue
-- `media` — nginx serving public derivatives + legacy `/uploads`
+- `media` — nginx serving public derivatives under `/media` (optional read-only legacy mount for import only)
 - Traefik terminates TLS (external)
 
 See [ADR 0001](./adr/0001-production-backend.md).
@@ -60,7 +60,8 @@ pnpm worker:media
 
 This copies each legacy file into private `original` / `live_original` keys and enqueues
 `process_image` / `process_live_photo` / `process_video` jobs. Gallery items stay
-`ready` while regenerating; once `thumb`/`preview` exist the API prefers `/media/...` URLs.
+`ready` while regenerating; once `grid` + `download` (`full.jpg`) exist the API serves
+`/media/...` list thumbs (1080) and full stills for preview / cover / download.
 
 
 ## Local backend

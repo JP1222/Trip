@@ -1,5 +1,14 @@
 import type { PhotoMeta, Trip } from "./types";
-import { photoPublicUrl } from "./photos-client";
+import { resolveTripCoverUrl } from "./media-url";
+import type {
+  WallDisplaySize,
+  WallFrameStyle,
+  WallPhoto,
+} from "./wall-photos";
+import {
+  wallPhotoDisplayOrientation,
+  wallPhotoHasLabels,
+} from "./wall-photos";
 
 function isPlannedTrip(t: Trip): boolean {
   return t.status === "planned";
@@ -16,6 +25,7 @@ export type WallItem = {
   src?: string;
   /** Optional fixed print direction; otherwise inferred from the loaded image. */
   orientation?: WallPhotoOrientation;
+  /** May be empty for unlabeled board prints */
   caption: string;
   /** Full destination for fallbacks / cover art */
   sub?: string;
@@ -36,6 +46,12 @@ export type WallItem = {
   noteLines?: string[];
   /** handwritten names at the foot of a sticky note */
   noteSignature?: string;
+  /** Board photo frame skin */
+  frameStyle?: WallFrameStyle;
+  /** Relative print size on the cork board */
+  displaySize?: WallDisplaySize;
+  /** Hide caption strip when both caption and meta are empty */
+  hideLabels?: boolean;
 };
 
 /** Convert the stored Tailwind-style color stops into a portable CSS gradient. */
@@ -265,10 +281,8 @@ function tripToWallItem(
 ): WallItem {
   const planned = isPlannedTrip(t);
   const tripPhotos = photosByTrip?.get(t.id) ?? [];
-  const fallback =
-    tripPhotos[0] != null
-      ? photoPublicUrl(t.id, tripPhotos[0].filename)
-      : undefined;
+  // Full public original (media full.jpg); never dead /uploads covers.
+  const coverSrc = resolveTripCoverUrl(t.coverImage, tripPhotos);
 
   const meta = planned
     ? `Planning · ${formatPolaroidPlace(t.destination) || "TBD"}`
@@ -278,7 +292,7 @@ function tripToWallItem(
     kind: "trip",
     id: `trip-${t.id}`,
     href: `/trips/${t.id}`,
-    src: planned ? t.coverImage || undefined : t.coverImage || fallback,
+    src: coverSrc,
     caption: t.title,
     sub: t.destination,
     meta,
@@ -289,18 +303,35 @@ function tripToWallItem(
   };
 }
 
+function wallPhotoToItem(photo: WallPhoto): WallItem {
+  const hasLabels = wallPhotoHasLabels(photo);
+  return {
+    kind: "photo",
+    id: `wall-photo-${photo.id}`,
+    src: photo.src,
+    orientation: wallPhotoDisplayOrientation(photo),
+    caption: photo.caption.trim(),
+    meta: photo.meta.trim() || undefined,
+    frameStyle: photo.frameStyle,
+    displaySize: photo.displaySize,
+    hideLabels: !hasLabels,
+  };
+}
+
 /**
- * Home wall: trip polaroids + a sticky note + open “coming soon” slots
+ * Home wall: trip polaroids + board photos + a sticky note + open slots
  * so the board feels alive when you’re still planning.
  */
 export function buildWallItems(
   trips: Trip[],
   photosByTrip?: Map<string, PhotoMeta[]>,
+  boardPhotos: WallPhoto[] = [],
 ): WallItem[] {
   const tripItems = trips.map((t) => tripToWallItem(t, photosByTrip));
   const plannedCount = tripItems.filter((i) => i.planned).length;
   const livedCount = tripItems.length - plannedCount;
-  const memoryCount = livedCount + 1;
+  const boardCount = boardPhotos.length;
+  const memoryCount = livedCount + boardCount;
 
   const years = trips
     .map((t) => new Date(`${t.startDate}T12:00:00`).getFullYear())
@@ -335,16 +366,8 @@ export function buildWallItems(
     noteSignature: "Peng · Carlie · Joel · Michelle · Beau · Shreya",
   });
 
-  // One shared photo of the whole group. Unlike trip cards, this is a
-  // single, non-clickable print and intentionally has no stacked back photo.
-  items.push({
-    kind: "photo",
-    id: "wall-photo-our-crew",
-    src: "/wall/our-crew.jpg",
-    orientation: "landscape",
-    caption: "Our crew",
-    meta: "Peng · Carlie · Joel · Michelle · Beau · Shreya",
-  });
+  // Standalone board prints (group shots, mementos) — not trip cards.
+  items.push(...boardPhotos.map(wallPhotoToItem));
 
   // Planned first so “coming up” is visible, then lived memories
   items.push(...planned, ...lived);

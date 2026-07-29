@@ -167,16 +167,20 @@ function mapMediaRow(row: MediaRow): MediaWithAssets {
   };
 }
 
+/**
+ * Canonical public still/video for `filename` (download API + fallback).
+ * Images: full.jpg (download role) first — original-resolution public still.
+ * List UI uses thumbnailFilename (grid-1080) separately.
+ */
 function preferredAsset(media: MediaWithAssets): MediaAsset | undefined {
   if (media.kind === "video") {
     return media.assets.playback || media.assets.legacy_playback;
   }
   return (
-    media.assets.preview ||
     media.assets.download ||
+    media.assets.preview ||
     media.assets.grid ||
-    media.assets.thumb ||
-    media.assets.legacy_display
+    media.assets.thumb
   );
 }
 
@@ -191,7 +195,7 @@ export function mediaToPhotoMeta(media: MediaWithAssets): PhotoMeta {
   };
   const filename = publicFilename(
     primary,
-    `/media/trips/${media.tripId}/${media.id}/v${media.version}/preview.webp`,
+    `/media/trips/${media.tripId}/${media.id}/v${media.version}/full.jpg`,
   );
   const result: PhotoMeta & {
     thumbnailFilename?: string;
@@ -220,14 +224,16 @@ export function mediaToPhotoMeta(media: MediaWithAssets): PhotoMeta {
     featured: media.featured,
     featuredAt: media.featuredAt,
   };
+  // Masonry / admin list — grid-1080 only (not full original).
   const thumbnail =
     media.kind === "video"
-      ? media.assets.poster || media.assets.thumb || media.assets.grid
-      : media.assets.thumb || media.assets.grid;
+      ? media.assets.poster || media.assets.grid || media.assets.thumb
+      : media.assets.grid || media.assets.thumb;
+  // Lightbox preview + download — full-resolution public original (full.jpg).
   const preview =
     media.kind === "video"
       ? media.assets.poster || media.assets.preview || media.assets.download
-      : media.assets.preview || media.assets.download;
+      : media.assets.download || media.assets.preview;
   if (thumbnail) result.thumbnailFilename = publicFilename(thumbnail, filename);
   if (preview) result.previewFilename = publicFilename(preview, filename);
   if (media.assets.poster) {

@@ -2,11 +2,20 @@
 
 import type { PhotoMeta } from "./types";
 
+/**
+ * Public URL for a gallery asset.
+ * Prefer absolute `/media/...` keys from the media pipeline.
+ * Bare names are treated as storage keys under /media (never /uploads).
+ */
 export function photoPublicUrl(tripId: string, filename: string) {
+  if (!filename) return "";
   if (/^https?:\/\//i.test(filename) || filename.startsWith("/")) {
     return filename;
   }
-  return `/uploads/${tripId}/${filename}`;
+  if (filename.startsWith("trips/")) {
+    return `/media/${filename}`;
+  }
+  return `/media/trips/${tripId}/${filename}`;
 }
 
 export function formatFileSize(bytes: number): string {

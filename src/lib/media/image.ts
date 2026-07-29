@@ -11,22 +11,18 @@ import type {
 
 const MAX_INPUT_PIXELS = 100_000_000;
 
-const IMAGE_VARIANTS = [
-  { role: "thumb", filename: "thumb-480.webp", width: 480, format: "webp", quality: 72 },
-  { role: "grid", filename: "grid-960.webp", width: 960, format: "webp", quality: 78 },
+/**
+ * List/admin derivative only (longest edge 1080).
+ * Lightbox preview + download use a full-resolution public `full.jpg` (no downscale).
+ * No thumb-720 — list uses grid only.
+ */
+const LIST_VARIANTS = [
   {
-    role: "preview",
-    filename: "preview-1920.webp",
-    width: 1920,
-    format: "webp",
-    quality: 82,
-  },
-  {
-    role: "download",
-    filename: "download-2560.jpg",
-    width: 2560,
-    format: "jpeg",
-    quality: 85,
+    role: "grid" as const,
+    filename: "grid-1080.webp",
+    width: 1080,
+    format: "webp" as const,
+    quality: 88,
   },
 ] as const satisfies ReadonlyArray<{
   role: MediaAssetRole;
@@ -96,7 +92,6 @@ export async function generateImageVariants(
     extractPhotoExif(raw, media.originalName).catch(() => ({})),
   ]);
 
-  // Decode once up front so invalid, enormous, or unsupported files fail before publish.
   const inputMetadata = await sharp(decoded, {
     failOn: "warning",
     limitInputPixels: MAX_INPUT_PIXELS,
@@ -107,7 +102,45 @@ export async function generateImageVariants(
   }
 
   const assets: MediaAsset[] = [];
-  for (const variant of IMAGE_VARIANTS) {
+
+  // Full-resolution public still — used for lightbox preview + download (no resize).
+  if (options.signal?.aborted) throw options.signal.reason;
+  const fullPipeline = sharp(decoded, {
+    failOn: "warning",
+    limitInputPixels: MAX_INPUT_PIXELS,
+    sequentialRead: true,
+  })
+    .rotate()
+    .toColorspace("srgb")
+    .jpeg({
+      quality: 92,
+      mozjpeg: true,
+      chromaSubsampling: "4:2:0",
+    });
+  const full = await fullPipeline.toBuffer({ resolveWithObject: true });
+  const fullKey = mediaAssetKey(
+    media.tripId,
+    media.id,
+    media.version,
+    "full.jpg",
+  );
+  const fullPublished = await storage.writeAtomic("public", fullKey, full.data);
+  // One public full-size file. API maps both preview + download fields to this role
+  // (storage_key is unique — cannot insert two roles for the same key).
+  assets.push({
+    mediaId: media.id,
+    role: "download",
+    storageProvider: "local",
+    storageKey: fullKey,
+    mimeType: "image/jpeg",
+    byteSize: fullPublished.byteSize,
+    width: full.info.width,
+    height: full.info.height,
+    sha256: fullPublished.sha256,
+    isPublic: true,
+  });
+
+  for (const variant of LIST_VARIANTS) {
     if (options.signal?.aborted) throw options.signal.reason;
     let pipeline = sharp(decoded, {
       failOn: "warning",
@@ -127,7 +160,7 @@ export async function generateImageVariants(
       variant.format === "webp"
         ? pipeline.webp({
             quality: variant.quality,
-            effort: 4,
+            effort: 3,
             smartSubsample: true,
           })
         : pipeline.jpeg({
@@ -160,4 +193,3 @@ export async function generateImageVariants(
 
   return { assets, metadata: exifPatch(exif) };
 }
-

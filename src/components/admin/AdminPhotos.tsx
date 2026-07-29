@@ -11,7 +11,13 @@ import {
   liveVideoPublicUrl,
   photoPublicUrl,
 } from "@/lib/photos-client";
-import { LiveBadge, LivePhotoStage } from "@/components/LivePhoto";
+import {
+  isLegacyUploadUrl,
+  mediaIdFromCoverRef,
+  photoFullPublicUrl,
+  photoListPublicUrl,
+} from "@/lib/media-url";
+import { LiveBadge, LivePhotoStage, LivePhotoThumb } from "@/components/LivePhoto";
 
 type Props = {
   tripId: string;
@@ -297,13 +303,10 @@ export function AdminPhotos({
       if (saved.length) {
         setPhotos((prev) => sortAdminPhotos([...saved, ...prev]));
         // Auto-set first cover if none (images only — not video)
-        if (!cover) {
+        if (!cover || isLegacyUploadUrl(cover)) {
           const firstImage = saved.find((p) => !isVideoMedia(p));
           if (firstImage) {
-            const url = photoPublicUrl(
-              firstImage.tripId,
-              firstImage.filename,
-            );
+            const url = photoFullPublicUrl(firstImage);
             await fetch(`/api/admin/trips/${tripId}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
@@ -537,13 +540,16 @@ export function AdminPhotos({
         <div className="space-y-4">
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
             {renderedPhotos.map((p, index) => {
-            const url = photoPublicUrl(p.tripId, p.filename);
-            const gridUrl = photoPublicUrl(
-              p.tripId,
-              (isVideoMedia(p) ? p.posterFilename : p.thumbnailFilename) ||
-                p.filename,
-            );
-            const isCover = cover === url;
+            // Cover / lightbox: full original. Grid chips: 1080 list thumb (or video poster).
+            const url = photoFullPublicUrl(p);
+            const gridUrl = isVideoMedia(p)
+              ? photoPublicUrl(
+                  p.tripId,
+                  p.posterFilename || p.thumbnailFilename || p.filename,
+                )
+              : photoListPublicUrl(p);
+            const isCover =
+              mediaIdFromCoverRef(cover) === p.id || cover === url;
             const isSelected = selected.has(p.id);
             const isFeatured = Boolean(p.featured);
             const isVid = isVideoMedia(p);
@@ -575,6 +581,17 @@ export function AdminPhotos({
                         playsInline
                         preload="metadata"
                         aria-label={p.caption || p.originalName}
+                      />
+                    ) : isLive && p.liveVideoFilename ? (
+                      <LivePhotoThumb
+                        stillSrc={gridUrl}
+                        videoSrc={liveVideoPublicUrl(
+                          p.tripId,
+                          p.liveVideoFilename,
+                        )}
+                        alt={p.caption || p.originalName}
+                        className="h-full w-full object-cover"
+                        badgeClassName="top-1.5 left-1.5"
                       />
                     ) : (
                       <Image
@@ -846,19 +863,11 @@ export function AdminPhotos({
                   type="button"
                   disabled={
                     busy ||
-                    cover ===
-                      photoPublicUrl(
-                        previewPhoto.tripId,
-                        previewPhoto.filename,
-                      )
+                    mediaIdFromCoverRef(cover) === previewPhoto.id ||
+                    cover === photoFullPublicUrl(previewPhoto)
                   }
                   onClick={() =>
-                    void setAsCover(
-                      photoPublicUrl(
-                        previewPhoto.tripId,
-                        previewPhoto.filename,
-                      ),
-                    )
+                    void setAsCover(photoFullPublicUrl(previewPhoto))
                   }
                   className="hidden rounded-full bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/20 sm:inline-flex disabled:opacity-40"
                 >
@@ -910,10 +919,7 @@ export function AdminPhotos({
               <LivePhotoStage
                 key={previewPhoto.id}
                 resetKey={previewPhoto.id}
-                stillSrc={photoPublicUrl(
-                  previewPhoto.tripId,
-                  previewPhoto.previewFilename || previewPhoto.filename,
-                )}
+                stillSrc={photoFullPublicUrl(previewPhoto)}
                 videoSrc={liveVideoPublicUrl(
                   previewPhoto.tripId,
                   previewPhoto.liveVideoFilename,
@@ -922,10 +928,7 @@ export function AdminPhotos({
                 still={
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={photoPublicUrl(
-                      previewPhoto.tripId,
-                      previewPhoto.previewFilename || previewPhoto.filename,
-                    )}
+                    src={photoFullPublicUrl(previewPhoto)}
                     alt={previewPhoto.caption || previewPhoto.originalName}
                     className="max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
                   />
@@ -935,10 +938,7 @@ export function AdminPhotos({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={previewPhoto.id}
-                src={photoPublicUrl(
-                  previewPhoto.tripId,
-                  previewPhoto.previewFilename || previewPhoto.filename,
-                )}
+                src={photoFullPublicUrl(previewPhoto)}
                 alt={previewPhoto.caption || previewPhoto.originalName}
                 className="max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
               />

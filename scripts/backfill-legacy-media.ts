@@ -32,7 +32,7 @@ type NeedRow = {
   source_mime_type: string;
   has_original: boolean;
   has_live_original: boolean;
-  has_thumb: boolean;
+  has_grid: boolean;
   has_playback: boolean;
   has_live_playback: boolean;
   legacy_display_key: string | null;
@@ -96,9 +96,10 @@ function priorityFor(kind: MediaKind): number {
 function needsWork(row: NeedRow): boolean {
   if (row.kind === "video") return !row.has_playback;
   if (row.kind === "live_photo") {
-    return !row.has_thumb || !row.has_live_playback;
+    // List uses grid-1080; thumb-720 is no longer generated.
+    return !row.has_grid || !row.has_live_playback;
   }
-  return !row.has_thumb;
+  return !row.has_grid;
 }
 
 function extensionFrom(key: string, mime: string | null, fallback: string): string {
@@ -144,8 +145,8 @@ async function listCandidates(options: Options): Promise<NeedRow[]> {
       ) AS has_live_original,
       EXISTS (
         SELECT 1 FROM media_assets a
-        WHERE a.media_id = m.id AND a.role = 'thumb'
-      ) AS has_thumb,
+        WHERE a.media_id = m.id AND a.role = 'grid'
+      ) AS has_grid,
       EXISTS (
         SELECT 1 FROM media_assets a
         WHERE a.media_id = m.id AND a.role = 'playback'

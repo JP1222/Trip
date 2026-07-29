@@ -4,63 +4,88 @@ A small private site for friends: share trip plans, upload travel photos, and do
 
 ## Features
 
-- **Trip list** — home cards for every journey
-- **Itinerary** — day-by-day timeline
-- **Gallery** — masonry layout, lightbox, single / bulk download
+- **Trip list** — home polaroid wall for every journey
+- **Itinerary** — day-by-day timeline + maps
+- **Gallery** — masonry waterfall, lightbox, Live Photo hold-to-play, download
 - **Upload** — drag-and-drop or multi-select, with your name for credit
+- **Admin** — trips, photos, comments, wall board decorations
+
+## Media model
+
+| Use | Asset |
+|-----|--------|
+| List / waterfall / admin chips | `grid-1080.webp` (longest edge 1080) |
+| Lightbox preview, home cover, download | `full.jpg` (full-resolution public still) |
+| Private source | originals under `runtime/media-private` (not web-served) |
+| Public derivatives | `runtime/media-public` → `/media/...` |
+
+There is **no** runtime `public/uploads` gallery tree. That path is only for optional one-time legacy import.
 
 ## Run locally
 
 ```bash
 pnpm install
-pnpm dev
+
+# Postgres (local compose helper)
+docker compose -f docker-compose.local.yml up -d postgres
+
+# Env: copy .env.example → .env.local (DATABASE_URL, APP_SECRET, ADMIN_*)
+pnpm db:migrate
+pnpm worker:media   # terminal 1 — derivatives
+pnpm dev            # terminal 2
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). Admin: `/admin`.
 
-## Customize trips
-
-Edit `data/trips.json` to add or change trips and days. Refresh the page after saving.
-
-Photos live under `public/uploads/<trip-id>/`, with metadata in `photos.json` in the same folder.
+Optional without a separate worker: `MEDIA_INLINE_PROCESS=1 pnpm dev`.
 
 ## Stack
 
-- Next.js (App Router) + TypeScript
-- Tailwind CSS v4
-- Local filesystem for photos (fine for a small group on one Docker host)
+- Next.js (App Router) + TypeScript + Tailwind CSS v4
+- PostgreSQL — trips, comments, media metadata, jobs, sessions
+- Local media roots — private originals + public derivatives
+- media-worker — Sharp / FFmpeg jobs (`process_image`, `process_live_photo`, `process_video`)
 
-## Deploy with Docker (Oracle Cloud + Traefik)
+## Deploy (Oracle + Traefik)
 
-No separate database — trips and photos live on disk bind mounts.
+Production: [https://trip.jpzen.cn](https://trip.jpzen.cn) · Admin: `/admin`
 
-**Production:** [https://trip.jpzen.cn](https://trip.jpzen.cn) · Admin: `/admin`
+- Full topology and cutover: [`docs/DEPLOY.md`](./docs/DEPLOY.md)
+- Host-specific rsync / Traefik notes: [`deploy/oracle-traefik.md`](./deploy/oracle-traefik.md)
+- Architecture decision: [`docs/adr/0001-production-backend.md`](./docs/adr/0001-production-backend.md)
 
 ```bash
-# On Oracle (after rsync) — see deploy/oracle-traefik.md
-cp .env.example .env   # set strong ADMIN_* + map keys
+# After rsync on the server
+cp .env.example .env   # strong secrets + DATABASE_URL + APP_ORIGIN
 docker compose up -d --build
 ```
-
-Traefik (existing `traefik-servicenet`) terminates TLS for `Host(trip.jpzen.cn)`.
-
-Full notes: [`deploy/oracle-traefik.md`](./deploy/oracle-traefik.md) · older Caddy notes: [`deploy/oracle-docker.md`](./deploy/oracle-docker.md).
 
 ## Roles
 
 | Who | Can do |
 |-----|--------|
-| **You (admin)** | Log in at `/admin`, edit trip info, delete photos, moderate comments |
+| **You (admin)** | Log in at `/admin`, edit trips, photos, wall, moderate comments |
 | **Friends** | View site, upload photos, post comments — no account |
 
 ### Admin setup
 
-1. Copy `.env.example` → `.env.local` (local defaults: user `admin` / password `admin`)
-2. On your **remote server**, set strong `ADMIN_USERNAME` + `ADMIN_PASSWORD` (never use `admin`/`admin` in production)
-3. Restart the app after changing env
+1. Copy `.env.example` → `.env.local` (local) or `.env` (server)
+2. Set strong `ADMIN_USERNAME` + `ADMIN_PASSWORD` on the server (never ship defaults)
+3. Restart after changing env
 4. Open `/admin`
 
-Day-by-day itinerary is still edited in `data/trips.json` for now.
+## Legacy import (optional, one-time)
+
+If you still have an old `data/trips.json` + file tree:
+
+```bash
+pnpm db:import:legacy -- --dry-run
+pnpm db:import:legacy -- --commit
+pnpm media:backfill
+pnpm worker:media   # until the queue drains
+```
+
+Day-to-day edits go through admin / Postgres, not by hand-editing JSON.
 
 ## Note
 
