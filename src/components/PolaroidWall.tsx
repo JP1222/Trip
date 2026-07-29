@@ -12,8 +12,8 @@ function hash(s: string) {
 }
 
 function rotateFor(id: string, solo: boolean) {
-  if (solo) return -1.5;
-  const angles = [-2.4, -1.2, -0.6, 0.5, 1.1, 2.0, -1.8, 0.9, -1.5, 1.6];
+  if (solo) return -1;
+  const angles = [-1.2, -0.7, -0.35, 0.35, 0.65, 1.1, -0.9, 0.5];
   return angles[hash(id) % angles.length];
 }
 
@@ -43,7 +43,7 @@ export function PolaroidWall({ items }: Props) {
   );
 
   return (
-    <div className="gallery-wall">
+    <div className="gallery-wall gallery-wall--public">
       <div className={`cork-board${solo ? " cork-board--solo" : ""}`}>
         <div className="cork-board__surface">
           <div className="cork-board__pins" aria-hidden>
@@ -71,13 +71,13 @@ export function PolaroidWall({ items }: Props) {
                 return (
                   <li
                     key={item.id}
-                    className="animate-fade-up wall-note-wrap"
-                    style={{
-                      animationDelay: delay,
-                      transform: `rotate(${rotate * 0.6}deg)`,
-                    }}
+                    className="animate-fade-up wall-item wall-item--note wall-note-wrap"
+                    style={{ animationDelay: delay }}
                   >
-                    <div className="wall-note">
+                    <div
+                      className="wall-note"
+                      style={{ transform: `rotate(${rotate * 0.6}deg)` }}
+                    >
                       <span className="wall-note__pin" aria-hidden />
                       <p className="wall-note__title">{item.caption}</p>
                       {item.noteLines?.map((line) => (
@@ -85,6 +85,11 @@ export function PolaroidWall({ items }: Props) {
                           {line}
                         </p>
                       ))}
+                      {item.noteSignature && (
+                        <p className="wall-note__signature">
+                          {item.noteSignature}
+                        </p>
+                      )}
                     </div>
                   </li>
                 );
@@ -94,7 +99,7 @@ export function PolaroidWall({ items }: Props) {
                 return (
                   <li
                     key={item.id}
-                    className="animate-fade-up"
+                    className="animate-fade-up wall-item wall-item--empty"
                     style={{ animationDelay: delay }}
                   >
                     <div
@@ -148,7 +153,9 @@ export function PolaroidWall({ items }: Props) {
                           className={`instant__cover${item.planned ? " instant__cover--planned" : ""}`}
                           style={
                             item.planned
-                              ? undefined
+                              ? item.coverGradient
+                                ? { background: item.coverGradient }
+                                : undefined
                               : {
                                   background:
                                     "linear-gradient(155deg, #6b5c4a 0%, #2e2820 100%)",
@@ -156,6 +163,29 @@ export function PolaroidWall({ items }: Props) {
                           }
                         >
                           <span className="instant__cover-wash" aria-hidden />
+                          {item.planned && (
+                            <span className="instant__cover-art" aria-hidden>
+                              <span className="instant__cover-emoji">
+                                {item.coverEmoji || "✦"}
+                              </span>
+                              <svg
+                                className="instant__cover-route"
+                                viewBox="0 0 180 88"
+                                fill="none"
+                              >
+                                <path
+                                  d="M12 67C42 25 67 79 99 45C121 22 142 27 168 12"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeDasharray="4 7"
+                                />
+                                <circle cx="12" cy="67" r="4" fill="currentColor" />
+                                <circle cx="168" cy="12" r="5" fill="currentColor" />
+                                <circle cx="168" cy="12" r="2" fill="white" />
+                              </svg>
+                            </span>
+                          )}
                           <span className="instant__cover-label">
                             {item.planned
                               ? "Up next"
@@ -178,33 +208,46 @@ export function PolaroidWall({ items }: Props) {
               return (
                 <li
                   key={item.id}
-                  className="animate-fade-up"
+                  className={`animate-fade-up wall-item ${item.planned ? "wall-item--planned" : "wall-item--trip"}${active ? " wall-item--active" : ""}`}
                   style={{ animationDelay: delay }}
                 >
-                  {item.href ? (
-                    <Link
-                      href={item.href}
-                      className={`instant group${item.planned ? " instant--planned" : ""}`}
-                      style={{
-                        transform: active
-                          ? "rotate(0deg) translateY(-6px) scale(1.04)"
-                          : `rotate(${rotate}deg)`,
-                      }}
-                      onMouseEnter={() => setHoverId(item.id)}
-                      onMouseLeave={() => setHoverId(null)}
-                      onFocus={() => setHoverId(item.id)}
-                      onBlur={() => setHoverId(null)}
-                    >
-                      {inner}
-                    </Link>
-                  ) : (
-                    <div
-                      className={`instant${item.planned ? " instant--planned" : ""}`}
-                      style={{ transform: `rotate(${rotate}deg)` }}
-                    >
-                      {inner}
-                    </div>
-                  )}
+                  <div
+                    className={`wall-stack${active ? " wall-stack--active" : ""}`}
+                    style={{
+                      transform: active
+                        ? "translateY(-7px) scale(1.025)"
+                        : undefined,
+                    }}
+                    onMouseEnter={() => setHoverId(item.id)}
+                    onMouseLeave={() => setHoverId(null)}
+                    onFocus={() => setHoverId(item.id)}
+                    onBlur={() => setHoverId(null)}
+                  >
+                    {item.href ? (
+                      <Link
+                        href={item.href}
+                        className={`instant group${item.planned ? " instant--planned" : ""}`}
+                        style={{
+                          transform: active
+                            ? "rotate(0deg)"
+                            : `rotate(${rotate}deg)`,
+                        }}
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div
+                        className={`instant${item.planned ? " instant--planned" : ""}`}
+                        style={{
+                          transform: active
+                            ? "rotate(0deg)"
+                            : `rotate(${rotate}deg)`,
+                        }}
+                      >
+                        {inner}
+                      </div>
+                    )}
+                  </div>
                 </li>
               );
             })}

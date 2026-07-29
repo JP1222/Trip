@@ -1,8 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TripWaypoint } from "@/lib/types";
+import {
+  formatDriveDistance,
+  formatDriveDuration,
+  type DrivingRoute,
+} from "@/lib/driving-route";
 import {
   availableMapProviders,
   defaultMapProvider,
@@ -70,6 +75,7 @@ export function TripMap({
 }: Props) {
   const providers = useMemo(() => availableMapProviders(), []);
   const [provider, setProvider] = useState<MapProviderId>(defaultMapProvider);
+  const [drive, setDrive] = useState<DrivingRoute | null>(null);
 
   useEffect(() => {
     try {
@@ -89,6 +95,7 @@ export function TripMap({
     const entry = providers.find((p) => p.id === id);
     if (!entry?.ready) return;
     setProvider(id);
+    setDrive(null);
     try {
       localStorage.setItem(MAP_PROVIDER_STORAGE_KEY, id);
     } catch {
@@ -108,12 +115,33 @@ export function TripMap({
     ] satisfies TripWaypoint[];
   }, [stopsProp, lat, lng, label, destination]);
 
+  // Clear stats when stop set changes (canvas will re-report)
+  const stopsKey = stops.map((s) => `${s.id}:${s.lat},${s.lng}`).join("|");
+  useEffect(() => {
+    setDrive(null);
+  }, [stopsKey, provider]);
+
+  const onRouteInfo = useCallback((route: DrivingRoute | null) => {
+    setDrive(route);
+  }, []);
+
   const multi = stops.length > 1;
   const caption = label || destination || stops[0]?.label || "Trip location";
   const active = providers.find((p) => p.id === provider);
   const anyReady = providers.some((p) => p.ready);
   const readyCount = providers.filter((p) => p.ready).length;
-  const canvasKey = `${provider}-${stops.map((s) => `${s.id}:${s.lat},${s.lng}`).join("|")}`;
+  const canvasKey = `${provider}-${stopsKey}`;
+
+  const driveLabel =
+    multi && drive
+      ? `${formatDriveDistance(drive.distanceMeters)} · ${formatDriveDuration(drive.durationSeconds)} drive`
+      : null;
+
+  const subtitle = dayHint
+    ? `${dayHint} · ${stops.length} ${stops.length === 1 ? "pin" : "pins"}`
+    : multi
+      ? driveLabel || `${stops.length} stops · driving route`
+      : caption;
 
   return (
     <aside className="overflow-hidden rounded-3xl border border-sand-200/80 bg-white/70 shadow-[0_8px_30px_rgba(42,38,34,0.04)]">
@@ -123,13 +151,7 @@ export function TripMap({
             <h3 className="font-serif text-lg text-ink sm:text-xl">
               {multi ? "Route" : "Map"}
             </h3>
-            <p className="mt-0.5 text-xs text-ink-muted">
-              {dayHint
-                ? `${dayHint} · ${stops.length} ${stops.length === 1 ? "pin" : "pins"}`
-                : multi
-                  ? `${stops.length} stops · tap a pin`
-                  : caption}
-            </p>
+            <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>
           </div>
 
           {readyCount > 1 && (
@@ -185,6 +207,7 @@ export function TripMap({
             selectedId={selectedId}
             onSelect={onSelectStop}
             onMapClick={onMapClick}
+            onRouteInfo={onRouteInfo}
           />
         ) : provider === "google" && active?.ready ? (
           <TripMapCanvasGoogle
@@ -195,6 +218,7 @@ export function TripMap({
             selectedId={selectedId}
             onSelect={onSelectStop}
             onMapClick={onMapClick}
+            onRouteInfo={onRouteInfo}
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-6 text-center">

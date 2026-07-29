@@ -20,25 +20,11 @@ export function Header() {
   if (isHome) {
     return (
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center justify-between gap-3 px-3 sm:px-5"
+        className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center justify-end gap-3 px-3 sm:px-5"
         style={{
           paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
         }}
       >
-        <Link
-          href="/"
-          className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center sm:h-11 sm:w-11"
-          aria-label="Our trips — home"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/branding/logo.png"
-            alt=""
-            width={40}
-            height={40}
-            className="h-9 w-9 object-contain drop-shadow-sm sm:h-10 sm:w-10"
-          />
-        </Link>
         <Link
           href="/admin"
           className={`${pill} px-3.5 sm:px-4`}

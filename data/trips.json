@@ -1,159 +1,141 @@
 [
   {
     "id": "next-up",
-    "title": "Nashville weekend",
-    "subtitle": "Music Row, hot chicken, and a slow Sunday",
-    "destination": "Nashville · Tennessee · USA",
+    "title": "Cloudland Canyon",
+    "subtitle": "Day trip from Huntsville · rim views & waterfalls",
+    "destination": "Rising Fawn · Georgia · USA",
     "status": "planned",
-    "startDate": "2026-10-17",
-    "endDate": "2026-10-19",
-    "coverGradient": "from-[#c4a484] via-[#e8d5c0] to-[#8b6f5c]",
-    "coverEmoji": "🎸",
-    "summary": "Draft plan for a long weekend in Nashville. Tap stops to focus the map — edit days and pins anytime in admin.",
+    "startDate": "",
+    "endDate": "",
+    "coverGradient": "from-[#4a6b5a] via-[#c4b8a0] to-[#2c3a36]",
+    "coverEmoji": "🏞️",
+    "summary": "One full day out of Huntsville—about two hours on the road to Cloudland Canyon State Park (Rising Fawn, GA). Canyon rim overlooks, waterfall trails, and back the same evening. Date still open; edit the plan anytime.",
     "members": [
       "Peng",
       "Friends"
     ],
     "tips": [
-      "Book Broadway-area lodging early",
-      "Reserve a hot-chicken spot (or go early)",
-      "Decide: Grand Ole Opry or songwriter night",
-      "Share packing list in Notes"
+      "Leave Huntsville early so you have a full day on the trails",
+      "Park entry fee (GA State Parks) — check hours before you go",
+      "Waterfalls Trail is steep stairs; good shoes and water help",
+      "Maps: https://maps.app.goo.gl/nghZFxMtTDAxX2Z56"
     ],
     "location": {
-      "lat": 36.156437,
-      "lng": -86.787889,
-      "zoom": 12,
-      "label": "Broadway",
+      "lat": 34.8178,
+      "lng": -85.4873,
+      "zoom": 11,
+      "label": "Cloudland Canyon",
       "stops": [
         {
           "id": "nu-1",
           "itemId": "nu-1",
-          "lat": 36.156437,
-          "lng": -86.787889,
-          "label": "Broadway",
+          "lat": 34.7298,
+          "lng": -86.5859,
+          "label": "Huntsville",
           "day": 1,
-          "category": "sight"
+          "category": "transport"
         },
         {
           "id": "nu-2",
           "itemId": "nu-2",
-          "lat": 36.1515,
-          "lng": -86.8005,
-          "label": "Centennial Park",
+          "lat": 34.8178,
+          "lng": -85.4873,
+          "label": "Cloudland Canyon State Park",
           "day": 1,
           "category": "sight"
         },
         {
           "id": "nu-3",
           "itemId": "nu-3",
-          "lat": 36.1497,
-          "lng": -86.8133,
-          "label": "Centennial Park",
-          "day": 2,
+          "lat": 34.833,
+          "lng": -85.48,
+          "label": "Main Overlook / rim",
+          "day": 1,
           "category": "sight"
         },
         {
           "id": "nu-4",
           "itemId": "nu-4",
-          "lat": 36.1067,
-          "lng": -86.7897,
-          "label": "12 South",
-          "day": 2,
+          "lat": 34.828,
+          "lng": -85.479,
+          "label": "Waterfalls Trail",
+          "day": 1,
           "category": "activity"
         },
         {
           "id": "nu-5",
           "itemId": "nu-5",
-          "lat": 36.1672,
-          "lng": -86.7783,
-          "label": "Downtown / Ryman area",
-          "day": 3,
-          "category": "food"
+          "lat": 34.7298,
+          "lng": -86.5859,
+          "label": "Back to Huntsville",
+          "day": 1,
+          "category": "transport"
         }
       ]
     },
     "days": [
       {
         "day": 1,
-        "date": "2026-10-17",
-        "title": "Arrive & Broadway",
+        "date": "",
+        "title": "Huntsville → Cloudland · day hike",
         "items": [
           {
             "id": "nu-1",
-            "title": "Check in · walk Broadway",
-            "time": "15:00",
-            "description": "Drop bags, stretch the legs, first live music.",
-            "location": "Broadway",
-            "category": "sight",
-            "lat": 36.156437,
-            "lng": -86.787889
+            "title": "Leave Huntsville",
+            "time": "07:30",
+            "description": "Coffee, pack water and snacks. Roughly ~2 hours drive to Rising Fawn, GA.",
+            "location": "Huntsville, AL",
+            "category": "transport",
+            "lat": 34.7298,
+            "lng": -86.5859
           },
           {
             "id": "nu-2",
-            "title": "Sunset at Centennial Park",
-            "time": "18:30",
-            "description": "Easy walk and photos before dinner.",
-            "location": "Centennial Park",
+            "title": "Arrive · Cloudland Canyon State Park",
+            "time": "09:45",
+            "description": "Pay entry, stretch legs, check trail map at the park office area.",
+            "location": "122 Cloudland Canyon Park Rd, Rising Fawn, GA",
             "category": "sight",
-            "lat": 36.1515,
-            "lng": -86.8005
-          }
-        ]
-      },
-      {
-        "day": 2,
-        "date": "2026-10-18",
-        "title": "Parks & 12 South",
-        "items": [
+            "lat": 34.8178,
+            "lng": -85.4873
+          },
           {
             "id": "nu-3",
-            "title": "The Parthenon",
-            "time": "10:00",
-            "description": "Morning light on the full-scale replica.",
-            "location": "Centennial Park",
+            "title": "Main Overlook & canyon rim",
+            "time": "10:15",
+            "description": "Big views into the gorge—easy first stop and good photo light mid-morning.",
+            "location": "Main Overlook",
             "category": "sight",
-            "lat": 36.1497,
-            "lng": -86.8133
+            "lat": 34.833,
+            "lng": -85.48
           },
           {
             "id": "nu-4",
-            "title": "12 South stroll + coffee",
-            "time": "13:00",
-            "description": "Murals, shops, unhurried lunch.",
-            "location": "12 South",
+            "title": "Waterfalls Trail (or West Rim)",
+            "time": "11:00",
+            "description": "Pick based on energy: Waterfalls Trail for Cherokee & Hemlock falls (stairs), or West Rim for longer rim walking.",
+            "location": "Waterfalls Trail",
             "category": "activity",
-            "lat": 36.1067,
-            "lng": -86.7897
-          }
-        ]
-      },
-      {
-        "day": 3,
-        "date": "2026-10-19",
-        "title": "Slow morning · head out",
-        "items": [
+            "lat": 34.828,
+            "lng": -85.479
+          },
+          {
+            "id": "nu-6",
+            "title": "Picnic / late lunch",
+            "time": "13:30",
+            "description": "Eat at a picnic area or grab something nearby before the drive home.",
+            "location": "Park picnic area",
+            "category": "food"
+          },
           {
             "id": "nu-5",
-            "title": "Ryman neighborhood coffee",
-            "time": "09:30",
-            "description": "One more song, then airport or road home.",
-            "location": "Downtown / Ryman area",
-            "category": "food",
-            "lat": 36.1672,
-            "lng": -86.7783
-          }
-        ]
-      },
-      {
-        "day": 4,
-        "date": "",
-        "title": "Day 4",
-        "items": [
-          {
-            "id": "6f1a7efe",
-            "title": "New stop",
-            "category": "sight"
+            "title": "Drive back to Huntsville",
+            "time": "15:30",
+            "description": "Same road home—aim to be back by early evening.",
+            "location": "Huntsville, AL",
+            "category": "transport",
+            "lat": 34.7298,
+            "lng": -86.5859
           }
         ]
       }
@@ -161,26 +143,26 @@
     "collabToken": "democollab9f3a2b1c",
     "budget": {
       "currency": "USD",
-      "limit": 1200,
+      "limit": 150,
       "items": [
         {
           "id": "b1",
-          "label": "Airbnb · 2 nights",
-          "amount": 420,
-          "category": "stay",
+          "label": "Gas (round trip)",
+          "amount": 45,
+          "category": "transport",
           "paidBy": "Peng"
         },
         {
           "id": "b2",
-          "label": "Hot chicken dinner",
-          "amount": 85,
-          "category": "food"
+          "label": "Park entry",
+          "amount": 20,
+          "category": "activity"
         },
         {
           "id": "b3",
-          "label": "Gas / parking",
-          "amount": 60,
-          "category": "transport"
+          "label": "Food / snacks",
+          "amount": 40,
+          "category": "food"
         }
       ]
     }
@@ -195,7 +177,7 @@
     "coverGradient": "from-[#3d4a3c] via-[#5c6b54] to-[#2a3330]",
     "coverEmoji": "🌿",
     "coverImage": "/uploads/dismals-canyon/59497a9c-1be2-4419-b07e-74779a4ee1af.jpg",
-    "summary": "Four of us dropped into a sandstone canyon in northwest Alabama—boardwalks over clear water, fern-covered cliffs, and after dark, the soft blue of dismalites. Shot on Ricoh GR IV HDF + iPhone 15 Plus. Peng, Carlie, Ragen, and Joel. One long day.",
+    "summary": "Four of us dropped into a sandstone canyon in northwest Alabama—boardwalks over clear water, fern-covered cliffs, and after dark, the soft blue of dismalites. Peng, Carlie, Ragen, and Joel. One long day.",
     "members": [
       "Peng",
       "Carlie",
@@ -205,8 +187,7 @@
     "tips": [
       "Trails can be slick after rain—good shoes help",
       "Stay for the night tour if you can; the glowworms are the point",
-      "Pack a light layer; the canyon floor stays cooler than the parking lot",
-      "Ricoh GR IV for canyon detail; phone for quick night / group frames"
+      "Pack a light layer; the canyon floor stays cooler than the parking lot"
     ],
     "days": [
       {
@@ -316,14 +297,14 @@
     "endDate": "2026-07-04",
     "coverGradient": "from-[#7eb6d9] via-[#f0c48a] to-[#e07050]",
     "coverEmoji": "🎆",
-    "summary": "Fourth of July on the Mississippi at Tom Lee Park—late light on the river, fireworks weather, and a long golden evening by the water. All frames on Ricoh GR IV HDF.",
+    "summary": "Fourth of July on the Mississippi at Tom Lee Park—late light on the river, fireworks weather, and a long golden evening by the water.",
     "members": [
       "Peng"
     ],
     "tips": [
       "Arrive early if you want a spot with a clear river view",
       "Evenings can cool off once the sun drops—bring a light layer",
-      "Phone and camera batteries drain fast with night and fireworks shots"
+      "Batteries drain fast with night and fireworks shots"
     ],
     "days": [
       {
@@ -406,7 +387,7 @@
     "endDate": "2026-05-01",
     "coverGradient": "from-[#c8d5a8] via-[#e8dcc8] to-[#8fa87a]",
     "coverEmoji": "🪴",
-    "summary": "Peng, Carlie, and Shreya walked the garden paths among the troll sculptures—green light, quiet corners, and a lot of frames between the trees. All on Ricoh GR IV HDF (May 1 afternoon into evening).",
+    "summary": "Peng, Carlie, and Shreya walked the garden paths among the troll sculptures—green light, quiet corners, and a lot of frames between the trees. May 1 afternoon into evening.",
     "members": [
       "Peng",
       "Carlie",
@@ -480,16 +461,15 @@
     "coverGradient": "from-[#8b1e1e] via-[#e8c4a0] to-[#2a1810]",
     "coverEmoji": "🧧",
     "coverImage": "/uploads/chinese-new-year-uah/a8f07a17-ea25-4896-922e-f42ea650b66d.jpg",
-    "summary": "Chinese New Year gala on the UAH campus (Green Acres / Sparkman Drive)—dragon dance opening, student performances under the “Great Ambitions” banner, red lanterns, and friends filling the hall. iPhone 15 Plus for the stage; earlier Ricoh GR IV HDF frames from a January campus night live in the same album.",
+    "summary": "Chinese New Year gala on the UAH campus (Green Acres / Sparkman Drive)—dragon dance opening, student performances under the “Great Ambitions” banner, red lanterns, and friends filling the hall. A few earlier campus night frames from January live in the same album.",
     "members": [
       "Peng",
       "Friends"
     ],
     "tips": [
       "Campus events fill up—arrive a little early for seats",
-      "Indoor light is mixed; a fast lens or phone night mode helps",
-      "Save a few group shots before everyone drifts out",
-      "Devices this trip: iPhone 15 Plus + Ricoh GR IV HDF"
+      "Indoor light is mixed; night mode helps",
+      "Save a few group shots before everyone drifts out"
     ],
     "days": [
       {
@@ -580,8 +560,8 @@
     "endDate": "2026-01-14",
     "coverGradient": "from-[#4a5c4e] via-[#c5b8a4] to-[#2c3530]",
     "coverEmoji": "💧",
-    "coverImage": "/uploads/fall-creek-falls/8920362e-5552-44a5-8679-954c7ca23cda.jpg",
-    "summary": "A short January escape to Fall Creek Falls—mist at the base of the drop, rocky creek beds, and evenings at a black-roof A-frame on Window Rock Road (Sequatchie County). Drive out via Scottsboro. All on iPhone 15 Plus.",
+    "coverImage": "/uploads/fall-creek-falls/000a91e1-5fc0-4c76-aebd-83bb12e7c13a.jpg",
+    "summary": "A short January escape to Fall Creek Falls—mist at the base of the drop, rocky creek beds, and evenings at a black-roof A-frame on Window Rock Road (Sequatchie County). Drive out via Scottsboro.",
     "members": [
       "Peng"
     ],
@@ -716,8 +696,8 @@
     "endDate": "2025-05-31",
     "coverGradient": "from-[#1a4a6e] via-[#6a9bb8] to-[#e8d5b5]",
     "coverEmoji": "🌊",
-    "coverImage": "/uploads/pingtan/279b9695-bd20-45fe-b259-c2ab3c8f2a6b.jpg",
-    "summary": "A short island escape on Pingtan—wind off the strait, granite shorelines at Xianren Valley (Junshan), and a northern look toward Suping. Shot mostly on iPhone 15 Plus (one frame on a friend’s iPhone 16 Pro Max).",
+    "coverImage": "/uploads/pingtan/34048560-eaf6-4772-882f-d1d50450df31.jpg",
+    "summary": "A short island escape on Pingtan—wind off the strait, granite shorelines at Xianren Valley (Junshan), and a northern look toward Suping.",
     "members": [
       "Peng"
     ],
@@ -828,7 +808,7 @@
     "coverGradient": "from-[#8b3a2a] via-[#c4a574] to-[#2c3a4a]",
     "coverEmoji": "🏯",
     "coverImage": "/uploads/beijing/77797b74-c12b-4216-b5fb-9d8d691fea0f.jpg",
-    "summary": "Four spring days in Beijing on iPhone 15 Plus—Badaling Great Wall, the Forbidden City / Palace Museum, Temple of Heaven, Yuanmingyuan’s Western ruins, and Kunming Lake at the Summer Palace. Slow walks, museum light, and a mandarin duck on the east embankment.",
+    "summary": "Four spring days in Beijing—Badaling Great Wall, the Forbidden City / Palace Museum, Temple of Heaven, Yuanmingyuan’s Western ruins, and Kunming Lake at the Summer Palace. Slow walks, museum light, and a mandarin duck on the east embankment.",
     "members": [
       "Peng"
     ],

@@ -4,6 +4,12 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import type { TripWaypoint } from "@/lib/types";
 import { getMapboxToken } from "@/lib/map-config";
+import {
+  fetchMapboxDrivingRoute,
+  straightLinePath,
+  type DrivingRoute,
+  type LatLng,
+} from "@/lib/driving-route";
 import { buildPinHtml, offsetOverlappingCoords } from "@/lib/map-pins";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -14,10 +20,52 @@ type Props = {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
+  /** Fires when a driving route (or failure → null) is ready */
+  onRouteInfo?: (route: DrivingRoute | null) => void;
 };
 
 function stopKey(s: TripWaypoint, i: number) {
   return s.id || s.itemId || `i-${i}`;
+}
+
+function toLngLat(path: LatLng[]): [number, number][] {
+  return path.map((p) => [p.lng, p.lat]);
+}
+
+function setRouteSource(map: mapboxgl.Map, coords: [number, number][]) {
+  const data = {
+    type: "Feature" as const,
+    properties: {},
+    geometry: { type: "LineString" as const, coordinates: coords },
+  };
+  const src = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+  if (src) {
+    src.setData(data);
+    return;
+  }
+  map.addSource("route", { type: "geojson", data });
+  map.addLayer({
+    id: "route-line-halo",
+    type: "line",
+    source: "route",
+    paint: {
+      "line-color": "#fffcf7",
+      "line-width": 7,
+      "line-opacity": 0.9,
+    },
+    layout: { "line-join": "round", "line-cap": "round" },
+  });
+  map.addLayer({
+    id: "route-line",
+    type: "line",
+    source: "route",
+    paint: {
+      "line-color": "#3d6664",
+      "line-width": 3.5,
+      "line-opacity": 0.95,
+    },
+    layout: { "line-join": "round", "line-cap": "round" },
+  });
 }
 
 export function TripMapCanvasMapbox({
@@ -27,20 +75,24 @@ export function TripMapCanvasMapbox({
   selectedId,
   onSelect,
   onMapClick,
+  onRouteInfo,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const onSelectRef = useRef(onSelect);
   const onMapClickRef = useRef(onMapClick);
+  const onRouteInfoRef = useRef(onRouteInfo);
   onSelectRef.current = onSelect;
   onMapClickRef.current = onMapClick;
+  onRouteInfoRef.current = onRouteInfo;
 
   useEffect(() => {
     const el = containerRef.current;
     const token = getMapboxToken();
     if (!el || !token || stops.length === 0) return;
 
+    let cancelled = false;
     mapboxgl.accessToken = token;
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
@@ -72,41 +124,16 @@ export function TripMapCanvasMapbox({
     });
 
     map.on("load", () => {
-      // True path uses real coords; markers may be nudged when stacked
-      const trueCoords = stops.map((s) => [s.lng, s.lat] as [number, number]);
+      if (cancelled) return;
+
       const display = offsetOverlappingCoords(
         stops.map((s) => ({ lat: s.lat, lng: s.lng })),
       );
 
-      if (multi && trueCoords.length > 1) {
-        map.addSource("route", {
-          type: "geojson",
-          data: {
-            type: "Feature",
-            properties: {},
-            geometry: { type: "LineString", coordinates: trueCoords },
-          },
-        });
-        map.addLayer({
-          id: "route-line-halo",
-          type: "line",
-          source: "route",
-          paint: {
-            "line-color": "#fffcf7",
-            "line-width": 7,
-            "line-opacity": 0.9,
-          },
-        });
-        map.addLayer({
-          id: "route-line",
-          type: "line",
-          source: "route",
-          paint: {
-            "line-color": "#3d6664",
-            "line-width": 3.5,
-            "line-opacity": 0.95,
-          },
-        });
+      // Straight line first so something shows while routing loads
+      if (multi && stops.length > 1) {
+        const fallback = toLngLat(straightLinePath(stops));
+        setRouteSource(map, fallback);
       }
 
       stops.forEach((s, i) => {
@@ -134,21 +161,43 @@ export function TripMapCanvasMapbox({
         markersRef.current.push(marker);
       });
 
-      if (multi && trueCoords.length > 1) {
-        const bounds = trueCoords.reduce(
+      const pinCoords = stops.map((s) => [s.lng, s.lat] as [number, number]);
+      if (multi && pinCoords.length > 1) {
+        const bounds = pinCoords.reduce(
           (b, c) => b.extend(c),
-          new mapboxgl.LngLatBounds(trueCoords[0], trueCoords[0]),
+          new mapboxgl.LngLatBounds(pinCoords[0], pinCoords[0]),
         );
         map.fitBounds(bounds, { padding: 52, maxZoom: 14, duration: 0 });
       }
 
       map.resize();
+
+      if (multi && stops.length > 1) {
+        void fetchMapboxDrivingRoute(stops, token).then((road) => {
+          if (cancelled) return;
+          if (!road || !mapRef.current) {
+            onRouteInfoRef.current?.(null);
+            return;
+          }
+          const coords = toLngLat(road.path);
+          setRouteSource(map, coords);
+          const bounds = coords.reduce(
+            (b, c) => b.extend(c),
+            new mapboxgl.LngLatBounds(coords[0], coords[0]),
+          );
+          map.fitBounds(bounds, { padding: 52, maxZoom: 14, duration: 600 });
+          onRouteInfoRef.current?.(road);
+        });
+      } else {
+        onRouteInfoRef.current?.(null);
+      }
     });
 
     mapRef.current = map;
     const t = window.setTimeout(() => map.resize(), 100);
 
     return () => {
+      cancelled = true;
       window.clearTimeout(t);
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];

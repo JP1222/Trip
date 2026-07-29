@@ -85,6 +85,19 @@ export function liveVideoPublicUrl(
   return photoPublicUrl(tripId, liveVideoFilename);
 }
 
+/**
+ * Privacy-safe public download URL (server strips EXIF/GPS from stills).
+ * Use for visitor downloads — not for <img src> display.
+ */
+export function photoDownloadUrl(
+  tripId: string,
+  photoId: string,
+  opts?: { part?: "live" },
+): string {
+  const q = opts?.part === "live" ? "?part=live" : "";
+  return `/api/trips/${tripId}/photos/${photoId}/download${q}`;
+}
+
 export function isImageFile(file: File): boolean {
   if (file.type.startsWith("image/")) return true;
   return IMAGE_EXT.test(file.name);

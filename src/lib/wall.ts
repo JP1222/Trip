@@ -25,9 +25,27 @@ export type WallItem = {
   dateLabel?: string;
   /** planned trips get a dashed “planning” polaroid */
   planned?: boolean;
+  /** CSS gradient used when a trip has no cover photo */
+  coverGradient?: string;
+  /** Small destination mark used on illustrated covers */
+  coverEmoji?: string;
   /** sticky-note body lines */
   noteLines?: string[];
+  /** handwritten names at the foot of a sticky note */
+  noteSignature?: string;
 };
+
+/** Convert the stored Tailwind-style color stops into a portable CSS gradient. */
+function coverGradientToCss(value?: string): string | undefined {
+  const colors = value?.match(/#[0-9a-fA-F]{6}/g);
+  if (!colors || colors.length < 2) return undefined;
+
+  if (colors.length === 2) {
+    return `linear-gradient(145deg, ${colors[0]} 0%, ${colors[1]} 100%)`;
+  }
+
+  return `linear-gradient(145deg, ${colors[0]} 0%, ${colors[1]} 52%, ${colors[colors.length - 1]} 100%)`;
+}
 
 const US_STATE_ABBR: Record<string, string> = {
   Alabama: "AL",
@@ -263,6 +281,8 @@ function tripToWallItem(
     meta,
     dateLabel: meta,
     planned,
+    coverGradient: coverGradientToCss(t.coverGradient),
+    coverEmoji: t.coverEmoji,
   };
 }
 
@@ -291,26 +311,32 @@ export function buildWallItems(
       : "Our board";
 
   const items: WallItem[] = [];
+  const planned = tripItems.filter((i) => i.planned);
+  const lived = tripItems.filter((i) => !i.planned);
 
-  // Small sticky note — board texture, not another photo
+  // A small board label: human context rather than implementation details.
   items.push({
     kind: "note",
     id: "wall-note-stats",
     caption: "Our trips",
     noteLines: [
       yearLine,
-      `${livedCount} lived · ${plannedCount} planning`,
-      plannedCount > 0 ? "Next ones are dashed" : "Pin the next plan →",
+      `${livedCount} ${livedCount === 1 ? "memory" : "memories"} pinned`,
+      plannedCount > 0
+        ? plannedCount === 1
+          ? `Next: ${planned[0].caption}`
+          : `${plannedCount} trips in the works`
+        : "Where to next?",
     ],
+    noteSignature: "Peng · Carlie · Joel · Michelle · Beau · Shreya",
   });
 
   // Planned first so “coming up” is visible, then lived memories
-  const planned = tripItems.filter((i) => i.planned);
-  const lived = tripItems.filter((i) => !i.planned);
   items.push(...planned, ...lived);
 
-  // Always leave at least one open slot for the next adventure
-  const emptySlots = plannedCount > 0 ? 1 : 2;
+  // Empty cards are useful on a sparse wall, but compete with real memories on
+  // a full one. Once four trips are pinned, let the photographs own the space.
+  const emptySlots = tripItems.length < 4 ? (plannedCount > 0 ? 1 : 2) : 0;
   for (let i = 0; i < emptySlots; i++) {
     items.push({
       kind: "empty",

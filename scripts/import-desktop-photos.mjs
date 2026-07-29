@@ -2,19 +2,27 @@
  * Sync Desktop trip folders → public/uploads/{tripId}
  *
  * - Adds new images/videos (with EXIF device + exposure)
+ * - Pairs Apple Live Photos (same stem HEIC/JPG + MOV)
  * - Removes gallery items no longer in the source folders
  * - Skips DNG raw; prefers JPEG over HEIC when both exist
  * - Marks Beijing/featured/* as featured
  *
- * Usage: node scripts/import-desktop-photos.mjs
+ * Usage:
+ *   node scripts/import-desktop-photos.mjs
+ *   node scripts/import-desktop-photos.mjs mother-earth-troll-garden
  */
 
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID, createHash } from "crypto";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import os from "os";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 import convert from "heic-convert";
+
+const execFileAsync = promisify(execFile);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -254,7 +262,30 @@ async function extractExif(raw, name) {
 
 // ─── Image process ──────────────────────────────────────────────────────────
 
+/** Apple sips: best iPhone HEIC → Display P3 JPEG on macOS */
+async function heicToJpegViaSips(input) {
+  if (process.platform !== "darwin") return null;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "trip-heic-"));
+  const src = path.join(dir, "in.heic");
+  const out = path.join(dir, "out.jpg");
+  try {
+    await fs.writeFile(src, input);
+    await execFileAsync(
+      "sips",
+      ["-s", "format", "jpeg", "-s", "formatOptions", "92", src, "--out", out],
+      { timeout: 120000 },
+    );
+    return await fs.readFile(out);
+  } catch {
+    return null;
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function heicToJpeg(input) {
+  const viaSips = await heicToJpegViaSips(input);
+  if (viaSips?.length) return viaSips;
   const out = await convert({ buffer: input, format: "JPEG", quality: 0.92 });
   return Buffer.from(out);
 }
@@ -284,7 +315,8 @@ async function processImage(raw, name, mime) {
       fit: "inside",
       withoutEnlargement: true,
     })
-    .toColorspace("srgb")
+    // Keep Display P3 ICC — forcing sRGB kills iPhone “HDR look” on wide-gamut screens
+    .keepIccProfile()
     .jpeg({ quality: JPEG_QUALITY, mozjpeg: true, chromaSubsampling: "4:4:4" })
     .toBuffer({ resolveWithObject: true });
   return { buffer: data, width: info.width, height: info.height };
@@ -308,8 +340,20 @@ function extRank(ext) {
   return 4;
 }
 
+/**
+ * @typedef {{
+ *   path: string,
+ *   name: string,
+ *   ext: string,
+ *   featured: boolean,
+ *   isVideo: boolean,
+ *   liveVideoPath?: string,
+ *   liveVideoName?: string,
+ * }} SourceEntry
+ */
+
 async function walkSources(root) {
-  /** @type {Map<string, { path: string, name: string, ext: string, featured: boolean, isVideo: boolean }>} */
+  /** @type {Map<string, SourceEntry>} */
   const map = new Map();
 
   async function walk(dir) {
@@ -333,7 +377,9 @@ async function walkSources(root) {
       const isImage = IMAGE_EXT.has(ext);
       if (!isVideo && !isImage) continue;
 
-      const featured = /[/\\]featured[/\\]/i.test(full) || /\/featured$/i.test(path.dirname(full));
+      const featured =
+        /[/\\]featured[/\\]/i.test(full) ||
+        /\/featured$/i.test(path.dirname(full));
       const key = stemKey(ent.name);
       const prev = map.get(key);
       const cand = {
@@ -343,25 +389,71 @@ async function walkSources(root) {
         featured: Boolean(featured),
         isVideo,
       };
+
       if (!prev) {
         map.set(key, cand);
         continue;
       }
-      // Prefer non-video, then better ext rank, merge featured flag
-      if (prev.isVideo && !cand.isVideo) {
-        map.set(key, { ...cand, featured: prev.featured || cand.featured });
-      } else if (!prev.isVideo && cand.isVideo) {
+
+      // Image + video same stem → still is primary, video is Live companion
+      if (!prev.isVideo && cand.isVideo) {
         prev.featured = prev.featured || cand.featured;
-      } else if (extRank(cand.ext) < extRank(prev.ext)) {
-        map.set(key, { ...cand, featured: prev.featured || cand.featured });
-      } else {
-        prev.featured = prev.featured || cand.featured;
+        prev.liveVideoPath = cand.path;
+        prev.liveVideoName = cand.name;
+        continue;
       }
+      if (prev.isVideo && !cand.isVideo) {
+        map.set(key, {
+          ...cand,
+          featured: prev.featured || cand.featured,
+          liveVideoPath: prev.path,
+          liveVideoName: prev.name,
+        });
+        continue;
+      }
+
+      // Same kind: keep better image ext (jpeg > heic) or first video
+      if (!prev.isVideo && !cand.isVideo) {
+        if (extRank(cand.ext) < extRank(prev.ext)) {
+          map.set(key, {
+            ...cand,
+            featured: prev.featured || cand.featured,
+            liveVideoPath: prev.liveVideoPath,
+            liveVideoName: prev.liveVideoName,
+          });
+        } else {
+          prev.featured = prev.featured || cand.featured;
+        }
+        continue;
+      }
+
+      // Two videos for one stem: prefer smaller as Live pair is rare; keep larger as primary
+      // (standalone movie shouldn't lose to a tiny duplicate)
+      prev.featured = prev.featured || cand.featured;
     }
   }
 
   await walk(root);
   return map;
+}
+
+async function writeLiveCompanion(tripId, photoId, livePath, liveName) {
+  const raw = await fs.readFile(livePath);
+  if (raw.length > MAX_VIDEO_BYTES) {
+    throw new Error(`live video too large: ${liveName}`);
+  }
+  const ext = path.extname(liveName).toLowerCase() || ".mov";
+  const liveVideoFilename = `${photoId}-live${ext}`;
+  const base =
+    path.basename(liveName, path.extname(liveName)).trim() || "live";
+  await fs.writeFile(path.join(UPLOADS, tripId, liveVideoFilename), raw);
+  return {
+    liveVideoFilename,
+    liveVideoOriginalName: `${base}${ext}`,
+    liveVideoSize: raw.length,
+    liveVideoMimeType:
+      ext === ".mp4" ? "video/mp4" : "video/quicktime",
+  };
 }
 
 function mimeFor(name, isVideo) {
@@ -461,6 +553,17 @@ async function importOne(tripId, src, uploader) {
     meta.featured = true;
     meta.featuredAt = new Date().toISOString();
   }
+  if (!src.isVideo && src.liveVideoPath) {
+    Object.assign(
+      meta,
+      await writeLiveCompanion(
+        tripId,
+        id,
+        src.liveVideoPath,
+        src.liveVideoName || path.basename(src.liveVideoPath),
+      ),
+    );
+  }
   return meta;
 }
 
@@ -522,6 +625,29 @@ async function syncTrip(trip) {
           delete prev.featured;
           delete prev.featuredAt;
         }
+        // Attach Live companion if missing
+        if (
+          !prev.liveVideoFilename &&
+          !src.isVideo &&
+          src.liveVideoPath
+        ) {
+          try {
+            Object.assign(
+              prev,
+              await writeLiveCompanion(
+                trip.id,
+                prev.id,
+                src.liveVideoPath,
+                src.liveVideoName || path.basename(src.liveVideoPath),
+              ),
+            );
+          } catch (err) {
+            console.warn(
+              `  LIVE fail ${src.name}:`,
+              err.message || err,
+            );
+          }
+        }
         next.push(prev);
         byKey.delete(key);
         kept++;
@@ -553,6 +679,13 @@ async function syncTrip(trip) {
     } catch {
       /* already gone */
     }
+    if (p.liveVideoFilename) {
+      try {
+        await fs.unlink(path.join(UPLOADS, trip.id, p.liveVideoFilename));
+      } catch {
+        /* already gone */
+      }
+    }
   }
 
   // Sort: featured first, then takenAt/uploadedAt newest
@@ -580,8 +713,9 @@ async function syncTrip(trip) {
     if (p.aperture != null || p.shutter || p.iso != null) withSettings++;
   }
 
+  const liveCount = next.filter((p) => p.liveVideoFilename).length;
   console.log(
-    `  done: total=${next.length} kept=${kept} added=${added} removed=${removed} failed=${failed} withExposure=${withSettings}`,
+    `  done: total=${next.length} kept=${kept} added=${added} removed=${removed} failed=${failed} live=${liveCount} withExposure=${withSettings}`,
   );
   console.log("  devices:", devices);
 }

@@ -681,7 +681,7 @@ export function AdminPlanEditor({
                             : "cursor-pointer hover:bg-sand-50/80"
                         }`}
                       >
-                        <div className="flex w-12 shrink-0 flex-col items-center pt-0.5">
+                        <div className="flex w-[4.25rem] shrink-0 flex-col items-center gap-1 pt-0.5 sm:w-[4.75rem]">
                           {pin != null ? (
                             <span
                               className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm"
@@ -696,19 +696,22 @@ export function AdminPlanEditor({
                               ?
                             </span>
                           )}
+                          {item.category ? (
+                            <StopCategoryBadge
+                              category={item.category}
+                              className="max-w-full justify-center px-1.5 py-px text-[8px] leading-none tracking-wide sm:text-[9px]"
+                            />
+                          ) : null}
                           {item.time ? (
-                            <span className="mt-1.5 text-[11px] tabular-nums text-coral">
+                            <span className="text-[11px] tabular-nums text-coral">
                               {item.time}
                             </span>
                           ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <p className="font-medium text-ink">
-                              {item.title || "Untitled stop"}
-                            </p>
-                            <StopCategoryBadge category={item.category} />
-                          </div>
+                          <p className="font-medium text-ink">
+                            {item.title || "Untitled stop"}
+                          </p>
                           <p className="mt-0.5 text-xs text-ink-muted">
                             {item.location ||
                               (pin != null

@@ -189,6 +189,10 @@ body {
   background-position: center top;
 }
 
+.gallery-wall--public {
+  overflow-x: clip;
+}
+
 .gallery-wall::before {
   content: "";
   position: absolute;
@@ -230,6 +234,15 @@ body {
   overflow: visible;
   background: transparent;
   box-shadow: none;
+}
+
+.cork-board__surface::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(255, 248, 235, 0.09);
 }
 
 .cork-board__surface::after {
@@ -375,7 +388,7 @@ body {
     /* Cork tile only — no stacked gradients (those read as stripes) */
     background-color: #c9a87a;
     background-image: url("/textures/cork-tile.jpg");
-    background-size: 280px 280px;
+    background-size: 340px 340px;
     background-repeat: repeat;
     background-position: 0 0;
     box-shadow:
@@ -394,6 +407,10 @@ body {
     background: none;
   }
 
+  .cork-board__surface::before {
+    background: rgba(255, 248, 235, 0.11);
+  }
+
   .cork-board__pins {
     display: block;
     position: absolute;
@@ -409,8 +426,16 @@ body {
     overflow: visible;
   }
 
+  .gallery-wall--public .cork-board__photos {
+    --wall-slot-width: 250px;
+  }
+
   .cork-board .instant {
     --w: 240px;
+  }
+
+  .gallery-wall--public .instant--planned {
+    --w: 250px;
   }
 
   .cork-board--solo .instant {
@@ -431,7 +456,7 @@ body {
 
   .cork-board__surface {
     min-height: min(82vh, 820px);
-    background-size: 300px 300px;
+    background-size: 360px 360px;
   }
 
   .cork-board__photos {
@@ -439,8 +464,16 @@ body {
     padding: 3rem 2.75rem 3.25rem;
   }
 
+  .gallery-wall--public .cork-board__photos {
+    --wall-slot-width: 290px;
+  }
+
   .cork-board .instant {
     --w: 280px;
+  }
+
+  .gallery-wall--public .instant--planned {
+    --w: 290px;
   }
 
   .cork-board--solo .instant {
@@ -448,28 +481,37 @@ body {
   }
 }
 
-@media (min-width: 1440px) {
+/* Wide desktop: size the cards around a reliable four-column row. */
+@media (min-width: 1360px) {
   .gallery-wall {
-    padding: 1.75rem 2rem 2.25rem;
+    padding: 1.5rem 1rem 2rem;
   }
 
   .cork-board {
-    width: min(92vw, 1520px);
-    padding: 24px;
+    width: min(96vw, 1760px);
+    padding: 18px;
   }
 
   .cork-board__surface {
     min-height: min(84vh, 900px);
-    background-size: 320px 320px;
+    background-size: 390px 390px;
   }
 
   .cork-board__photos {
-    gap: 3.25rem 3rem;
-    padding: 3.5rem 3.25rem 3.75rem;
+    gap: 2.75rem 2rem;
+    padding: 3rem 2.25rem 3.5rem;
   }
 
-  .cork-board .instant {
-    --w: 300px;
+  .gallery-wall--public .cork-board__photos {
+    --wall-slot-width: clamp(270px, 20vw, 320px);
+  }
+
+  .gallery-wall--public .instant {
+    --w: calc(var(--wall-slot-width) - 8px);
+  }
+
+  .gallery-wall--public .instant--planned {
+    --w: var(--wall-slot-width);
   }
 
   .cork-board--solo .instant {
@@ -479,21 +521,111 @@ body {
 
 @media (min-width: 1800px) {
   .cork-board {
-    width: min(90vw, 1680px);
-    padding: 26px;
+    width: min(96vw, 1840px);
+    padding: 22px;
   }
 
   .cork-board__surface {
     min-height: min(86vh, 980px);
+    background-size: 420px 420px;
+  }
+
+  .gallery-wall--public .cork-board__photos {
+    --wall-slot-width: 332px;
   }
 
   .cork-board .instant {
     --w: 320px;
   }
 
+  .gallery-wall--public .instant--planned {
+    --w: 332px;
+  }
+
   .cork-board--solo .instant {
     --w: 340px;
   }
+}
+
+.wall-item {
+  list-style: none;
+  min-width: 0;
+}
+
+.wall-item--trip,
+.wall-item--planned {
+  position: relative;
+}
+
+.wall-item--active {
+  z-index: 20;
+}
+
+.wall-stack {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  transform-origin: 50% 8%;
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* A second instant photo sits behind the main one. Its tinted image well is
+ * visible at the exposed edges, so it reads as another print—not note paper. */
+.gallery-wall--public .wall-stack::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(82, 63, 42, 0.08);
+  border-radius: 2px;
+  background:
+    linear-gradient(150deg, #35483f 0%, #7d967e 43%, #c9a675 72%, #6e5140 100%)
+      center 5.5% / 89% 73% no-repeat,
+    linear-gradient(145deg, #fffefa 0%, #f4ecdf 100%);
+  box-shadow:
+    0 2px 0 rgba(221, 210, 196, 0.9),
+    3px 6px 10px rgba(63, 43, 23, 0.12);
+  transform: translate(5px, 4px) rotate(0.75deg);
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .gallery-wall--public .wall-item {
+    display: flex;
+    flex: 0 0 var(--wall-slot-width);
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* A visible paper edge and directional contact shadow give the cards depth
+ * without turning the wall into a glossy UI dashboard. */
+.gallery-wall--public .instant {
+  z-index: 1;
+  transform-origin: 50% 8%;
+  border: 1px solid rgba(82, 63, 42, 0.08);
+  background: linear-gradient(145deg, #fffefa 0%, #fffbf4 72%, #f7eee3 100%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.95),
+    inset -1px -1px 0 rgba(124, 96, 67, 0.05),
+    0 2px 0 rgba(224, 213, 199, 0.95),
+    2px 5px 7px rgba(67, 45, 24, 0.13),
+    8px 16px 26px rgba(67, 45, 24, 0.13),
+    18px 30px 52px rgba(67, 45, 24, 0.07);
+}
+
+.gallery-wall--public .instant:hover,
+.gallery-wall--public .instant:focus-visible,
+.gallery-wall--public .wall-stack--active .instant {
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.95),
+    inset -1px -1px 0 rgba(124, 96, 67, 0.04),
+    0 3px 0 rgba(224, 213, 199, 0.9),
+    3px 8px 12px rgba(67, 45, 24, 0.13),
+    12px 25px 38px rgba(67, 45, 24, 0.16),
+    24px 42px 68px rgba(67, 45, 24, 0.09);
 }
 
 /* Solid SVG pushpin — fully opaque fills (no glass alpha) */
@@ -508,7 +640,23 @@ body {
   pointer-events: none;
   opacity: 1;
   line-height: 0;
-  filter: drop-shadow(0 2px 2px rgba(40, 30, 15, 0.45));
+  filter:
+    drop-shadow(0 1px 1px rgba(255, 255, 255, 0.2))
+    drop-shadow(1px 3px 2px rgba(40, 30, 15, 0.5));
+}
+
+.instant__thumbtack::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  bottom: 1px;
+  width: 24px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(54, 37, 20, 0.26);
+  filter: blur(2px);
+  transform: translateX(-42%) rotate(-5deg);
 }
 
 .instant__thumbtack svg {
@@ -590,6 +738,9 @@ body {
   overflow: hidden;
   border-radius: 0;
   background: #d9d2c6;
+  box-shadow:
+    inset 0 0 0 1px rgba(45, 34, 23, 0.09),
+    0 1px 2px rgba(45, 34, 23, 0.08);
 }
 
 .instant__image img {
@@ -646,8 +797,43 @@ body {
     );
 }
 
+.instant__cover-art {
+  position: absolute;
+  z-index: 1;
+  inset: 7% 7% 32%;
+  color: rgba(48, 40, 32, 0.35);
+}
+
+.instant__cover-emoji {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 2.65rem;
+  height: 2.65rem;
+  place-items: center;
+  border: 1px solid rgba(255, 252, 247, 0.48);
+  border-radius: 50%;
+  background: rgba(255, 252, 247, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 12px rgba(56, 40, 25, 0.1);
+  font-size: 1.45rem;
+  transform: rotate(-7deg);
+}
+
+.instant__cover-route {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 82%;
+  height: auto;
+  overflow: visible;
+}
+
 .instant__cover-label {
   position: relative;
+  z-index: 2;
   font-size: 0.62rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -657,6 +843,7 @@ body {
 
 .instant__cover-name {
   position: relative;
+  z-index: 2;
   margin-top: 0.35rem;
   font-family: var(--font-serif), Georgia, serif;
   font-size: 1.2rem;
@@ -696,12 +883,12 @@ body {
 
 /* Date · place */
 .instant__date {
-  font-family: var(--font-hand), "Segoe Print", "Comic Sans MS", cursive;
-  font-size: calc(var(--w) * 0.052);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(0.72rem, calc(var(--w) * 0.043), 0.9rem);
   font-weight: 400;
-  line-height: 1.15;
-  color: #6a6158;
-  letter-spacing: 0.01em;
+  line-height: 1.25;
+  color: #625a51;
+  letter-spacing: 0.015em;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
@@ -712,9 +899,11 @@ body {
 .instant--planned {
   background: #fffdf9;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 2px 4px rgba(80, 55, 30, 0.08),
-    0 12px 28px rgba(80, 55, 30, 0.12) !important;
+    inset 1px 1px 0 rgba(255, 255, 255, 0.95),
+    inset -1px -1px 0 rgba(124, 96, 67, 0.05),
+    0 2px 0 rgba(224, 213, 199, 0.95),
+    2px 5px 8px rgba(67, 45, 24, 0.12),
+    9px 18px 30px rgba(67, 45, 24, 0.14);
 }
 .instant--planned .instant__pad {
   outline: 1.5px dashed rgba(90, 70, 50, 0.28);
@@ -738,8 +927,18 @@ body {
 }
 .instant__cover--planned {
   background:
-    linear-gradient(165deg, #ebe4d8 0%, #d9cfc0 45%, #c4b6a4 100%) !important;
+    linear-gradient(165deg, #ebe4d8 0%, #d9cfc0 45%, #c4b6a4 100%);
   color: #3a322a;
+}
+.instant__cover--planned .instant__cover-wash {
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.28), transparent 48%),
+    linear-gradient(
+      0deg,
+      rgba(255, 249, 239, 0.82) 0%,
+      rgba(255, 249, 239, 0.25) 43%,
+      transparent 72%
+    );
 }
 .instant__cover--planned .instant__cover-label {
   opacity: 0.65;
@@ -815,9 +1014,9 @@ body {
 }
 .wall-note {
   position: relative;
-  width: min(42vw, 148px);
-  min-height: 132px;
-  padding: 1.15rem 0.9rem 1rem;
+  width: min(68vw, 230px);
+  min-height: 220px;
+  padding: 1.55rem 1.25rem 1.25rem;
   background: linear-gradient(165deg, #fff6c8 0%, #f5e6a0 55%, #efd88a 100%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.65) inset,
@@ -827,11 +1026,11 @@ body {
 }
 .wall-note__pin {
   position: absolute;
-  top: -6px;
+  top: -7px;
   left: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
   border-radius: 50%;
   background: radial-gradient(
     circle at 32% 28%,
@@ -843,17 +1042,30 @@ body {
 }
 .wall-note__title {
   font-family: var(--font-hand), "Segoe Print", cursive;
-  font-size: 1rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: #4a3c28;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
 }
 .wall-note__line {
   font-family: var(--font-hand), "Segoe Print", cursive;
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.3;
   color: #5c4a32;
-  opacity: 0.9;
+  letter-spacing: 0.005em;
+  opacity: 0.92;
+}
+.wall-note__signature {
+  margin-top: 0.85rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(92, 74, 50, 0.2);
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #3f5f5c;
+  transform: rotate(-0.8deg);
 }
 
 /* Decorative washi strips on board (desktop) */
@@ -900,8 +1112,20 @@ body {
     );
   }
   .wall-note {
-    width: 156px;
-    min-height: 148px;
+    width: 248px;
+    min-height: 236px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
+
+  .instant,
+  .wall-stack,
+  .instant__image img {
+    transition: none;
   }
 }
 
@@ -1169,5 +1393,3 @@ button.admin-instant {
     transform: none;
   }
 }
-
-

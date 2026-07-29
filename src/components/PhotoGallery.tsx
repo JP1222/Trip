@@ -8,6 +8,7 @@ import {
   isLivePhoto,
   isVideoMedia,
   liveVideoPublicUrl,
+  photoDownloadUrl,
   photoPublicUrl,
 } from "@/lib/photos-client";
 import { openPhotoUpload } from "@/components/PhotoUpload";
@@ -307,27 +308,41 @@ export function PhotoGallery({
     });
   }
 
-  async function downloadBlob(url: string, downloadName: string) {
+  async function downloadBlob(url: string, downloadName?: string) {
     const res = await fetch(url);
+    if (!res.ok) throw new Error("Download failed");
     const blob = await res.blob();
+    // Prefer server Content-Disposition name when present
+    let name = downloadName || "download";
+    const cd = res.headers.get("Content-Disposition");
+    if (cd) {
+      const m =
+        /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i.exec(cd) ||
+        /filename=([^;]+)/i.exec(cd);
+      const raw = m?.[1] || m?.[2];
+      if (raw) {
+        try {
+          name = decodeURIComponent(raw.replace(/['"]/g, "").trim());
+        } catch {
+          name = raw.replace(/['"]/g, "").trim();
+        }
+      }
+    }
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = downloadName;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(a.href);
   }
 
   async function downloadOne(photo: PhotoMeta) {
-    await downloadBlob(
-      photoPublicUrl(photo.tripId, photo.filename),
-      photo.originalName || photo.filename,
-    );
-    // Live Photos: also download the companion .mov
+    // Privacy: stills go through strip-metadata API (no EXIF/GPS)
+    await downloadBlob(photoDownloadUrl(photo.tripId, photo.id));
+    // Live companion video (metadata not stripped — container format)
     if (photo.liveVideoFilename) {
       await new Promise((r) => setTimeout(r, 150));
       await downloadBlob(
-        liveVideoPublicUrl(photo.tripId, photo.liveVideoFilename),
-        photo.liveVideoOriginalName || photo.liveVideoFilename,
+        photoDownloadUrl(photo.tripId, photo.id, { part: "live" }),
       );
     }
   }

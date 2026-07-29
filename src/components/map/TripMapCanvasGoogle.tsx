@@ -4,6 +4,11 @@ import { useEffect, useRef } from "react";
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { TripWaypoint } from "@/lib/types";
 import { getGoogleMapsKey } from "@/lib/map-config";
+import {
+  fetchGoogleDrivingRoute,
+  straightLinePath,
+  type DrivingRoute,
+} from "@/lib/driving-route";
 import { buildPinSvgDataUrl, offsetOverlappingCoords } from "@/lib/map-pins";
 
 type Props = {
@@ -13,6 +18,7 @@ type Props = {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
+  onRouteInfo?: (route: DrivingRoute | null) => void;
 };
 
 function stopKey(s: TripWaypoint, i: number) {
@@ -68,16 +74,25 @@ export function TripMapCanvasGoogle({
   selectedId,
   onSelect,
   onMapClick,
+  onRouteInfo,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const polylineRef = useRef<google.maps.Polyline | null>(null);
   const markersRef = useRef<
-    { id: string; marker: google.maps.Marker; info: google.maps.InfoWindow; category?: string }[]
+    {
+      id: string;
+      marker: google.maps.Marker;
+      info: google.maps.InfoWindow;
+      category?: string;
+    }[]
   >([]);
   const onSelectRef = useRef(onSelect);
   const onMapClickRef = useRef(onMapClick);
+  const onRouteInfoRef = useRef(onRouteInfo);
   onSelectRef.current = onSelect;
   onMapClickRef.current = onMapClick;
+  onRouteInfoRef.current = onRouteInfo;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -89,9 +104,11 @@ export function TripMapCanvasGoogle({
     async function init() {
       setOptions({ key, v: "weekly" });
       const { Map } = await importLibrary("maps");
+      const { DirectionsService } = await importLibrary("routes");
       if (cancelled || !el) return;
 
       markersRef.current = [];
+      polylineRef.current = null;
       mapRef.current = null;
       el.innerHTML = "";
 
@@ -112,11 +129,12 @@ export function TripMapCanvasGoogle({
         onMapClickRef.current?.(e.latLng.lat(), e.latLng.lng());
       });
 
-      const path = stops.map((s) => ({ lat: s.lat, lng: s.lng }));
-      const display = offsetOverlappingCoords(path);
-      if (multi && path.length > 1) {
-        new google.maps.Polyline({
-          path,
+      const pinPath = stops.map((s) => ({ lat: s.lat, lng: s.lng }));
+      const display = offsetOverlappingCoords(pinPath);
+
+      if (multi && pinPath.length > 1) {
+        polylineRef.current = new google.maps.Polyline({
+          path: straightLinePath(stops),
           geodesic: true,
           strokeColor: "#3d6664",
           strokeOpacity: 0.95,
@@ -165,6 +183,23 @@ export function TripMapCanvasGoogle({
       window.setTimeout(() => {
         google.maps.event.trigger(map, "resize");
       }, 100);
+
+      if (multi && stops.length > 1) {
+        const service = new DirectionsService();
+        const road = await fetchGoogleDrivingRoute(stops, service);
+        if (cancelled) return;
+        if (!road || !polylineRef.current) {
+          onRouteInfoRef.current?.(null);
+          return;
+        }
+        polylineRef.current.setPath(road.path);
+        const roadBounds = new google.maps.LatLngBounds();
+        for (const p of road.path) roadBounds.extend(p);
+        map.fitBounds(roadBounds, 48);
+        onRouteInfoRef.current?.(road);
+      } else {
+        onRouteInfoRef.current?.(null);
+      }
     }
 
     void init().catch((err) => {
@@ -177,6 +212,7 @@ export function TripMapCanvasGoogle({
 
     return () => {
       cancelled = true;
+      polylineRef.current = null;
       markersRef.current = [];
       mapRef.current = null;
     };

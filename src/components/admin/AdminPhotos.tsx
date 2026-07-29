@@ -1,14 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PhotoMeta } from "@/lib/types";
 import {
+  formatCameraSettings,
+  formatFileSize,
   isLivePhoto,
   isVideoMedia,
+  liveVideoPublicUrl,
   photoPublicUrl,
 } from "@/lib/photos-client";
-import { LiveBadge } from "@/components/LivePhoto";
+import { LiveBadge, LivePhotoStage } from "@/components/LivePhoto";
 
 type Props = {
   tripId: string;
@@ -52,6 +55,8 @@ export function AdminPhotos({
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "featured">("all");
+  /** Index into visiblePhotos for full-screen preview */
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const featuredCount = useMemo(
     () => photos.filter((p) => p.featured).length,
@@ -62,6 +67,53 @@ export function AdminPhotos({
     if (filter === "featured") return photos.filter((p) => p.featured);
     return photos;
   }, [photos, filter]);
+
+  const previewPhoto =
+    previewIndex != null ? visiblePhotos[previewIndex] ?? null : null;
+
+  const closePreview = useCallback(() => setPreviewIndex(null), []);
+
+  const goPreviewPrev = useCallback(() => {
+    setPreviewIndex((i) => {
+      if (i == null || visiblePhotos.length === 0) return i;
+      return (i - 1 + visiblePhotos.length) % visiblePhotos.length;
+    });
+  }, [visiblePhotos.length]);
+
+  const goPreviewNext = useCallback(() => {
+    setPreviewIndex((i) => {
+      if (i == null || visiblePhotos.length === 0) return i;
+      return (i + 1) % visiblePhotos.length;
+    });
+  }, [visiblePhotos.length]);
+
+  useEffect(() => {
+    if (previewIndex == null) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closePreview();
+      if (e.key === "ArrowLeft") goPreviewPrev();
+      if (e.key === "ArrowRight") goPreviewNext();
+    }
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [previewIndex, closePreview, goPreviewPrev, goPreviewNext]);
+
+  // If filter/list shrinks under current index, clamp or close
+  useEffect(() => {
+    if (previewIndex == null) return;
+    if (visiblePhotos.length === 0) {
+      setPreviewIndex(null);
+      return;
+    }
+    if (previewIndex >= visiblePhotos.length) {
+      setPreviewIndex(visiblePhotos.length - 1);
+    }
+  }, [visiblePhotos.length, previewIndex]);
 
   const refresh = useCallback(() => {
     router.refresh();
@@ -488,7 +540,7 @@ export function AdminPhotos({
         </p>
       ) : (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-          {visiblePhotos.map((p) => {
+          {visiblePhotos.map((p, index) => {
             const url = photoPublicUrl(p.tripId, p.filename);
             const isCover = cover === url;
             const isSelected = selected.has(p.id);
@@ -508,34 +560,41 @@ export function AdminPhotos({
                           : "border-transparent"
                   }`}
                 >
-                  {isVid ? (
-                    <video
-                      src={url}
-                      className="h-full w-full object-cover"
-                      muted
-                      playsInline
-                      preload="metadata"
-                      onLoadedData={(e) => {
-                        const v = e.currentTarget;
-                        if (v.readyState >= 2 && v.currentTime === 0) {
-                          try {
-                            v.currentTime = 0.05;
-                          } catch {
-                            /* ignore */
+                  <button
+                    type="button"
+                    onClick={() => setPreviewIndex(index)}
+                    className="absolute inset-0 z-0 cursor-zoom-in"
+                    aria-label={`Preview ${p.originalName || "media"}`}
+                  >
+                    {isVid ? (
+                      <video
+                        src={url}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onLoadedData={(e) => {
+                          const v = e.currentTarget;
+                          if (v.readyState >= 2 && v.currentTime === 0) {
+                            try {
+                              v.currentTime = 0.05;
+                            } catch {
+                              /* ignore */
+                            }
                           }
-                        }
-                      }}
-                    />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={url}
-                      alt={p.caption || p.originalName}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                      draggable={false}
-                    />
-                  )}
+                        }}
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt={p.caption || p.originalName}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        draggable={false}
+                      />
+                    )}
+                  </button>
 
                   {isVid && (
                     <span
@@ -671,6 +730,207 @@ export function AdminPhotos({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Full-screen admin preview */}
+      {previewPhoto && previewIndex != null && (
+        <div
+          className="fixed inset-0 z-[80] flex flex-col bg-black/92 backdrop-blur-md"
+          role="dialog"
+          aria-modal
+          aria-label="Photo preview"
+          onClick={closePreview}
+        >
+          <div
+            className="flex items-center justify-between gap-3 px-3 py-3 sm:px-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={closePreview}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                aria-label="Close"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-white">
+                  {previewPhoto.uploader}
+                  {previewPhoto.device ? (
+                    <span className="font-normal text-white/65">
+                      {" · "}
+                      {previewPhoto.device}
+                    </span>
+                  ) : null}
+                  {previewPhoto.featured ? (
+                    <span className="ml-2 rounded-full bg-amber-400/90 px-1.5 py-0.5 text-[10px] font-semibold text-ink">
+                      ★
+                    </span>
+                  ) : null}
+                </p>
+                <p className="truncate text-xs text-white/60">
+                  {previewIndex + 1} / {visiblePhotos.length}
+                  {isVideoMedia(previewPhoto)
+                    ? " · Video"
+                    : isLivePhoto(previewPhoto)
+                      ? " · Live"
+                      : ""}
+                  {" · "}
+                  {formatFileSize(
+                    previewPhoto.size + (previewPhoto.liveVideoSize || 0),
+                  )}
+                  {(() => {
+                    const s = formatCameraSettings(previewPhoto);
+                    return s ? (
+                      <span className="hidden text-white/50 sm:inline">
+                        {" · "}
+                        {s}
+                      </span>
+                    ) : null;
+                  })()}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void toggleFeatured(previewPhoto)}
+                className={`rounded-full px-3 py-2 text-xs font-medium transition ${
+                  previewPhoto.featured
+                    ? "bg-amber-400 text-ink"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+              >
+                {previewPhoto.featured ? "★ Highlight" : "☆ Highlight"}
+              </button>
+              {!isVideoMedia(previewPhoto) && (
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    cover ===
+                      photoPublicUrl(
+                        previewPhoto.tripId,
+                        previewPhoto.filename,
+                      )
+                  }
+                  onClick={() =>
+                    void setAsCover(
+                      photoPublicUrl(
+                        previewPhoto.tripId,
+                        previewPhoto.filename,
+                      ),
+                    )
+                  }
+                  className="hidden rounded-full bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/20 sm:inline-flex disabled:opacity-40"
+                >
+                  Set polaroid
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-6 sm:px-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {visiblePhotos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={goPreviewPrev}
+                  className="absolute left-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 sm:left-4"
+                  aria-label="Previous"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={goPreviewNext}
+                  className="absolute right-2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 sm:right-4"
+                  aria-label="Next"
+                >
+                  ›
+                </button>
+              </>
+            )}
+
+            {isVideoMedia(previewPhoto) ? (
+              <video
+                key={previewPhoto.id}
+                src={photoPublicUrl(
+                  previewPhoto.tripId,
+                  previewPhoto.filename,
+                )}
+                className="max-h-[min(78vh,900px)] max-w-full rounded-lg bg-black object-contain shadow-2xl"
+                controls
+                playsInline
+                autoPlay
+              />
+            ) : isLivePhoto(previewPhoto) &&
+              previewPhoto.liveVideoFilename ? (
+              <LivePhotoStage
+                key={previewPhoto.id}
+                resetKey={previewPhoto.id}
+                stillSrc={photoPublicUrl(
+                  previewPhoto.tripId,
+                  previewPhoto.filename,
+                )}
+                videoSrc={liveVideoPublicUrl(
+                  previewPhoto.tripId,
+                  previewPhoto.liveVideoFilename,
+                )}
+                alt={previewPhoto.caption || previewPhoto.originalName}
+                still={
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoPublicUrl(
+                      previewPhoto.tripId,
+                      previewPhoto.filename,
+                    )}
+                    alt={previewPhoto.caption || previewPhoto.originalName}
+                    className="max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
+                  />
+                }
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={previewPhoto.id}
+                src={photoPublicUrl(
+                  previewPhoto.tripId,
+                  previewPhoto.filename,
+                )}
+                alt={previewPhoto.caption || previewPhoto.originalName}
+                className="max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
+              />
+            )}
+          </div>
+
+          {(previewPhoto.caption || previewPhoto.originalName) && (
+            <p
+              className="truncate px-4 pb-4 text-center text-xs text-white/55"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {previewPhoto.caption || previewPhoto.originalName}
+            </p>
+          )}
         </div>
       )}
     </div>

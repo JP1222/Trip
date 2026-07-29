@@ -78,6 +78,18 @@ export async function getPhotos(tripId: string): Promise<PhotoMeta[]> {
   return sortPhotos(photos);
 }
 
+export async function getPhoto(
+  tripId: string,
+  photoId: string,
+): Promise<PhotoMeta | null> {
+  const photos = await getPhotos(tripId);
+  return photos.find((p) => p.id === photoId) || null;
+}
+
+export function photoFilePath(tripId: string, filename: string): string {
+  return path.join(tripDir(tripId), filename);
+}
+
 export async function getAllPhotos(tripIds: string[]): Promise<PhotoMeta[]> {
   const lists = await Promise.all(tripIds.map((id) => getPhotos(id)));
   return sortPhotos(lists.flat());

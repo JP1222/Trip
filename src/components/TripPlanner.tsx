@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TripMap } from "@/components/TripMap";
 import type { Trip, TripLocation } from "@/lib/types";
 import {
@@ -11,6 +11,14 @@ import {
   type DayFilter,
   type PlanStop,
 } from "@/lib/plan";
+import {
+  etaClockFromDepart,
+  fetchMapboxDrivingRoute,
+  formatDriveDistance,
+  formatDriveDuration,
+  type DrivingLeg,
+} from "@/lib/driving-route";
+import { getMapboxToken } from "@/lib/map-config";
 import { StopCategoryBadge } from "@/components/StopCategoryIcon";
 import { TripBudgetPanel } from "@/components/TripBudgetPanel";
 
@@ -18,6 +26,16 @@ type Props = {
   trip: Trip;
   planned: boolean;
   dayCount: number;
+};
+
+/** Drive summary for a transit stop (distance, duration, optional ETA). */
+type TransitDriveInfo = {
+  distanceMeters: number;
+  durationSeconds: number;
+  /** Where this leg is going */
+  toLabel?: string;
+  /** Estimated arrival clock, e.g. "09:17" */
+  eta?: string | null;
 };
 
 function formatDayChipDate(iso: string) {
@@ -29,6 +47,13 @@ function formatDayChipDate(iso: string) {
   } catch {
     return iso;
   }
+}
+
+function shortPlaceLabel(label?: string, max = 42): string | undefined {
+  if (!label) return undefined;
+  const t = label.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
 }
 
 /**
@@ -50,6 +75,76 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
     () => planStopsToWaypoints(filtered),
     [filtered],
   );
+
+  /** Legs between map pins (pin i → pin i+1), same order as mapWaypoints */
+  const [driveLegs, setDriveLegs] = useState<DrivingLeg[]>([]);
+
+  useEffect(() => {
+    const token = getMapboxToken();
+    if (!token || mapWaypoints.length < 2) {
+      setDriveLegs([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchMapboxDrivingRoute(mapWaypoints, token).then((route) => {
+      if (cancelled) return;
+      setDriveLegs(route?.legs?.length ? route.legs : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mapWaypoints]);
+
+  /**
+   * Per transit stop: road distance/time + ETA from that stop’s clock time.
+   * - Outbound transit (has a next pin): leg from here → next; time = depart.
+   * - Last transit (drive home): leg into this pin; time = depart for that drive.
+   */
+  const transitDriveById = useMemo(() => {
+    const map = new Map<string, TransitDriveInfo>();
+    if (driveLegs.length === 0 || mapWaypoints.length < 2) return map;
+
+    for (const stop of filtered) {
+      if (stop.category !== "transport") continue;
+      const pinN = pinNumberForStop(stop, filtered);
+      if (pinN == null) continue;
+      const pinIdx = pinN - 1;
+
+      // Prefer outgoing leg (leave → destination)
+      if (pinIdx < driveLegs.length && pinIdx + 1 < mapWaypoints.length) {
+        const leg = driveLegs[pinIdx];
+        const nextWp = mapWaypoints[pinIdx + 1];
+        const nextStop =
+          filtered.find(
+            (s) => s.pinId === nextWp.id || s.id === nextWp.id,
+          ) || null;
+        const toLabel =
+          nextStop?.title ||
+          nextStop?.place ||
+          nextWp.label ||
+          undefined;
+        map.set(stop.id, {
+          distanceMeters: leg.distanceMeters,
+          durationSeconds: leg.durationSeconds,
+          toLabel: shortPlaceLabel(toLabel),
+          eta: etaClockFromDepart(stop.time, leg.durationSeconds),
+        });
+        continue;
+      }
+
+      // Last pin: inbound leg (e.g. drive home) — stop.time = when you start that drive
+      if (pinIdx > 0 && pinIdx - 1 < driveLegs.length) {
+        const leg = driveLegs[pinIdx - 1];
+        map.set(stop.id, {
+          distanceMeters: leg.distanceMeters,
+          durationSeconds: leg.durationSeconds,
+          toLabel: shortPlaceLabel(stop.place || stop.title),
+          eta: etaClockFromDepart(stop.time, leg.durationSeconds),
+        });
+      }
+    }
+    return map;
+  }, [filtered, driveLegs, mapWaypoints]);
 
   const location: TripLocation | undefined = trip.location;
   const hasMap =
@@ -333,6 +428,10 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
                       {items.map((stop) => {
                         const pinN = pinNumberForStop(stop, filtered);
                         const active = selectedId === stop.id;
+                        const transit =
+                          stop.category === "transport"
+                            ? transitDriveById.get(stop.id)
+                            : undefined;
                         return (
                           <li key={stop.id} id={`stop-${stop.id}`}>
                             <button
@@ -344,7 +443,7 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
                                   : "hover:bg-sand-50/80"
                               }`}
                             >
-                              <div className="flex w-12 shrink-0 flex-col items-center pt-0.5 sm:w-14">
+                              <div className="flex w-[4.25rem] shrink-0 flex-col items-center gap-1 pt-0.5 sm:w-[4.75rem]">
                                 <span
                                   className={`flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold shadow-sm ${
                                     active
@@ -356,23 +455,26 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
                                 >
                                   {pinN ?? "·"}
                                 </span>
+                                {stop.category ? (
+                                  <StopCategoryBadge
+                                    category={stop.category}
+                                    className="max-w-full justify-center px-1.5 py-px text-[8px] leading-none tracking-wide sm:text-[9px]"
+                                  />
+                                ) : null}
                                 {stop.time ? (
-                                  <time className="mt-1.5 text-[11px] tabular-nums leading-tight text-coral">
+                                  <time className="text-[11px] tabular-nums leading-tight text-coral">
                                     {stop.time}
                                   </time>
                                 ) : (
-                                  <span className="mt-1.5 text-[10px] text-ink-muted/60">
+                                  <span className="text-[10px] text-ink-muted/60">
                                     —
                                   </span>
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                  <h4 className="font-medium leading-snug text-ink">
-                                    {stop.title}
-                                  </h4>
-                                  <StopCategoryBadge category={stop.category} />
-                                </div>
+                                <h4 className="font-medium leading-snug text-ink">
+                                  {stop.title}
+                                </h4>
                                 {stop.place && (
                                   <p className="mt-1 text-xs text-ink-muted">
                                     {stop.place}
@@ -382,6 +484,39 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
                                         · pin {pinN}
                                       </span>
                                     )}
+                                  </p>
+                                )}
+                                {transit && (
+                                  <p className="mt-1 text-xs font-medium text-sea">
+                                    <span className="tabular-nums">
+                                      {formatDriveDistance(
+                                        transit.distanceMeters,
+                                      )}
+                                    </span>
+                                    <span className="mx-1 font-normal text-ink-muted">
+                                      ·
+                                    </span>
+                                    <span className="tabular-nums">
+                                      {formatDriveDuration(
+                                        transit.durationSeconds,
+                                      )}
+                                    </span>
+                                    {transit.toLabel ? (
+                                      <span className="font-normal text-ink-muted">
+                                        {" "}
+                                        to {transit.toLabel}
+                                      </span>
+                                    ) : null}
+                                    {transit.eta ? (
+                                      <>
+                                        <span className="mx-1 font-normal text-ink-muted">
+                                          ·
+                                        </span>
+                                        <span className="tabular-nums">
+                                          arrive ~{transit.eta}
+                                        </span>
+                                      </>
+                                    ) : null}
                                   </p>
                                 )}
                                 {stop.description && (

@@ -271,7 +271,7 @@ export function LivePhotoStage({
 
       <button
         type="button"
-        className="absolute top-3 right-3 z-20 touch-manipulation sm:top-4 sm:right-4"
+        className="absolute top-3 left-3 z-20 touch-manipulation sm:top-4 sm:left-4"
         aria-label={playing ? "Stop Live Photo" : "Play Live Photo"}
         aria-pressed={playing}
         onPointerDown={onBadgePointerDown}
