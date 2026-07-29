@@ -154,8 +154,6 @@ function rowToTrip(row: TripRow): Trip {
     days: arrayValue<DayPlan>(row.days),
     tips: arrayValue<string>(row.tips),
     budget: objectValue<TripBudget>(row.budget),
-    // Plaintext collaboration tokens are intentionally not stored in PostgreSQL.
-    collabToken: undefined,
   };
 }
 
@@ -199,7 +197,6 @@ export type TripEditable = Pick<
   | "status"
   | "days"
   | "location"
-  | "collabToken"
   | "budget"
 >;
 
@@ -435,7 +432,6 @@ export async function updateTrip(
       );
       if (derived?.stops && derived.stops.length > 0) next.location = derived;
     }
-    // patch.collabToken is deliberately ignored. Capabilities store only hashes.
     if (patch.budget !== undefined) {
       next.budget = sanitizeBudget(patch.budget as TripBudget) ?? {
         currency: "USD",

@@ -344,11 +344,4 @@ export async function extractPhotoExif(
   return parsed;
 }
 
-// ─── Back-compat re-exports used by photos.ts ───
-export async function extractDeviceFromImage(
-  input: Buffer,
-  originalName: string,
-): Promise<string | undefined> {
-  const exif = await extractPhotoExif(input, originalName);
-  return exif.device;
-}
+

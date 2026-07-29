@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import path from "path";
 import type { PhotoMeta } from "./types";
-import { pairLivePhotoFiles, type MediaUploadUnit } from "./photos-client";
+import { mediaMetaAfterQueue } from "./media/inline";
 import {
   createQueuedMedia,
   getPhotoMetaPage,
@@ -11,41 +11,16 @@ import {
   softDeleteMedia,
   updateMediaMetadata,
 } from "./media/repository";
-import { mediaMetaAfterQueue } from "./media/inline";
 import {
   assertStorageKey,
   localMediaStorage,
   mediaAssetKey,
 } from "./media/storage";
 import type { MediaJobType } from "./media/types";
+import { photoPublicUrl } from "./photos-client";
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
-
-const ALLOWED_IMAGE_MIME = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "image/heic-sequence",
-  "image/heif-sequence",
-  "image/gif",
-  "image/avif",
-  "image/tiff",
-  "image/bmp",
-]);
-
-const ALLOWED_VIDEO_MIME = new Set([
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-m4v",
-  "video/ogg",
-]);
-
-const IMAGE_EXT = /\.(jpe?g|png|webp|gif|hei[cf]|avif|bmp|tiff?)$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogg|ogv)$/i;
 
 /** Featured first (by featuredAt), then newest upload. */
@@ -84,8 +59,8 @@ export async function getPhoto(
 
 /**
  * Resolve a gallery filename to an on-disk path.
- * Public derivatives live under MEDIA_PUBLIC_ROOT (/media/...).
- * Legacy import keys may still reference basename files under LEGACY_UPLOADS.
+ * Public derivatives: MEDIA_PUBLIC_ROOT via /media/...
+ * Legacy import basenames: LEGACY_UPLOADS_ROOT/{tripId}/...
  */
 export function photoFilePath(tripId: string, filename: string): string {
   if (filename.startsWith("/media/")) {
@@ -117,22 +92,6 @@ export async function getAllPhotos(tripIds: string[]): Promise<PhotoMeta[]> {
 
 export function getFeaturedPhotos(photos: PhotoMeta[]): PhotoMeta[] {
   return sortPhotos(photos.filter((p) => p.featured));
-}
-
-function isAllowedImage(file: File): boolean {
-  const mime = (file.type || "").toLowerCase();
-  if (ALLOWED_IMAGE_MIME.has(mime) || mime.startsWith("image/")) return true;
-  return IMAGE_EXT.test(file.name);
-}
-
-function isAllowedVideo(file: File): boolean {
-  const mime = (file.type || "").toLowerCase();
-  if (ALLOWED_VIDEO_MIME.has(mime) || mime.startsWith("video/")) return true;
-  return VIDEO_EXT.test(file.name);
-}
-
-function isAllowedMedia(file: File): boolean {
-  return isAllowedImage(file) || isAllowedVideo(file);
 }
 
 export type SavePhotoOptions = {
@@ -171,8 +130,7 @@ function sourceExtension(name: string, isVideo: boolean): string {
 }
 
 /**
- * Buffer-based ingest used by import tooling and any non-stream callers.
- * Prefer stream staging (queueStagedMedia) for HTTP uploads.
+ * Buffer-based ingest for tooling (HTTP uploads use stream staging instead).
  */
 export async function savePhotoBuffer(
   tripId: string,
@@ -199,7 +157,7 @@ export async function savePhotoBuffer(
   } else if (raw.length > 80 * 1024 * 1024) {
     throw new Error("Each image must be under 80MB");
   } else if (raw.length > MAX_IMAGE_BYTES) {
-    // Larger sources are accepted; worker/sharp will downscale derivatives.
+    // Larger sources are accepted; worker will downscale derivatives.
   }
 
   const id = randomUUID();
@@ -311,84 +269,6 @@ export async function savePhotoBuffer(
   }
 }
 
-export async function savePhoto(
-  tripId: string,
-  file: File,
-  uploader: string,
-  caption?: string,
-  liveVideo?: File,
-): Promise<PhotoMeta> {
-  if (!isAllowedMedia(file)) {
-    throw new Error("Only images and videos are supported");
-  }
-  if (liveVideo) {
-    if (!isAllowedImage(file)) {
-      throw new Error("Live Photos need a still image plus a .mov companion");
-    }
-    if (!isAllowedVideo(liveVideo)) {
-      throw new Error("Live Photo companion must be a video (.mov / .mp4)");
-    }
-  }
-  const raw = Buffer.from(await file.arrayBuffer());
-  return savePhotoBuffer(
-    tripId,
-    raw,
-    file.name,
-    file.type || "application/octet-stream",
-    { uploader, caption, liveVideo },
-  );
-}
-
-/**
- * Save one or more files, auto-pairing Apple Live Photos by basename.
- */
-export async function saveMediaFiles(
-  tripId: string,
-  files: File[],
-  uploader: string,
-  caption?: string,
-): Promise<{ saved: PhotoMeta[]; errors: string[] }> {
-  const units = pairLivePhotoFiles(files);
-  const saved: PhotoMeta[] = [];
-  const errors: string[] = [];
-
-  for (const unit of units) {
-    try {
-      if (unit.kind === "live") {
-        saved.push(
-          await savePhoto(tripId, unit.image, uploader, caption, unit.video),
-        );
-      } else {
-        saved.push(await savePhoto(tripId, unit.file, uploader, caption));
-      }
-    } catch (err) {
-      const name =
-        unit.kind === "live"
-          ? `${unit.image.name} + ${unit.video.name}`
-          : unit.file.name;
-      errors.push(
-        `${name}: ${err instanceof Error ? err.message : "failed"}`,
-      );
-    }
-  }
-
-  return { saved, errors };
-}
-
-export type { MediaUploadUnit };
-
-export function tripUploadsDir(tripId: string) {
-  const legacyRoot =
-    process.env.LEGACY_UPLOADS_ROOT ||
-    path.join(process.cwd(), "public", "uploads");
-  return path.join(legacyRoot, tripId);
-}
-
-export function photoPublicUrl(tripId: string, filename: string) {
-  if (filename.startsWith("/")) return filename;
-  return `/uploads/${tripId}/${filename}`;
-}
-
 export async function deletePhoto(
   tripId: string,
   photoId: string,
@@ -413,16 +293,6 @@ export async function deletePhotos(
   return { deleted: removed.map((media) => media.id), removedUrls };
 }
 
-export async function updatePhotoCaption(
-  tripId: string,
-  photoId: string,
-  caption: string,
-): Promise<PhotoMeta | null> {
-  return updatePhoto(tripId, photoId, {
-    caption: caption.trim() || undefined,
-  });
-}
-
 export type PhotoPatch = {
   caption?: string | undefined;
   featured?: boolean;
@@ -434,18 +304,4 @@ export async function updatePhoto(
   patch: PhotoPatch,
 ): Promise<PhotoMeta | null> {
   return updateMediaMetadata(tripId, photoId, patch);
-}
-
-export async function setPhotoFeatured(
-  tripId: string,
-  photoId: string,
-  featured: boolean,
-): Promise<PhotoMeta | null> {
-  return updatePhoto(tripId, photoId, { featured });
-}
-
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

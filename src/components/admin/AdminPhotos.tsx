@@ -274,7 +274,7 @@ export function AdminPhotos({
     );
 
     try {
-      // One request, sequential save on server (avoids photos.json races)
+      // One multipart request; server pairs Live Photos and queues jobs
       const form = new FormData();
       for (const file of files) form.append("files", file);
       form.append("uploader", "Admin");

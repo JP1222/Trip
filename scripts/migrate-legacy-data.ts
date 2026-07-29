@@ -18,6 +18,9 @@ import type {
   TripBudget,
 } from "../src/lib/types";
 
+/** On-disk trips.json may still carry a discarded plaintext collab field. */
+type LegacyTripDocument = Trip & { collabToken?: string };
+
 type SourceDocument = {
   relativePath: string;
   contents: string;
@@ -179,7 +182,7 @@ export async function buildLegacyImportPlan(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const trips = await readJsonDocument<Trip[]>(
+  const trips = await readJsonDocument<LegacyTripDocument[]>(
     path.join(dataRoot, "trips.json"),
     "data/trips.json",
     documents,

@@ -1,5 +1,9 @@
 /**
- * Sync Desktop trip folders → public/uploads/{tripId}
+ * Sync Desktop trip folders → public/uploads/{tripId} (legacy tree).
+ *
+ * This still writes photos.json + files under public/uploads for the one-time
+ * Postgres import pipeline (`pnpm db:import:legacy`). Runtime gallery no longer
+ * reads those files once data lives in the database.
  *
  * - Adds new images/videos (with EXIF device + exposure)
  * - Pairs Apple Live Photos (same stem HEIC/JPG + MOV)
@@ -10,6 +14,7 @@
  * Usage:
  *   node scripts/import-desktop-photos.mjs
  *   node scripts/import-desktop-photos.mjs mother-earth-troll-garden
+ *   pnpm db:import:legacy -- --commit
  */
 
 import { promises as fs } from "fs";

@@ -72,4 +72,4 @@ Not limited to a rigid masonry/polaroid grid — layout is **what the user arran
 - `src/components/PolaroidWall.tsx` / `AdminPolaroidWall.tsx`
 - `src/lib/wall.ts`
 - Brand mark: `public/branding/logo.png` (polaroid icon)
-- Trip collab (different surface): `collabToken`, `CollabShareCard`, plan API
+- Trip collab (different surface): capability invites (`CollabShareCard`), plan API

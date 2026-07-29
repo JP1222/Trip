@@ -265,7 +265,7 @@ export function CollabPlanShell({
     return (
       <div id="plan" className="mt-10 scroll-mt-28 sm:mt-12">
         {float}
-        <AdminPlanEditor trip={trip} mode="collab" collabToken={token} />
+        <AdminPlanEditor trip={trip} mode="collab" editToken={token} />
       </div>
     );
   }

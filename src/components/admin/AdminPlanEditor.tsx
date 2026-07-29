@@ -32,7 +32,8 @@ type Props = {
   trip: Trip;
   /** admin = full admin API; collab = public plan API with token */
   mode?: "admin" | "collab";
-  collabToken?: string;
+  /** Capability invite token (plan scope); sent with collab saves. */
+  editToken?: string;
 };
 
 type DayFilter = "all" | number;
@@ -89,7 +90,7 @@ function findItem(
 export function AdminPlanEditor({
   trip,
   mode = "admin",
-  collabToken,
+  editToken,
 }: Props) {
   const [days, setDays] = useState<DayPlan[]>(() =>
     trip.days.length > 0
@@ -288,7 +289,7 @@ export function AdminPlanEditor({
       const body =
         mode === "collab"
           ? {
-              token: collabToken,
+              token: editToken,
               days: cleaned,
               tips,
               location,
@@ -315,7 +316,7 @@ export function AdminPlanEditor({
       setSaveState("error");
       setError(err instanceof Error ? err.message : "Save failed");
     }
-  }, [mode, collabToken, trip.id]);
+  }, [mode, editToken, trip.id]);
 
   const scheduleSave = useCallback(() => {
     if (skipAutoSave.current) return;

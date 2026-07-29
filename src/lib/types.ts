@@ -107,12 +107,6 @@ export type Trip = {
   days: DayPlan[];
   /** Planning checklist / tips */
   tips?: string[];
-  /**
-   * @deprecated Not stored in Postgres. Collaboration uses hashed trip
-   * capabilities (admin Share invite). Kept optional on the type for
-   * import/legacy payload compatibility only.
-   */
-  collabToken?: string;
   /** Shared group budget */
   budget?: TripBudget;
 };

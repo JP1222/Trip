@@ -116,9 +116,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       details: { fields: Object.keys(patch) },
     });
 
-    const { collabToken: _, ...safe } = updated;
     return attachRequestId(
-      NextResponse.json(safe, {
+      NextResponse.json(updated, {
         headers: {
           "Cache-Control": "no-store",
           ...rateLimitHeaders(rateLimit),

@@ -63,7 +63,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (body.location && typeof body.location === "object") {
       patch.location = body.location as TripLocation;
     }
-    // collabToken is no longer stored on trips; use capability invites.
     if (body.budget !== undefined) {
       patch.budget = sanitizeBudget(body.budget) ?? {
         currency: "USD",
@@ -90,8 +89,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       details: { fields: Object.keys(patch) },
     });
 
-    const { collabToken: _, ...safe } = trip;
-    return attachRequestId(NextResponse.json(safe), requestId);
+    return attachRequestId(NextResponse.json(trip), requestId);
   } catch {
     return attachRequestId(
       NextResponse.json({ error: "Invalid request" }, { status: 400 }),

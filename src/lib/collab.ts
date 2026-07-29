@@ -1,4 +1,5 @@
-/** Local storage key for remembering collab token per trip */
+/** Client helpers for remembering a trip collaboration invite token. */
+
 export function collabStorageKey(tripId: string) {
   return `trip-collab:${tripId}`;
 }
@@ -26,22 +27,4 @@ export function clearStoredCollabToken(tripId: string) {
   } catch {
     /* ignore */
   }
-}
-
-/** Generate a short shareable secret */
-export function generateCollabToken(): string {
-  const bytes = new Uint8Array(12);
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < bytes.length; i++) bytes[i] = (Math.random() * 256) | 0;
-  }
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-export function collabEditUrl(tripId: string, token: string, origin?: string) {
-  const base =
-    origin ||
-    (typeof window !== "undefined" ? window.location.origin : "");
-  return `${base}/trips/${tripId}?edit=${encodeURIComponent(token)}`;
 }

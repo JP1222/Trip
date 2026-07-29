@@ -70,8 +70,7 @@ export default async function TripPage({ params, searchParams }: Props) {
   const collabEnabled =
     Boolean(verifiedToken) || (await hasActiveTripInvite(trip.id));
 
-  // Never ship secrets to the public client (page source scrape)
-  const publicTrip = { ...trip, collabToken: undefined };
+  const publicTrip = trip;
 
   const navTabs = planned
     ? [
