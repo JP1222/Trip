@@ -220,8 +220,14 @@ export function mediaToPhotoMeta(media: MediaWithAssets): PhotoMeta {
     featured: media.featured,
     featuredAt: media.featuredAt,
   };
-  const thumbnail = media.assets.thumb || media.assets.grid;
-  const preview = media.assets.preview || media.assets.download;
+  const thumbnail =
+    media.kind === "video"
+      ? media.assets.poster || media.assets.thumb || media.assets.grid
+      : media.assets.thumb || media.assets.grid;
+  const preview =
+    media.kind === "video"
+      ? media.assets.poster || media.assets.preview || media.assets.download
+      : media.assets.preview || media.assets.download;
   if (thumbnail) result.thumbnailFilename = publicFilename(thumbnail, filename);
   if (preview) result.previewFilename = publicFilename(preview, filename);
   if (media.assets.poster) {

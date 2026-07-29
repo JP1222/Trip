@@ -1,6 +1,9 @@
 import { execFile } from "child_process";
 import { promises as fs } from "fs";
 import { promisify } from "util";
+import os from "os";
+import path from "path";
+import sharp from "sharp";
 import {
   localMediaStorage,
   mediaAssetKey,
@@ -244,42 +247,117 @@ async function makePlayback(
 }
 
 async function makePoster(
-  playbackPath: string,
+  videoPath: string,
   outputKey: string,
   durationSeconds: number,
   storage: LocalMediaStorage,
   signal?: AbortSignal,
 ): Promise<void> {
+  // Homebrew ffmpeg often lacks libwebp; pull a JPEG frame then convert with sharp.
   const seek = Math.min(2, Math.max(0.1, durationSeconds * 0.1)).toFixed(3);
-  const target = await storage.createAtomicTarget("public", outputKey);
-  await runIntoTarget(
-    target,
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "trip-poster-"));
+  const framePath = path.join(tempDir, "frame.jpg");
+  try {
+    await runBinary(
+      process.env.FFMPEG_PATH || "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        seek,
+        "-i",
+        videoPath,
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-vf",
+        "scale=w='min(960,iw)':h=-2:force_original_aspect_ratio=decrease:force_divisible_by=2",
+        "-q:v",
+        "3",
+        framePath,
+      ],
+      { signal },
+    );
+    const webp = await sharp(framePath, { failOn: "none" })
+      .rotate()
+      .webp({ quality: 78, effort: 4 })
+      .toBuffer();
+    await storage.writeAtomic("public", outputKey, webp);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function posterAssetFromFile(
+  media: MediaWithAssets,
+  posterKey: string,
+  storage: LocalMediaStorage,
+  signal?: AbortSignal,
+): Promise<MediaAsset> {
+  const posterPath = storage.absolutePath("public", posterKey);
+  const posterStat = await fs.stat(posterPath);
+  const { stdout } = await runBinary(
+    process.env.FFPROBE_PATH || "ffprobe",
     [
-      "-hide_banner",
-      "-loglevel",
+      "-v",
       "error",
-      "-y",
-      "-ss",
-      seek,
-      "-i",
-      playbackPath,
-      "-map",
-      "0:v:0",
-      "-frames:v",
-      "1",
-      "-vf",
-      "scale=w='min(960,iw)':h=-2:force_original_aspect_ratio=decrease:force_divisible_by=2",
-      "-c:v",
-      "libwebp",
-      "-quality",
-      "78",
-      "-map_metadata",
-      "-1",
-      "-f",
-      "webp",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "csv=s=x:p=0",
+      posterPath,
     ],
-    signal,
+    { signal },
   );
+  const [width, height] = stdout.trim().split("x").map(Number);
+  return {
+    mediaId: media.id,
+    role: "poster",
+    storageProvider: "local",
+    storageKey: posterKey,
+    mimeType: "image/webp",
+    byteSize: posterStat.size,
+    width: Number.isFinite(width) ? width : undefined,
+    height: Number.isFinite(height) ? height : undefined,
+    sha256: await storage.hash("public", posterKey),
+    isPublic: true,
+  };
+}
+
+/**
+ * Fast path: extract a gallery poster from the original / legacy video
+ * without waiting for full remux/transcode. Publish this first for UX.
+ */
+export async function generateVideoPoster(
+  media: MediaWithAssets,
+  options: {
+    storage?: LocalMediaStorage;
+    signal?: AbortSignal;
+  } = {},
+): Promise<MediaAsset> {
+  const storage = options.storage || localMediaStorage;
+  const source = sourceVideoAsset(media, false);
+  const sourcePath = storage.absolutePathForAsset(source);
+  const sourceProbe = await probeVideo(sourcePath, { signal: options.signal });
+  const posterKey = mediaAssetKey(
+    media.tripId,
+    media.id,
+    media.version,
+    "poster-960.webp",
+  );
+  await makePoster(
+    sourcePath,
+    posterKey,
+    sourceProbe.durationSeconds,
+    storage,
+    options.signal,
+  );
+  return posterAssetFromFile(media, posterKey, storage, options.signal);
 }
 
 export async function generateVideoAssets(
@@ -288,6 +366,8 @@ export async function generateVideoAssets(
     live?: boolean;
     storage?: LocalMediaStorage;
     signal?: AbortSignal;
+    /** When true, skip poster (caller already published one). */
+    skipPoster?: boolean;
   } = {},
 ): Promise<MediaAsset[]> {
   const storage = options.storage || localMediaStorage;
@@ -326,7 +406,7 @@ export async function generateVideoAssets(
     },
   ];
 
-  if (!live) {
+  if (!live && !options.skipPoster) {
     const posterKey = mediaAssetKey(
       media.tripId,
       media.id,
@@ -340,36 +420,9 @@ export async function generateVideoAssets(
       storage,
       options.signal,
     );
-    const posterProbe = await fs.stat(storage.absolutePath("public", posterKey));
-    // Probe poster dimensions through ffprobe to avoid another full image decode.
-    const { stdout } = await runBinary(
-      process.env.FFPROBE_PATH || "ffprobe",
-      [
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=width,height",
-        "-of",
-        "csv=s=x:p=0",
-        storage.absolutePath("public", posterKey),
-      ],
-      { signal: options.signal },
+    assets.push(
+      await posterAssetFromFile(media, posterKey, storage, options.signal),
     );
-    const [width, height] = stdout.trim().split("x").map(Number);
-    assets.push({
-      mediaId: media.id,
-      role: "poster",
-      storageProvider: "local",
-      storageKey: posterKey,
-      mimeType: "image/webp",
-      byteSize: posterProbe.size,
-      width: Number.isFinite(width) ? width : undefined,
-      height: Number.isFinite(height) ? height : undefined,
-      sha256: await storage.hash("public", posterKey),
-      isPublic: true,
-    });
   }
 
   return assets;

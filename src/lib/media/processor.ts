@@ -7,7 +7,7 @@ import {
 } from "./repository";
 import { localMediaStorage, type LocalMediaStorage } from "./storage";
 import type { MediaAsset, MediaJob, MediaWithAssets } from "./types";
-import { generateVideoAssets } from "./video";
+import { generateVideoAssets, generateVideoPoster } from "./video";
 
 function processingError(message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code: "media_processing_failed" });
@@ -27,7 +27,14 @@ async function processVideo(
   storage: LocalMediaStorage,
   signal?: AbortSignal,
 ): Promise<void> {
-  const assets = await generateVideoAssets(media, { storage, signal });
+  // Poster first so the gallery shows a frame while full remux/transcode runs.
+  const poster = await generateVideoPoster(media, { storage, signal });
+  await publishProcessedMedia(media.id, [poster]);
+  const assets = await generateVideoAssets(media, {
+    storage,
+    signal,
+    skipPoster: true,
+  });
   await publishProcessedMedia(media.id, assets);
 }
 

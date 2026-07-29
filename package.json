@@ -18,6 +18,7 @@
     "db:migrate": "tsx scripts/migrate-db.ts",
     "db:import:legacy": "tsx scripts/migrate-legacy-data.ts",
     "media:backfill": "tsx scripts/backfill-legacy-media.ts",
+    "media:video-posters": "tsx scripts/generate-video-posters.ts",
     "worker:media": "tsx scripts/media-worker.ts",
     "import:photos": "node scripts/import-desktop-photos.mjs",
     "smoke:backend": "tsx scripts/smoke-backend.ts",

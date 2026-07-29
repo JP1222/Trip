@@ -141,24 +141,28 @@ function MediaThumb({
   const url = photoPublicUrl(photo.tripId, imageName);
   const alt = photo.caption || photo.originalName;
   if (isVideoMedia(photo)) {
-    if (photo.posterFilename) {
+    if (photo.posterFilename || photo.thumbnailFilename) {
+      const poster = photo.posterFilename || photo.thumbnailFilename!;
       return (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={photoPublicUrl(photo.tripId, photo.posterFilename)}
+          src={photoPublicUrl(photo.tripId, poster)}
           alt={alt}
           className={className}
           loading={loading}
         />
       );
     }
+    // No server poster yet — let the browser paint the first frame.
     return (
-      <span
-        className={`${className || ""} flex min-h-36 items-end justify-center bg-gradient-to-br from-ink via-ink-soft to-sea/80 px-3 pb-3 text-center text-[10px] text-white/55`}
+      <video
+        src={url}
+        className={className}
+        muted
+        playsInline
+        preload="metadata"
         aria-label={alt}
-      >
-        <span className="max-w-full truncate">{photo.originalName}</span>
-      </span>
+      />
     );
   }
   if (isLivePhoto(photo) && photo.liveVideoFilename) {
@@ -935,6 +939,11 @@ export function PhotoGallery({
                     key={active.id}
                     ref={videoRef}
                     src={photoPublicUrl(active.tripId, active.filename)}
+                    poster={
+                      active.posterFilename
+                        ? photoPublicUrl(active.tripId, active.posterFilename)
+                        : undefined
+                    }
                     className="media-viewer__media max-h-[min(70vh,720px)] w-auto max-w-full rounded-lg bg-black object-contain shadow-2xl lg:max-h-[min(82vh,900px)]"
                     controls
                     playsInline

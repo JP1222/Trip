@@ -567,12 +567,15 @@ export function AdminPhotos({
                     className="absolute inset-0 z-0 cursor-zoom-in"
                     aria-label={`Preview ${p.originalName || "media"}`}
                   >
-                    {isVid && !p.posterFilename ? (
-                      <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink via-ink-soft to-sea/80 text-white">
-                        <span className="max-w-[80%] truncate px-2 pt-12 text-[9px] text-white/55">
-                          {p.originalName}
-                        </span>
-                      </span>
+                    {isVid && !p.posterFilename && !p.thumbnailFilename ? (
+                      <video
+                        src={url}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        aria-label={p.caption || p.originalName}
+                      />
                     ) : (
                       <Image
                         src={gridUrl}
