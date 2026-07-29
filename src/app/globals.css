@@ -1,26 +1,682 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sand-50: #f7f4ef;
+  --sand-100: #efeae2;
+  --sand-200: #e0d8cc;
+  --sand-300: #cfc4b4;
+  --ink: #1c1a17;
+  --ink-soft: #4a453e;
+  --ink-muted: #8a8278;
+  --sea: #3d6664;
+  --sea-soft: #5a8582;
+  --coral: #b56a4e;
+  --coral-soft: #c8886e;
+  --mist: #e4eceb;
+  --background: var(--sand-50);
+  --foreground: var(--ink);
+  --wall: #ebe4d8;
+  --frame: #faf9f6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-sand-50: var(--sand-50);
+  --color-sand-100: var(--sand-100);
+  --color-sand-200: var(--sand-200);
+  --color-sand-300: var(--sand-300);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-sea: var(--sea);
+  --color-sea-soft: var(--sea-soft);
+  --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
+  --color-mist: var(--mist);
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-hand: var(--font-hand);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+::selection {
+  background: color-mix(in srgb, var(--sea) 22%, transparent);
+  color: var(--ink);
+}
+
+.ambient {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--sand-300);
+    border-radius: 999px;
+  }
+}
+
+.photo-grid {
+  columns: 1;
+  column-gap: 1rem;
+}
+@media (min-width: 640px) {
+  .photo-grid {
+    columns: 2;
+  }
+}
+@media (min-width: 1024px) {
+  .photo-grid {
+    columns: 3;
+  }
+}
+.photo-grid > * {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+
+/* ─── Home wall: mobile = full cork; desktop = framed board ─── */
+
+/* Mobile (default): edge-to-edge cork, big polaroid */
+.gallery-wall {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+  /* Solid base + cork tile only — avoid multi-gradient banding */
+  background-color: #c9a87a;
+  background-image: url("/textures/cork-tile.jpg");
+  background-size: 240px 240px;
+  background-repeat: repeat;
+  background-position: center top;
+}
+
+.gallery-wall::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* soft vignette only, no hard bands */
+  background: radial-gradient(
+    ellipse 95% 80% at 50% 45%,
+    transparent 55%,
+    rgba(80, 55, 30, 0.14) 100%
+  );
+}
+
+.gallery-wall::after {
+  display: none;
+}
+
+/* Mobile: no floating maple frame */
+.cork-board {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.cork-board__surface {
+  position: relative;
+  flex: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cork-board__surface::after {
+  display: none;
+}
+
+/* Hide spare pins on small screens */
+.cork-board__pins {
+  display: none;
+}
+
+.cork-pin {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow:
+    0 2px 4px rgba(60, 40, 20, 0.35),
+    0 4px 8px rgba(60, 40, 20, 0.15),
+    inset 0 2px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.22);
+}
+
+.cork-pin--rose {
+  background: radial-gradient(
+    circle at 32% 28%,
+    #ffe0e4 0%,
+    #f5c0c4 25%,
+    #d47884 60%,
+    #9a4050 100%
+  );
+}
+.cork-pin--blue {
+  background: radial-gradient(
+    circle at 32% 28%,
+    #e8f0f8 0%,
+    #c8d8e8 25%,
+    #7a9ab8 60%,
+    #405e7a 100%
+  );
+}
+.cork-pin--gold {
+  background: radial-gradient(
+    circle at 32% 28%,
+    #fff8e0 0%,
+    #f5e8c0 25%,
+    #d4b060 60%,
+    #8a6a28 100%
+  );
+}
+.cork-pin--sage {
+  background: radial-gradient(
+    circle at 32% 28%,
+    #eef5e8 0%,
+    #d0e0c8 25%,
+    #88a878 60%,
+    #4a6640 100%
+  );
+}
+
+.cork-board__photos {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem 1.25rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* room for pins that stick above polaroids */
+  padding: 1.75rem 1.25rem 1.5rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  overflow: visible;
+}
+
+/* Mobile polaroids: one uniform size */
+.cork-board .instant {
+  --w: min(78vw, 300px);
+  background: #fffcf7;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 2px 4px rgba(80, 55, 30, 0.1),
+    0 12px 28px rgba(80, 55, 30, 0.16),
+    0 24px 48px rgba(80, 55, 30, 0.1);
+}
+
+/* Single trip: a bit larger on phone */
+.cork-board--solo .instant {
+  --w: min(84vw, 320px);
+}
+
+.cork-board .instant:hover,
+.cork-board .instant:focus-visible {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 12px rgba(80, 55, 30, 0.12),
+    0 20px 40px rgba(80, 55, 30, 0.14);
+}
+
+/* ─── Tablet+ / Desktop: warm flat wall + maple framed board ─── */
+@media (min-width: 768px) {
+  .gallery-wall {
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1.25rem 2rem;
+    /* Flat warm cream — multi-stop gradients caused visible banding */
+    background-color: #efe6d8;
+    background-image: none;
+  }
+
+  .gallery-wall::before {
+    opacity: 0.04;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+  }
+
+  .gallery-wall::after {
+    display: none;
+  }
+
+  .cork-board {
+    width: min(100%, 980px);
+    flex: none;
+    padding: 16px;
+    border-radius: 5px;
+    background: #e8d5b5;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.55) inset,
+      0 -1px 0 rgba(120, 90, 50, 0.08) inset,
+      0 1px 2px rgba(80, 55, 30, 0.06),
+      0 12px 28px rgba(80, 55, 30, 0.1),
+      0 28px 56px rgba(80, 55, 30, 0.08);
+  }
+
+  .cork-board__surface {
+    flex: none;
+    min-height: min(70vh, 600px);
+    border-radius: 2px;
+    /* visible so polaroid pins can sit slightly above the surface edge */
+    overflow: visible;
+    /* Cork tile only — no stacked gradients (those read as stripes) */
+    background-color: #c9a87a;
+    background-image: url("/textures/cork-tile.jpg");
+    background-size: 280px 280px;
+    background-repeat: repeat;
+    background-position: 0 0;
+    box-shadow:
+      inset 0 0 0 1px rgba(100, 70, 40, 0.12),
+      inset 0 0 40px rgba(90, 60, 30, 0.06);
+  }
+
+  .cork-board__surface::after {
+    display: block;
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    /* very soft edge shade, no hard bands */
+    box-shadow: inset 0 0 60px rgba(80, 55, 30, 0.08);
+    background: none;
+  }
+
+  .cork-board__pins {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .cork-board__photos {
+    min-height: inherit;
+    gap: 2.25rem 2rem;
+    padding: 2.75rem 2rem 2.75rem;
+    overflow: visible;
+  }
+
+  .cork-board .instant {
+    --w: 240px;
+  }
+
+  .cork-board--solo .instant {
+    --w: 280px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gallery-wall {
+    padding: 1.5rem 1.5rem 2rem;
+  }
+
+  .cork-board {
+    width: min(94vw, 1320px);
+    padding: 20px;
+    border-radius: 6px;
+  }
+
+  .cork-board__surface {
+    min-height: min(82vh, 820px);
+    background-size: 300px 300px;
+  }
+
+  .cork-board__photos {
+    gap: 2.75rem 2.5rem;
+    padding: 3rem 2.75rem 3.25rem;
+  }
+
+  .cork-board .instant {
+    --w: 280px;
+  }
+
+  .cork-board--solo .instant {
+    --w: 300px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .gallery-wall {
+    padding: 1.75rem 2rem 2.25rem;
+  }
+
+  .cork-board {
+    width: min(92vw, 1520px);
+    padding: 24px;
+  }
+
+  .cork-board__surface {
+    min-height: min(84vh, 900px);
+    background-size: 320px 320px;
+  }
+
+  .cork-board__photos {
+    gap: 3.25rem 3rem;
+    padding: 3.5rem 3.25rem 3.75rem;
+  }
+
+  .cork-board .instant {
+    --w: 300px;
+  }
+
+  .cork-board--solo .instant {
+    --w: 320px;
+  }
+}
+
+@media (min-width: 1800px) {
+  .cork-board {
+    width: min(90vw, 1680px);
+    padding: 26px;
+  }
+
+  .cork-board__surface {
+    min-height: min(86vh, 980px);
+  }
+
+  .cork-board .instant {
+    --w: 320px;
+  }
+
+  .cork-board--solo .instant {
+    --w: 340px;
+  }
+}
+
+/* Round pushpin sits on the top edge (partly over cork) */
+.instant__thumbtack {
+  position: absolute;
+  z-index: 8;
+  top: -8px;
+  left: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #ffffff 0%,
+    #eae6e0 28%,
+    #b0aaa0 62%,
+    #6e6860 100%
+  );
+  box-shadow:
+    0 1px 2px rgba(40, 30, 15, 0.28),
+    0 3px 6px rgba(40, 30, 15, 0.16),
+    inset 0 1px 2px rgba(255, 255, 255, 0.75),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* short needle into the white border only */
+.instant__thumbtack::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 70%;
+  width: 2px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 0 0 1px 1px;
+  background: linear-gradient(180deg, #9a958c 0%, #5a554e 100%);
+  box-shadow: 0 1px 2px rgba(40, 30, 15, 0.2);
+  z-index: -1;
+}
+
+/* soft highlight */
+.instant__thumbtack::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  top: 18%;
+  width: 5px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  filter: blur(0.4px);
+}
+
+@media (min-width: 768px) {
+  .instant__thumbtack {
+    top: -9px;
+    width: 16px;
+    height: 16px;
+  }
+
+  .instant__thumbtack::before {
+    height: 8px;
+  }
+}
+
+/*
+ * Classic Polaroid 600 / SX-70 proportions
+ * Overall ≈ 88.9 × 107.9 mm  →  aspect-ratio: 89 / 108  (portrait)
+ * Image area ≈ 79 × 79 mm (square)
+ * Side/top border ≈ 5.5% of card width
+ * Bottom write strip ≈ 22% of card height
+ */
+.instant {
+  --w: 200px;
+  --border: calc(var(--w) * 0.055);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--w);
+  /* 89×108mm Polaroid 600 — aspect-ratio works with min() in --w */
+  aspect-ratio: 89 / 108;
+  height: auto;
+  background: #fffcf7;
+  border-radius: 2px;
+  /* visible so thumbtack can sit above the card; clip photo separately */
+  overflow: visible;
+  box-shadow:
+    0 0 0 0.5px rgba(28, 26, 23, 0.04),
+    0 1px 1px rgba(28, 26, 23, 0.04),
+    0 6px 12px rgba(28, 26, 23, 0.06),
+    0 18px 36px rgba(28, 26, 23, 0.08);
+  transition:
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.instant:hover,
+.instant:focus-visible {
+  z-index: 20;
+  box-shadow:
+    0 0 0 0.5px rgba(28, 26, 23, 0.05),
+    0 2px 4px rgba(28, 26, 23, 0.05),
+    0 12px 24px rgba(28, 26, 23, 0.08),
+    0 32px 56px rgba(28, 26, 23, 0.12);
+}
+
+.instant:focus-visible {
+  outline: 1.5px solid rgba(61, 102, 100, 0.45);
+  outline-offset: 5px;
+}
+
+/* Top + side borders; hosts the square photo */
+.instant__pad {
+  flex: 0 0 auto;
+  padding: var(--border) var(--border) 0;
+  box-sizing: border-box;
+  /* clip only the photo well if needed, not the pin */
+  overflow: visible;
+  border-radius: 0;
+}
+
+.instant__image {
+  position: relative;
+  /* square: width = card width − 2× border */
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 0;
+  background: #d9d2c6;
+}
+
+.instant__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.instant:hover .instant__image img {
+  transform: scale(1.03);
+}
+
+.instant__image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(28, 26, 23, 0.06);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    transparent 30%,
+    transparent 70%,
+    rgba(28, 26, 23, 0.04) 100%
+  );
+}
+
+.instant__cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12% 10% 12%;
+  color: #faf8f4;
+}
+
+.instant__cover-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      transparent 40%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(20, 16, 12, 0.55) 0%,
+      rgba(20, 16, 12, 0.12) 45%,
+      transparent 70%
+    );
+}
+
+.instant__cover-label {
+  position: relative;
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+.instant__cover-name {
+  position: relative;
+  margin-top: 0.35rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+/* Bottom write-on strip fills remaining height (~22%) */
+.instant__foot {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0 calc(var(--w) * 0.08) calc(var(--w) * 0.04);
+  text-align: center;
+  gap: 0.08em;
+}
+
+/* Handwritten title — scales with card width */
+.instant__caption {
+  font-family: var(--font-hand), "Segoe Print", "Comic Sans MS", cursive;
+  font-size: calc(var(--w) * 0.095);
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.15;
+  color: #2c2620;
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Date · place */
+.instant__date {
+  font-family: var(--font-hand), "Segoe Print", "Comic Sans MS", cursive;
+  font-size: calc(var(--w) * 0.068);
+  font-weight: 400;
+  line-height: 1.2;
+  color: #6a6158;
+  letter-spacing: 0.02em;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+

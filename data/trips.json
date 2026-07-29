@@ -1,0 +1,185 @@
+[
+  {
+    "id": "dismals-canyon",
+    "title": "Dismals Canyon",
+    "subtitle": "Moss, stone, and a night that glows",
+    "destination": "USA · Alabama · Phil Campbell",
+    "startDate": "2026-07-18",
+    "endDate": "2026-07-18",
+    "coverGradient": "from-[#3d4a3c] via-[#5c6b54] to-[#2a3330]",
+    "coverEmoji": "🌿",
+    "coverImage": "/uploads/dismals-canyon/59497a9c-1be2-4419-b07e-74779a4ee1af.jpg",
+    "summary": "Four of us dropped into a sandstone canyon in northwest Alabama—boardwalks over clear water, fern-covered cliffs, and after dark, the soft blue of dismalites. Peng, Carlie, Ragen, and Joel. One long day. A lot of frames.",
+    "members": [
+      "Peng",
+      "Carlie",
+      "Ragen",
+      "Joel"
+    ],
+    "tips": [
+      "Trails can be slick after rain—good shoes help",
+      "Stay for the night tour if you can; the glowworms are the point",
+      "Pack a light layer; the canyon floor stays cooler than the parking lot"
+    ],
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-07-18",
+        "title": "Into the canyon",
+        "items": [
+          {
+            "id": "dc-1",
+            "time": "16:30",
+            "title": "Arrive & drop in",
+            "description": "Park, stretch, and take the path down into the sandstone cut. First frames of green light and water.",
+            "location": "Trailhead · Dismals Canyon"
+          },
+          {
+            "id": "dc-2",
+            "time": "17:45",
+            "title": "Canyon walk",
+            "description": "Boardwalks, rock walls, and cool air. Stop whenever the light hits the moss right.",
+            "location": "Main canyon trail"
+          },
+          {
+            "id": "dc-3",
+            "time": "18:50",
+            "title": "Golden hour in the cut",
+            "description": "Late light through the trees. Portraits, details, and the four of us in the frame.",
+            "location": "Canyon floor"
+          },
+          {
+            "id": "dc-4",
+            "time": "19:30",
+            "title": "Blue hour & water",
+            "description": "Quieter light, reflections, and the last open-shutter moments before dark.",
+            "location": "Creek & falls"
+          },
+          {
+            "id": "dc-5",
+            "time": "21:00",
+            "title": "Dismalites",
+            "description": "Night in the canyon—look up for the blue glow. Slow walk out under the trees.",
+            "location": "Night canyon"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "tom-lee-park",
+    "title": "Tom Lee Park",
+    "subtitle": "Independence Day on the river",
+    "destination": "USA · Tennessee · Memphis",
+    "startDate": "2026-07-04",
+    "endDate": "2026-07-04",
+    "coverGradient": "from-[#7eb6d9] via-[#f0c48a] to-[#e07050]",
+    "coverEmoji": "🎆",
+    "summary": "Fourth of July on the Mississippi at Tom Lee Park—late light on the river, fireworks weather, and a long golden evening by the water.",
+    "members": [
+      "Peng"
+    ],
+    "tips": [
+      "Arrive early if you want a spot with a clear river view",
+      "Evenings can cool off once the sun drops—bring a light layer",
+      "Phone and camera batteries drain fast with night and fireworks shots"
+    ],
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-07-04",
+        "title": "Independence Day on the River",
+        "items": [
+          {
+            "id": "tl-1",
+            "time": "19:00",
+            "title": "Arrive at Tom Lee Park",
+            "description": "Find a stretch of grass with a view of the river and settle in.",
+            "location": "Tom Lee Park · Memphis"
+          },
+          {
+            "id": "tl-2",
+            "time": "19:30",
+            "title": "Golden hour on the water",
+            "description": "River light, silhouettes, and the crowd easing into the evening.",
+            "location": "Riverfront"
+          },
+          {
+            "id": "tl-3",
+            "time": "20:30",
+            "title": "Blue hour",
+            "description": "City lights come on; frames get quieter between the celebrations.",
+            "location": "Park lawn"
+          },
+          {
+            "id": "tl-4",
+            "time": "21:00",
+            "title": "Night on the Mississippi",
+            "description": "Independence Day night by the river—fireworks energy and long exposures.",
+            "location": "Tom Lee Park"
+          }
+        ]
+      }
+    ],
+    "coverImage": "/uploads/tom-lee-park/a7210e1c-5fed-49be-911d-425e9db95bd0.jpg"
+  },
+  {
+    "id": "mother-earth-troll-garden",
+    "title": "Mother Earth Troll Garden",
+    "subtitle": "Sculptures, garden paths, and a slow afternoon",
+    "destination": "USA · Mother Earth Troll Garden",
+    "startDate": "2026-04-30",
+    "endDate": "2026-05-01",
+    "coverGradient": "from-[#c8d5a8] via-[#e8dcc8] to-[#8fa87a]",
+    "coverEmoji": "🪴",
+    "summary": "Peng, Carlie, and Shreya walked the garden paths among the troll sculptures—green light, quiet corners, and a lot of frames between the trees.",
+    "members": [
+      "Peng",
+      "Carlie",
+      "Shreya"
+    ],
+    "tips": [
+      "Wear shoes that can handle dirt paths and damp grass",
+      "Midday light through the trees is soft—good for portraits and details",
+      "Give yourself time; the sculptures reward a slow walk"
+    ],
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-04-30",
+        "title": "Garden walk",
+        "items": [
+          {
+            "id": "me-1",
+            "time": "11:00",
+            "title": "Arrive",
+            "description": "Meet up, stretch, and step into the garden.",
+            "location": "Entrance"
+          },
+          {
+            "id": "me-2",
+            "time": "12:00",
+            "title": "Troll trail",
+            "description": "Follow the paths between sculptures—stop for portraits and close-ups.",
+            "location": "Garden paths"
+          },
+          {
+            "id": "me-3",
+            "time": "14:30",
+            "title": "Shade & details",
+            "description": "Moss, wood, and the smaller figures tucked into the greenery.",
+            "location": "Wooded corners"
+          },
+          {
+            "id": "me-4",
+            "time": "16:30",
+            "title": "Late light",
+            "description": "Softer light on the big sculptures and a last loop of the grounds.",
+            "location": "Main garden"
+          }
+        ]
+      }
+    ],
+    "coverImage": "/uploads/mother-earth-troll-garden/ab4e5b65-ed8a-462a-9dbf-b59b28c6dc6f.jpg"
+  }
+]

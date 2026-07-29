@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trip journal
 
-## Getting Started
+A small private site for friends: share trip plans, upload travel photos, and download each other’s shots. Calm aesthetic, works on phone and desktop.
 
-First, run the development server:
+## Features
+
+- **Trip list** — home cards for every journey
+- **Itinerary** — day-by-day timeline
+- **Gallery** — masonry layout, lightbox, single / bulk download
+- **Upload** — drag-and-drop or multi-select, with your name for credit
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Customize trips
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Edit `data/trips.json` to add or change trips and days. Refresh the page after saving.
 
-## Learn More
+Photos live under `public/uploads/<trip-id>/`, with metadata in `photos.json` in the same folder.
 
-To learn more about Next.js, take a look at the following resources:
+## Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js (App Router) + TypeScript
+- Tailwind CSS v4
+- Local filesystem for photos (fine for a small group; swap to object storage for production cloud deploy)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Roles
 
-## Deploy on Vercel
+| Who | Can do |
+|-----|--------|
+| **You (admin)** | Log in at `/admin`, edit trip info, delete photos, moderate comments |
+| **Friends** | View site, upload photos, post comments — no account |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Admin setup
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Copy `.env.example` → `.env.local` (local defaults: user `admin` / password `admin`)
+2. On your **remote server**, set strong `ADMIN_USERNAME` + `ADMIN_PASSWORD` (never use `admin`/`admin` in production)
+3. Restart the app after changing env
+4. Open `/admin`
+
+Day-by-day itinerary is still edited in `data/trips.json` for now.
+
+## Note
+
+Photo upload and comments only need a name (no friend login). Admin uses a single password cookie session.
