@@ -116,6 +116,10 @@ export type Trip = {
   budget?: TripBudget;
 };
 
+/**
+ * Gallery media item (photo, video, or Apple Live Photo). Named PhotoMeta
+ * for history; use mimeType / isVideoMedia() / isLivePhoto() to distinguish.
+ */
 export type PhotoMeta = {
   id: string;
   tripId: string;
@@ -123,9 +127,44 @@ export type PhotoMeta = {
   originalName: string;
   uploader: string;
   caption?: string;
+  /**
+   * Camera / phone model from EXIF (or inferred), e.g. "iPhone 15 Plus",
+   * "Ricoh GR IV HDF". Shown next to the uploader name in the gallery.
+   */
+  device?: string;
+  /** f-number, e.g. 2.8 */
+  aperture?: number;
+  /** Display shutter speed, e.g. "1/125" or "2s" */
+  shutter?: string;
+  /** ISO sensitivity */
+  iso?: number;
+  /** Focal length in mm (actual) */
+  focalLength?: number;
+  /** 35mm-equivalent focal length */
+  focalLength35?: number;
+  /** Lens model string when present */
+  lens?: string;
+  /** Capture time from EXIF DateTimeOriginal (local wall clock, no TZ) */
+  takenAt?: string;
+  /** image/* or video/* */
   mimeType: string;
   size: number;
   uploadedAt: string;
+  /**
+   * Admin-starred pick — shows ★ in the gallery and sorts first.
+   */
+  featured?: boolean;
+  /** ISO time when starred — newest featured first among picks */
+  featuredAt?: string;
+  /**
+   * Apple Live Photo companion video (short clip stored next to the still).
+   * When set, the still is the primary gallery item; video plays on press/hover.
+   */
+  liveVideoFilename?: string;
+  /** Original name of the Live companion (for downloads). */
+  liveVideoOriginalName?: string;
+  liveVideoSize?: number;
+  liveVideoMimeType?: string;
 };
 
 export type Comment = {

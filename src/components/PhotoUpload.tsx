@@ -1,21 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  isMediaFile,
+  isVideoFile,
+  mediaUnitKey,
+  mediaUnitLabel,
+  pairLivePhotoFiles,
+  type MediaUploadUnit,
+} from "@/lib/photos-client";
 
 type Props = {
   tripId: string;
 };
 
 const MAX_FILES = 100;
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const CONCURRENCY = 4;
 const OPEN_EVENT = "photos:open-upload";
 
-const IMAGE_EXT = /\.(jpe?g|png|webp|gif|heic|heif|avif|bmp|tiff?)$/i;
+function maxBytesFor(file: File): number {
+  return isVideoFile(file) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+}
 
-function isImageFile(file: File): boolean {
-  if (file.type.startsWith("image/")) return true;
-  return IMAGE_EXT.test(file.name);
+function unitOverSize(unit: MediaUploadUnit): boolean {
+  if (unit.kind === "live") {
+    return (
+      unit.image.size > MAX_IMAGE_BYTES || unit.video.size > MAX_VIDEO_BYTES
+    );
+  }
+  return unit.file.size > maxBytesFor(unit.file);
 }
 
 function fileKey(file: File): string {
@@ -59,7 +74,7 @@ async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
       const file = await new Promise<File>((resolve, reject) => {
         (entry as FileSystemFileEntry).file(resolve, reject);
       });
-      if (isImageFile(file)) out.push(file);
+      if (isMediaFile(file)) out.push(file);
       return;
     }
     if (entry.isDirectory) {
@@ -87,7 +102,7 @@ async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
     .filter((e): e is FileSystemEntry => Boolean(e));
 
   if (!entries.length) {
-    return Array.from(dt.files || []).filter(isImageFile);
+    return Array.from(dt.files || []).filter(isMediaFile);
   }
 
   for (const entry of entries) {
@@ -171,7 +186,7 @@ export function PhotoUpload({ tripId }: Props) {
 
   function mergeFiles(incoming: File[]) {
     if (!incoming.length) {
-      setError("No image files found in that selection");
+      setError("No photos or videos found in that selection");
       return;
     }
 
@@ -182,7 +197,7 @@ export function PhotoUpload({ tripId }: Props) {
       let skippedDup = 0;
 
       for (const f of incoming) {
-        if (f.size > MAX_BYTES) {
+        if (f.size > maxBytesFor(f)) {
           skippedOversize += 1;
           continue;
         }
@@ -196,12 +211,15 @@ export function PhotoUpload({ tripId }: Props) {
         next.push(f);
       }
 
+      // After merge, count Live pairs so the cap message is meaningful
       const messages: string[] = [];
       if (next.length >= MAX_FILES && prev.length + incoming.length > MAX_FILES) {
-        messages.push(`Batch capped at ${MAX_FILES} photos`);
+        messages.push(`Batch capped at ${MAX_FILES} files`);
       }
       if (skippedOversize) {
-        messages.push(`${skippedOversize} over 20MB skipped`);
+        messages.push(
+          `${skippedOversize} over size limit skipped (photos 20MB · videos 100MB)`,
+        );
       }
       if (skippedDup) {
         messages.push(
@@ -215,7 +233,7 @@ export function PhotoUpload({ tripId }: Props) {
 
   function onPick(list: FileList | null) {
     if (!list?.length) return;
-    mergeFiles(Array.from(list).filter(isImageFile));
+    mergeFiles(Array.from(list).filter(isMediaFile));
   }
 
   async function onDrop(e: React.DragEvent) {
@@ -229,10 +247,6 @@ export function PhotoUpload({ tripId }: Props) {
     }
   }
 
-  function removeFile(index: number) {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  }
-
   function clearFiles() {
     setFiles([]);
     setError(null);
@@ -240,10 +254,16 @@ export function PhotoUpload({ tripId }: Props) {
     if (folderRef.current) folderRef.current.value = "";
   }
 
+  const units = useMemo(() => pairLivePhotoFiles(files), [files]);
+  const livePairCount = useMemo(
+    () => units.filter((u) => u.kind === "live").length,
+    [units],
+  );
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!files.length) {
-      setError("Please choose at least one photo");
+      setError("Please choose at least one photo or video");
       return;
     }
     if (!uploader.trim()) {
@@ -251,7 +271,12 @@ export function PhotoUpload({ tripId }: Props) {
       return;
     }
 
-    const batch = [...files];
+    const batch = pairLivePhotoFiles(files).filter((u) => !unitOverSize(u));
+    if (!batch.length) {
+      setError("All selected files exceed size limits");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setDone(0);
@@ -263,9 +288,14 @@ export function PhotoUpload({ tripId }: Props) {
     let failCount = 0;
     const failNames: string[] = [];
 
-    await runPool(batch, CONCURRENCY, async (file) => {
+    await runPool(batch, CONCURRENCY, async (unit) => {
       const form = new FormData();
-      form.append("file", file);
+      if (unit.kind === "live") {
+        form.append("file", unit.image);
+        form.append("liveVideo", unit.video);
+      } else {
+        form.append("file", unit.file);
+      }
       form.append("uploader", uploader.trim());
       if (caption.trim()) form.append("caption", caption.trim());
 
@@ -284,7 +314,7 @@ export function PhotoUpload({ tripId }: Props) {
         setDone(success);
       } catch {
         failCount += 1;
-        failNames.push(file.name);
+        failNames.push(mediaUnitLabel(unit));
         setFailed(failCount);
       }
       setProgress(
@@ -305,7 +335,7 @@ export function PhotoUpload({ tripId }: Props) {
     }
 
     if (failCount === 0) {
-      setProgress(`Uploaded ${success} photo${success === 1 ? "" : "s"} ✨`);
+      setProgress(`Uploaded ${success} item${success === 1 ? "" : "s"} ✨`);
       setError(null);
       // Auto-close shortly after full success
       setTimeout(() => {
@@ -342,7 +372,7 @@ export function PhotoUpload({ tripId }: Props) {
       <button
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
-        aria-label={open ? "Close upload" : "Share photos"}
+        aria-label={open ? "Close upload" : "Share photos & videos"}
         aria-expanded={open}
         className={`fixed right-5 bottom-5 z-50 flex h-14 items-center gap-2 rounded-full bg-sea px-5 text-white shadow-[0_10px_30px_rgba(61,102,100,0.35)] transition hover:bg-sea-soft hover:shadow-[0_12px_36px_rgba(61,102,100,0.45)] active:scale-[0.98] sm:right-8 sm:bottom-8 ${
           open ? "bg-ink-soft hover:bg-ink" : ""
@@ -371,7 +401,7 @@ export function PhotoUpload({ tripId }: Props) {
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <circle cx="12" cy="13" r="4" />
             </svg>
-            <span className="text-sm font-medium">Share photos</span>
+            <span className="text-sm font-medium">Share media</span>
           </>
         )}
       </button>
@@ -400,10 +430,11 @@ export function PhotoUpload({ tripId }: Props) {
                   id="upload-sheet-title"
                   className="font-serif text-xl text-ink sm:text-2xl"
                 >
-                  Share your photos
+                  Share photos & videos
                 </h3>
                 <p className="mt-0.5 text-xs text-ink-muted">
-                  HEIC / HDR ok · up to {MAX_FILES} · max 20MB each
+                  HEIC · Live Photos · MP4 / MOV · up to {MAX_FILES} · photos
+                  20MB · videos 100MB
                 </p>
               </div>
               <button
@@ -468,10 +499,10 @@ export function PhotoUpload({ tripId }: Props) {
                   onDrop={(e) => void onDrop(e)}
                 >
                   <p className="text-sm text-ink-soft">
-                    Drop photos or a folder here
+                    Drop photos, videos, or a folder here
                   </p>
                   <p className="mt-1 text-xs text-ink-muted">
-                    Multi-select, or a whole folder on desktop
+                    Live Photos: select photo + matching .mov (same name)
                   </p>
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     <button
@@ -479,7 +510,7 @@ export function PhotoUpload({ tripId }: Props) {
                       onClick={() => inputRef.current?.click()}
                       className="rounded-full bg-coral/90 px-4 py-2 text-sm text-white transition hover:bg-coral"
                     >
-                      Choose photos
+                      Choose files
                     </button>
                     <button
                       type="button"
@@ -492,7 +523,7 @@ export function PhotoUpload({ tripId }: Props) {
                   <input
                     ref={inputRef}
                     type="file"
-                    accept="image/*,.heic,.heif"
+                    accept="image/*,video/*,.heic,.heif,.mp4,.mov,.webm,.m4v"
                     multiple
                     className="hidden"
                     onChange={(e) => {
@@ -519,8 +550,11 @@ export function PhotoUpload({ tripId }: Props) {
                   <div>
                     <div className="mb-1.5 flex items-center justify-between gap-2 text-xs text-ink-muted">
                       <span>
-                        {files.length} photo
-                        {files.length === 1 ? "" : "s"} ready
+                        {units.length} item
+                        {units.length === 1 ? "" : "s"} ready
+                        {livePairCount > 0
+                          ? ` · ${livePairCount} Live`
+                          : ""}
                         {files.length >= MAX_FILES ? ` (max ${MAX_FILES})` : ""}
                       </span>
                       {!busy && (
@@ -534,16 +568,40 @@ export function PhotoUpload({ tripId }: Props) {
                       )}
                     </div>
                     <ul className="max-h-28 space-y-1.5 overflow-y-auto rounded-xl bg-sand-100/70 p-2.5">
-                      {files.map((f, i) => (
+                      {units.map((unit) => (
                         <li
-                          key={fileKey(f)}
+                          key={mediaUnitKey(unit)}
                           className="flex items-center justify-between gap-2 text-sm text-ink-soft"
                         >
-                          <span className="truncate">{f.name}</span>
+                          <span className="min-w-0 truncate">
+                            {unit.kind === "live" ? (
+                              <>
+                                <span className="mr-1.5 inline-flex rounded-full bg-ink/85 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-white uppercase">
+                                  LIVE
+                                </span>
+                                {unit.image.name}
+                              </>
+                            ) : (
+                              unit.file.name
+                            )}
+                          </span>
                           {!busy && (
                             <button
                               type="button"
-                              onClick={() => removeFile(i)}
+                              onClick={() => {
+                                if (unit.kind === "live") {
+                                  setFiles((prev) =>
+                                    prev.filter(
+                                      (f) =>
+                                        f !== unit.image && f !== unit.video,
+                                    ),
+                                  );
+                                } else {
+                                  setFiles((prev) =>
+                                    prev.filter((f) => f !== unit.file),
+                                  );
+                                }
+                              }}
                               className="shrink-0 text-ink-muted hover:text-coral"
                             >
                               Remove
@@ -582,9 +640,13 @@ export function PhotoUpload({ tripId }: Props) {
                 >
                   {busy
                     ? `Uploading… ${done + failed}/${total}`
-                    : files.length > 0
-                      ? `Upload ${files.length} photo${files.length === 1 ? "" : "s"}`
-                      : "Choose photos to upload"}
+                    : units.length > 0
+                      ? `Upload ${units.length} item${units.length === 1 ? "" : "s"}${
+                          livePairCount
+                            ? ` (${livePairCount} Live)`
+                            : ""
+                        }`
+                      : "Choose files to upload"}
                 </button>
               </div>
             </form>

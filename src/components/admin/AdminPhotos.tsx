@@ -1,9 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { PhotoMeta } from "@/lib/types";
-import { photoPublicUrl } from "@/lib/photos-client";
+import {
+  isLivePhoto,
+  isVideoMedia,
+  photoPublicUrl,
+} from "@/lib/photos-client";
+import { LiveBadge } from "@/components/LivePhoto";
 
 type Props = {
   tripId: string;
@@ -14,6 +19,22 @@ type Props = {
 
 const MAX_BATCH = 50;
 
+function sortAdminPhotos(list: PhotoMeta[]): PhotoMeta[] {
+  return [...list].sort((a, b) => {
+    const af = a.featured ? 1 : 0;
+    const bf = b.featured ? 1 : 0;
+    if (af !== bf) return bf - af;
+    if (a.featured && b.featured) {
+      const at = a.featuredAt ? new Date(a.featuredAt).getTime() : 0;
+      const bt = b.featuredAt ? new Date(b.featuredAt).getTime() : 0;
+      if (at !== bt) return bt - at;
+    }
+    return (
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    );
+  });
+}
+
 export function AdminPhotos({
   tripId,
   tripTitle,
@@ -22,7 +43,7 @@ export function AdminPhotos({
 }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [photos, setPhotos] = useState(initial);
+  const [photos, setPhotos] = useState(() => sortAdminPhotos(initial));
   const [cover, setCover] = useState(initialCover || "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -30,6 +51,17 @@ export function AdminPhotos({
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "featured">("all");
+
+  const featuredCount = useMemo(
+    () => photos.filter((p) => p.featured).length,
+    [photos],
+  );
+
+  const visiblePhotos = useMemo(() => {
+    if (filter === "featured") return photos.filter((p) => p.featured);
+    return photos;
+  }, [photos, filter]);
 
   const refresh = useCallback(() => {
     router.refresh();
@@ -68,6 +100,50 @@ export function AdminPhotos({
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not set cover");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleFeatured(photo: PhotoMeta) {
+    const nextFeatured = !photo.featured;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/trips/${tripId}/photos/${photo.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ featured: nextFeatured }),
+        },
+      );
+      const data = (await res.json()) as PhotoMeta & { error?: string };
+      if (!res.ok) throw new Error(data.error || "Could not update featured");
+      // Explicit featured flag — JSON responses may omit false/undefined keys,
+      // so never rely on `{ ...prev, ...data }` alone to clear the star.
+      setPhotos((list) =>
+        sortAdminPhotos(
+          list.map((p) =>
+            p.id === photo.id
+              ? {
+                  ...p,
+                  ...data,
+                  featured: data.featured === true,
+                  featuredAt:
+                    data.featured === true ? data.featuredAt : undefined,
+                }
+              : p,
+          ),
+        ),
+      );
+      setStatus(
+        nextFeatured ? "Added to Highlights" : "Removed from Highlights",
+      );
+      setTimeout(() => setStatus(null), 2000);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update");
     } finally {
       setBusy(false);
     }
@@ -139,16 +215,23 @@ export function AdminPhotos({
 
   async function uploadFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList)
-      .filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(f.name))
+      .filter(
+        (f) =>
+          f.type.startsWith("image/") ||
+          f.type.startsWith("video/") ||
+          /\.(jpe?g|png|webp|heic|heif|gif|mp4|webm|mov|m4v)$/i.test(f.name),
+      )
       .slice(0, MAX_BATCH);
     if (!files.length) {
-      setError("No image files found");
+      setError("No image or video files found");
       return;
     }
 
     setBusy(true);
     setError(null);
-    setUploadProgress(`Uploading ${files.length} photo${files.length === 1 ? "" : "s"}…`);
+    setUploadProgress(
+      `Uploading ${files.length} file${files.length === 1 ? "" : "s"}…`,
+    );
 
     try {
       // One request, sequential save on server (avoids photos.json races)
@@ -172,16 +255,22 @@ export function AdminPhotos({
 
       const saved = data.photos || [];
       if (saved.length) {
-        setPhotos((prev) => [...saved, ...prev]);
-        // Auto-set first cover if none
-        if (!cover && saved[0]) {
-          const url = photoPublicUrl(saved[0].tripId, saved[0].filename);
-          await fetch(`/api/admin/trips/${tripId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ coverImage: url }),
-          });
-          setCover(url);
+        setPhotos((prev) => sortAdminPhotos([...saved, ...prev]));
+        // Auto-set first cover if none (images only — not video)
+        if (!cover) {
+          const firstImage = saved.find((p) => !isVideoMedia(p));
+          if (firstImage) {
+            const url = photoPublicUrl(
+              firstImage.tripId,
+              firstImage.filename,
+            );
+            await fetch(`/api/admin/trips/${tripId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ coverImage: url }),
+            });
+            setCover(url);
+          }
         }
       }
 
@@ -190,7 +279,7 @@ export function AdminPhotos({
         setError(data.errors.slice(0, 3).join(" · "));
       } else {
         setStatus(
-          `Added ${saved.length} photo${saved.length === 1 ? "" : "s"}`,
+          `Added ${saved.length} file${saved.length === 1 ? "" : "s"}`,
         );
       }
       setTimeout(() => setStatus(null), 3000);
@@ -212,13 +301,15 @@ export function AdminPhotos({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-serif text-xl text-ink">
-            Photos
+            Media
             <span className="ml-2 text-base font-sans font-normal text-ink-muted">
               {photos.length}
+              {featuredCount > 0 ? ` · ${featuredCount} featured` : ""}
             </span>
           </h2>
           <p className="mt-1 text-sm text-ink-muted">
-            Upload, select a polaroid cover, multi-select to delete.
+            Upload photos & videos, star Highlights, set polaroid cover,
+            multi-select to delete.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -228,12 +319,12 @@ export function AdminPhotos({
             onClick={() => fileRef.current?.click()}
             className="rounded-full bg-sea px-4 py-2 text-sm font-medium text-white transition hover:bg-sea-soft disabled:opacity-50"
           >
-            Add photos
+            Add media
           </button>
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,.heic,.heif"
+            accept="image/*,video/*,.heic,.heif,.mp4,.mov,.webm,.m4v"
             multiple
             className="hidden"
             onChange={(e) => {
@@ -339,9 +430,10 @@ export function AdminPhotos({
             }
           }}
         >
-          <p className="text-sm text-ink-soft">Drop photos here to add</p>
+          <p className="text-sm text-ink-soft">Drop photos or videos here</p>
           <p className="mt-1 text-xs text-ink-muted">
-            Or use Add photos · HEIC / HDR ok · up to {MAX_BATCH} at once
+            HEIC · Live Photos · MP4 / MOV · up to {MAX_BATCH} · photos 20MB ·
+            videos 100MB
           </p>
           <button
             type="button"
@@ -354,36 +446,114 @@ export function AdminPhotos({
         </div>
       </div>
 
+      {/* Filter: all / featured */}
+      {photos.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              filter === "all"
+                ? "bg-ink text-white"
+                : "border border-sand-300 bg-white text-ink-soft hover:border-sea/40"
+            }`}
+          >
+            All ({photos.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("featured")}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              filter === "featured"
+                ? "bg-sea text-white"
+                : "border border-sand-300 bg-white text-ink-soft hover:border-sea/40"
+            }`}
+          >
+            Highlights ({featuredCount})
+          </button>
+          <p className="text-xs text-ink-muted">
+            Star picks show at the top of the public album.
+          </p>
+        </div>
+      )}
+
       {/* Photo grid */}
       {photos.length === 0 ? (
         <p className="rounded-xl border border-dashed border-sand-300 px-4 py-10 text-center text-sm text-ink-muted">
-          No photos yet — add some above.
+          No media yet — add photos or videos above.
+        </p>
+      ) : visiblePhotos.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-sand-300 px-4 py-10 text-center text-sm text-ink-muted">
+          No Highlights yet — star items below (★).
         </p>
       ) : (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-          {photos.map((p) => {
+          {visiblePhotos.map((p) => {
             const url = photoPublicUrl(p.tripId, p.filename);
             const isCover = cover === url;
             const isSelected = selected.has(p.id);
+            const isFeatured = Boolean(p.featured);
+            const isVid = isVideoMedia(p);
+            const isLive = isLivePhoto(p);
             return (
               <li key={p.id} className="group relative">
                 <div
                   className={`relative aspect-square overflow-hidden rounded-xl border-2 bg-sand-100 transition ${
                     isCover
                       ? "border-sea ring-2 ring-sea/25"
-                      : isSelected
-                        ? "border-coral/70 ring-2 ring-coral/20"
-                        : "border-transparent"
+                      : isFeatured
+                        ? "border-amber-400/80 ring-2 ring-amber-300/30"
+                        : isSelected
+                          ? "border-coral/70 ring-2 ring-coral/20"
+                          : "border-transparent"
                   }`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={p.caption || p.originalName}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    draggable={false}
-                  />
+                  {isVid ? (
+                    <video
+                      src={url}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                      onLoadedData={(e) => {
+                        const v = e.currentTarget;
+                        if (v.readyState >= 2 && v.currentTime === 0) {
+                          try {
+                            v.currentTime = 0.05;
+                          } catch {
+                            /* ignore */
+                          }
+                        }
+                      }}
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={url}
+                      alt={p.caption || p.originalName}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      draggable={false}
+                    />
+                  )}
+
+                  {isVid && (
+                    <span
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                      aria-hidden
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/25">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M8 5.5v13l11-6.5-11-6.5z" />
+                        </svg>
+                      </span>
+                    </span>
+                  )}
 
                   {/* Select checkbox */}
                   <button
@@ -400,34 +570,78 @@ export function AdminPhotos({
                     ✓
                   </button>
 
+                  {/* Feature star */}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void toggleFeatured(p)}
+                    className={`absolute top-1.5 right-8 z-10 flex h-6 w-6 items-center justify-center rounded-full text-sm leading-none transition ${
+                      isFeatured
+                        ? "bg-amber-400 text-ink shadow-sm"
+                        : "bg-black/45 text-white/90 opacity-0 hover:bg-amber-400/90 hover:text-ink group-hover:opacity-100"
+                    }`}
+                    aria-label={
+                      isFeatured ? "Remove from Highlights" : "Add to Highlights"
+                    }
+                    title={
+                      isFeatured ? "Remove from Highlights" : "Add to Highlights"
+                    }
+                  >
+                    ★
+                  </button>
+
                   {/* Quick delete */}
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => void deleteIds([p.id])}
                     className="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-sm leading-none text-white opacity-0 transition hover:bg-coral group-hover:opacity-100"
-                    aria-label="Delete photo"
+                    aria-label="Delete"
                     title="Delete"
                   >
                     ×
                   </button>
 
-                  {/* Use as cover */}
-                  <button
-                    type="button"
-                    disabled={busy || isCover}
-                    onClick={() => void setAsCover(url)}
-                    className={`absolute inset-x-0 bottom-0 z-10 py-1.5 text-center text-[10px] font-medium tracking-wide uppercase transition ${
-                      isCover
-                        ? "bg-sea/95 text-white"
-                        : "bg-ink/55 text-white opacity-0 hover:bg-sea/90 group-hover:opacity-100"
-                    }`}
-                  >
-                    {isCover ? "On polaroid" : "Set as polaroid"}
-                  </button>
+                  {/* Use as cover — photos only */}
+                  {!isVid && (
+                    <button
+                      type="button"
+                      disabled={busy || isCover}
+                      onClick={() => void setAsCover(url)}
+                      className={`absolute inset-x-0 bottom-0 z-10 py-1.5 text-center text-[10px] font-medium tracking-wide uppercase transition ${
+                        isCover
+                          ? "bg-sea/95 text-white"
+                          : "bg-ink/55 text-white opacity-0 hover:bg-sea/90 group-hover:opacity-100"
+                      }`}
+                    >
+                      {isCover
+                        ? "On polaroid"
+                        : isFeatured
+                          ? "Set polaroid"
+                          : "Set as polaroid"}
+                    </button>
+                  )}
+                  {isVid && (
+                    <span className="absolute inset-x-0 bottom-0 z-10 bg-ink/55 py-1.5 text-center text-[10px] font-medium tracking-wide text-white uppercase">
+                      Video
+                    </span>
+                  )}
+                  {isLive && !isVid && (
+                    <span className="pointer-events-none absolute top-1.5 left-8 z-10">
+                      <LiveBadge size="sm" />
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 truncate px-0.5 text-[10px] text-ink-muted">
+                  {isFeatured ? "★ " : ""}
+                  {isVid ? "▶ " : isLive ? "◎ " : ""}
                   {p.uploader}
+                  {p.device ? ` · ${p.device}` : ""}
+                  {p.aperture != null
+                    ? ` · f/${p.aperture}`
+                    : p.iso != null
+                      ? ` · ISO ${p.iso}`
+                      : ""}
                 </p>
               </li>
             );

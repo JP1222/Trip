@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { deletePhotos, savePhoto } from "@/lib/photos";
+import { deletePhotos, saveMediaFiles } from "@/lib/photos";
 import { getTrip, updateTrip } from "@/lib/trips";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -8,7 +8,10 @@ type Ctx = { params: Promise<{ id: string }> };
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-/** Admin multi-upload: multipart with one or more `files` (or `file`) fields */
+/**
+ * Admin multi-upload: multipart with one or more `files` (or `file`) fields.
+ * Same-basename image + .mov pairs become Apple Live Photos automatically.
+ */
 export async function POST(req: NextRequest, ctx: Ctx) {
   if (!(await isAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,22 +45,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     if (files.length === 0) {
       return NextResponse.json(
-        { error: "Please choose at least one image" },
+        { error: "Please choose at least one photo or video" },
         { status: 400 },
       );
     }
 
-    const saved = [];
-    const errors: string[] = [];
-    for (const file of files) {
-      try {
-        saved.push(await savePhoto(id, file, uploader, caption));
-      } catch (err) {
-        errors.push(
-          `${file.name}: ${err instanceof Error ? err.message : "failed"}`,
-        );
-      }
-    }
+    const { saved, errors } = await saveMediaFiles(
+      id,
+      files,
+      uploader,
+      caption,
+    );
 
     return NextResponse.json(
       {

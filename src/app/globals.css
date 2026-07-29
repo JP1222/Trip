@@ -136,6 +136,39 @@ body {
   }
 }
 
+
+/* Full-screen media viewer (photos + videos) */
+.media-viewer {
+  -webkit-tap-highlight-color: transparent;
+}
+.media-viewer__media {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.media-viewer__stage {
+  /* Let ZoomableImage fill and capture multi-touch */
+  touch-action: none;
+}
+.media-viewer__aside {
+  /* Safer mobile browser chrome */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.media-viewer video::-webkit-media-controls-panel {
+  background-image: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+}
+
+/* Pinch / wheel zoom stage */
+.zoomable {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.zoomable__img {
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none; /* gestures on viewport; img is visual only */
+}
+
 /* ─── Home wall: mobile = full cork; desktop = framed board ─── */
 
 /* Mobile (default): edge-to-edge cork, big polaroid */

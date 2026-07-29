@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:photos": "node scripts/import-desktop-photos.mjs"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",

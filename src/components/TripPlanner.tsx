@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { TripMap } from "@/components/TripMap";
 import type { Trip, TripLocation } from "@/lib/types";
 import {
@@ -31,12 +31,8 @@ function formatDayChipDate(iso: string) {
   }
 }
 
-function checklistKey(tripId: string) {
-  return `trip-checklist:${tripId}`;
-}
-
 /**
- * Full trip planner — day filter, list↔map sync, share, checklist.
+ * Full trip planner — day filter, list↔map sync, share.
  * Pattern language from Wanderlog / TripIt / Roadtrippers.
  */
 export function TripPlanner({ trip, planned, dayCount }: Props) {
@@ -44,28 +40,6 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
   const [dayFilter, setDayFilter] = useState<DayFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(checklistKey(trip.id));
-      if (raw) setChecked(JSON.parse(raw) as Record<string, boolean>);
-    } catch {
-      /* ignore */
-    }
-  }, [trip.id]);
-
-  function toggleCheck(tip: string) {
-    setChecked((prev) => {
-      const next = { ...prev, [tip]: !prev[tip] };
-      try {
-        localStorage.setItem(checklistKey(trip.id), JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }
 
   const filtered = useMemo(
     () => filterPlanStops(allStops, dayFilter),
@@ -86,8 +60,6 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
         Number.isFinite(location.lng)));
 
   const days = trip.days;
-  const members = trip.members;
-  const tips = trip.tips ?? [];
 
   const [mapSelectedId, setMapSelectedId] = useState<string | null>(null);
 
@@ -152,8 +124,6 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
     }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
   }, [filtered]);
-
-  const checkedCount = tips.filter((t) => checked[t]).length;
 
   return (
     <section id="plan" className="mt-10 scroll-mt-28 sm:mt-12">
@@ -317,61 +287,6 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
                 </p>
               </div>
             </aside>
-          )}
-
-          {members.length > 0 && (
-            <div className="rounded-2xl border border-sand-200/80 bg-white/60 px-4 py-3">
-              <p className="text-[11px] font-medium tracking-[0.12em] text-ink-muted uppercase">
-                Going
-              </p>
-              <p className="mt-1 text-sm text-ink-soft">{members.join(" · ")}</p>
-            </div>
-          )}
-
-          {tips.length > 0 && (
-            <div className="rounded-2xl border border-sand-200/80 bg-white/60 px-4 py-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[11px] font-medium tracking-[0.12em] text-sea uppercase">
-                  {planned ? "Checklist" : "Tips"}
-                </p>
-                {planned && (
-                  <span className="text-[11px] text-ink-muted">
-                    {checkedCount}/{tips.length}
-                  </span>
-                )}
-              </div>
-              <ul className="mt-2 space-y-2">
-                {tips.map((tip) => (
-                  <li key={tip}>
-                    {planned ? (
-                      <label className="flex cursor-pointer gap-2.5 text-xs leading-snug text-ink-soft">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(checked[tip])}
-                          onChange={() => toggleCheck(tip)}
-                          className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-sand-300 text-sea focus:ring-sea/30"
-                        />
-                        <span
-                          className={
-                            checked[tip] ? "text-ink-muted line-through" : ""
-                          }
-                        >
-                          {tip}
-                        </span>
-                      </label>
-                    ) : (
-                      <span className="flex gap-2 text-xs leading-snug text-ink-soft">
-                        <span
-                          className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sea/45"
-                          aria-hidden
-                        />
-                        {tip}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
         </div>
 

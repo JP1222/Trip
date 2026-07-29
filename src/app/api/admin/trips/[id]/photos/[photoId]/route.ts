@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
-import { deletePhoto, updatePhotoCaption } from "@/lib/photos";
+import { deletePhoto, updatePhoto, type PhotoPatch } from "@/lib/photos";
 
 type Ctx = { params: Promise<{ id: string; photoId: string }> };
 
@@ -22,12 +22,24 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
   const { id, photoId } = await ctx.params;
   try {
-    const body = (await req.json()) as { caption?: string };
-    const photo = await updatePhotoCaption(
-      id,
-      photoId,
-      String(body.caption || ""),
-    );
+    const body = (await req.json()) as {
+      caption?: string;
+      featured?: boolean;
+    };
+    const patch: PhotoPatch = {};
+    if (typeof body.caption === "string") {
+      patch.caption = body.caption;
+    }
+    if (typeof body.featured === "boolean") {
+      patch.featured = body.featured;
+    }
+    if (!("caption" in patch) && !("featured" in patch)) {
+      return NextResponse.json(
+        { error: "Nothing to update (caption or featured)" },
+        { status: 400 },
+      );
+    }
+    const photo = await updatePhoto(id, photoId, patch);
     if (!photo) {
       return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }

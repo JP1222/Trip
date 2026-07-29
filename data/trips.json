@@ -195,7 +195,7 @@
     "coverGradient": "from-[#3d4a3c] via-[#5c6b54] to-[#2a3330]",
     "coverEmoji": "🌿",
     "coverImage": "/uploads/dismals-canyon/59497a9c-1be2-4419-b07e-74779a4ee1af.jpg",
-    "summary": "Four of us dropped into a sandstone canyon in northwest Alabama—boardwalks over clear water, fern-covered cliffs, and after dark, the soft blue of dismalites. Peng, Carlie, Ragen, and Joel. One long day. A lot of frames.",
+    "summary": "Four of us dropped into a sandstone canyon in northwest Alabama—boardwalks over clear water, fern-covered cliffs, and after dark, the soft blue of dismalites. Shot on Ricoh GR IV HDF + iPhone 15 Plus. Peng, Carlie, Ragen, and Joel. One long day.",
     "members": [
       "Peng",
       "Carlie",
@@ -205,7 +205,8 @@
     "tips": [
       "Trails can be slick after rain—good shoes help",
       "Stay for the night tour if you can; the glowworms are the point",
-      "Pack a light layer; the canyon floor stays cooler than the parking lot"
+      "Pack a light layer; the canyon floor stays cooler than the parking lot",
+      "Ricoh GR IV for canyon detail; phone for quick night / group frames"
     ],
     "days": [
       {
@@ -218,44 +219,88 @@
             "title": "Arrive & drop in",
             "time": "16:30",
             "description": "Park, stretch, and take the path down into the sandstone cut. First frames of green light and water.",
-            "location": "Trailhead · Dismals Canyon"
+            "location": "Trailhead · Dismals Canyon",
+            "category": "activity",
+            "lat": 34.3225,
+            "lng": -87.7818
           },
           {
             "id": "dc-2",
             "title": "Canyon walk",
             "time": "17:45",
             "description": "Boardwalks, rock walls, and cool air. Stop whenever the light hits the moss right.",
-            "location": "Main canyon trail"
+            "location": "Main canyon trail",
+            "category": "sight",
+            "lat": 34.3225,
+            "lng": -87.7818
           },
           {
             "id": "dc-3",
             "title": "Golden hour in the cut",
             "time": "18:50",
             "description": "Late light through the trees. Portraits, details, and the four of us in the frame.",
-            "location": "Canyon floor"
+            "location": "Canyon floor",
+            "category": "sight",
+            "lat": 34.3225,
+            "lng": -87.7818
           },
           {
             "id": "dc-4",
             "title": "Blue hour & water",
             "time": "19:30",
             "description": "Quieter light, reflections, and the last open-shutter moments before dark.",
-            "location": "Creek & falls"
+            "location": "Creek & falls",
+            "category": "sight",
+            "lat": 34.3225,
+            "lng": -87.7818
           },
           {
             "id": "dc-5",
             "title": "Dismalites",
             "time": "21:00",
             "description": "Night in the canyon—look up for the blue glow. Slow walk out under the trees.",
-            "location": "Night canyon"
+            "location": "Night canyon",
+            "category": "activity",
+            "lat": 34.3225,
+            "lng": -87.7818
           }
         ]
       }
     ],
     "location": {
-      "lat": 34.3245,
-      "lng": -87.783,
+      "lat": 34.3225,
+      "lng": -87.7818,
       "zoom": 14,
-      "label": "Dismals Canyon"
+      "label": "Dismals Canyon",
+      "stops": [
+        {
+          "id": "dc-1",
+          "itemId": "dc-1",
+          "lat": 34.3225,
+          "lng": -87.7818,
+          "label": "Trailhead",
+          "day": 1,
+          "category": "activity"
+        },
+        {
+          "id": "dc-2",
+          "itemId": "dc-2",
+          "lat": 34.3225,
+          "lng": -87.7818,
+          "label": "Canyon trail",
+          "day": 1,
+          "category": "sight"
+        },
+        {
+          "id": "dc-5",
+          "itemId": "dc-5",
+          "lat": 34.3225,
+          "lng": -87.7818,
+          "label": "Dismalites",
+          "day": 1,
+          "category": "activity"
+        }
+      ]
     },
     "budget": {
       "currency": "USD",
@@ -271,7 +316,7 @@
     "endDate": "2026-07-04",
     "coverGradient": "from-[#7eb6d9] via-[#f0c48a] to-[#e07050]",
     "coverEmoji": "🎆",
-    "summary": "Fourth of July on the Mississippi at Tom Lee Park—late light on the river, fireworks weather, and a long golden evening by the water.",
+    "summary": "Fourth of July on the Mississippi at Tom Lee Park—late light on the river, fireworks weather, and a long golden evening by the water. All frames on Ricoh GR IV HDF.",
     "members": [
       "Peng"
     ],
@@ -291,28 +336,40 @@
             "title": "Arrive at Tom Lee Park",
             "time": "19:00",
             "description": "Find a stretch of grass with a view of the river and settle in.",
-            "location": "Tom Lee Park · Memphis"
+            "location": "Tom Lee Park · Memphis",
+            "category": "sight",
+            "lat": 35.1345,
+            "lng": -90.0625
           },
           {
             "id": "tl-2",
             "title": "Golden hour on the water",
             "time": "19:30",
             "description": "River light, silhouettes, and the crowd easing into the evening.",
-            "location": "Riverfront"
+            "location": "Mississippi riverfront",
+            "category": "sight",
+            "lat": 35.1345,
+            "lng": -90.0625
           },
           {
             "id": "tl-3",
             "title": "Blue hour",
             "time": "20:30",
             "description": "City lights come on; frames get quieter between the celebrations.",
-            "location": "Park lawn"
+            "location": "Park lawn",
+            "category": "activity",
+            "lat": 35.1345,
+            "lng": -90.0625
           },
           {
             "id": "tl-4",
             "title": "Night on the Mississippi",
             "time": "21:00",
-            "description": "Independence Day night by the river—fireworks energy and long exposures.",
-            "location": "Tom Lee Park"
+            "description": "Independence Day night by the river—fireworks energy and long exposures on the GR.",
+            "location": "Tom Lee Park",
+            "category": "activity",
+            "lat": 35.1345,
+            "lng": -90.0625
           }
         ]
       }
@@ -322,7 +379,18 @@
       "lat": 35.1345,
       "lng": -90.0625,
       "zoom": 15,
-      "label": "Tom Lee Park"
+      "label": "Tom Lee Park",
+      "stops": [
+        {
+          "id": "tl-1",
+          "itemId": "tl-1",
+          "lat": 35.1345,
+          "lng": -90.0625,
+          "label": "Tom Lee Park",
+          "day": 1,
+          "category": "sight"
+        }
+      ]
     },
     "budget": {
       "currency": "USD",
@@ -332,13 +400,13 @@
   {
     "id": "mother-earth-troll-garden",
     "title": "Mother Earth Troll Garden",
-    "subtitle": "Sculptures, garden paths, and a slow afternoon",
+    "subtitle": "Sculptures, garden paths, and a slow afternoon (May 1)",
     "destination": "Troll Garden · Alabama · USA",
-    "startDate": "2026-04-30",
+    "startDate": "2026-05-01",
     "endDate": "2026-05-01",
     "coverGradient": "from-[#c8d5a8] via-[#e8dcc8] to-[#8fa87a]",
     "coverEmoji": "🪴",
-    "summary": "Peng, Carlie, and Shreya walked the garden paths among the troll sculptures—green light, quiet corners, and a lot of frames between the trees.",
+    "summary": "Peng, Carlie, and Shreya walked the garden paths among the troll sculptures—green light, quiet corners, and a lot of frames between the trees. All on Ricoh GR IV HDF (May 1 afternoon into evening).",
     "members": [
       "Peng",
       "Carlie",
@@ -352,36 +420,40 @@
     "days": [
       {
         "day": 1,
-        "date": "2026-04-30",
+        "date": "2026-05-01",
         "title": "Garden walk",
         "items": [
           {
             "id": "me-1",
             "title": "Arrive",
-            "time": "11:00",
+            "time": "15:00",
             "description": "Meet up, stretch, and step into the garden.",
-            "location": "Entrance"
+            "location": "Entrance",
+            "category": "activity"
           },
           {
             "id": "me-2",
             "title": "Troll trail",
-            "time": "12:00",
+            "time": "16:00",
             "description": "Follow the paths between sculptures—stop for portraits and close-ups.",
-            "location": "Garden paths"
+            "location": "Garden paths",
+            "category": "sight"
           },
           {
             "id": "me-3",
             "title": "Shade & details",
-            "time": "14:30",
+            "time": "17:30",
             "description": "Moss, wood, and the smaller figures tucked into the greenery.",
-            "location": "Wooded corners"
+            "location": "Wooded corners",
+            "category": "sight"
           },
           {
             "id": "me-4",
             "title": "Late light",
-            "time": "16:30",
+            "time": "18:30",
             "description": "Softer light on the big sculptures and a last loop of the grounds.",
-            "location": "Main garden"
+            "location": "Main garden",
+            "category": "sight"
           }
         ]
       }
@@ -401,14 +473,14 @@
   {
     "id": "chinese-new-year-uah",
     "title": "Chinese New Year · UAH",
-    "subtitle": "Campus celebration, friends, and late-night frames",
+    "subtitle": "Dragon dance, Great Ambitions, and a warm campus night",
     "destination": "UAH · Huntsville · Alabama · USA",
-    "startDate": "2026-01-20",
-    "endDate": "2026-01-20",
+    "startDate": "2026-02-16",
+    "endDate": "2026-02-16",
     "coverGradient": "from-[#8b1e1e] via-[#e8c4a0] to-[#2a1810]",
     "coverEmoji": "🧧",
     "coverImage": "/uploads/chinese-new-year-uah/a8f07a17-ea25-4896-922e-f42ea650b66d.jpg",
-    "summary": "Chinese New Year on the UAH campus—lecture-hall energy, shared food, and a warm night with friends. Ricoh + phone frames from the evening.",
+    "summary": "Chinese New Year gala on the UAH campus (Green Acres / Sparkman Drive)—dragon dance opening, student performances under the “Great Ambitions” banner, red lanterns, and friends filling the hall. iPhone 15 Plus for the stage; earlier Ricoh GR IV HDF frames from a January campus night live in the same album.",
     "members": [
       "Peng",
       "Friends"
@@ -416,77 +488,79 @@
     "tips": [
       "Campus events fill up—arrive a little early for seats",
       "Indoor light is mixed; a fast lens or phone night mode helps",
-      "Save a few group shots before everyone drifts out"
+      "Save a few group shots before everyone drifts out",
+      "Devices this trip: iPhone 15 Plus + Ricoh GR IV HDF"
     ],
     "days": [
       {
         "day": 1,
-        "date": "2026-01-20",
+        "date": "2026-02-16",
         "title": "CNY night on campus",
         "items": [
           {
             "id": "cny-1",
             "title": "Arrive · settle in",
             "time": "18:30",
-            "description": "Find the hall, wave at familiar faces, claim a row.",
-            "location": "UAH lecture hall",
+            "description": "Find the hall on the UAH campus, wave at familiar faces, claim a row.",
+            "location": "UAH · Sparkman Drive NW",
             "category": "activity",
-            "lat": 34.725,
-            "lng": -86.64
+            "lat": 34.72816,
+            "lng": -86.64127
           },
           {
             "id": "cny-2",
-            "title": "Celebration",
-            "time": "19:30",
-            "description": "Program, chatter, and the room slowly filling with red-and-gold energy.",
-            "location": "UAH",
+            "title": "Dragon dance · opening",
+            "time": "19:00",
+            "description": "Opening song-and-dance number and the red dragon on stage—phones up, lanterns on.",
+            "location": "UAH auditorium",
             "category": "activity",
-            "lat": 34.725,
-            "lng": -86.64
+            "lat": 34.72816,
+            "lng": -86.64127
           },
           {
             "id": "cny-3",
-            "title": "Food & portraits",
-            "time": "21:00",
-            "description": "Snacks, close frames, and the quieter corners after the main rush.",
-            "location": "Campus",
+            "title": "Great Ambitions program",
+            "time": "20:00",
+            "description": "Student acts, group numbers, and the full CNY energy of the room.",
+            "location": "UAH",
+            "category": "activity",
+            "lat": 34.72816,
+            "lng": -86.64127
+          },
+          {
+            "id": "cny-4",
+            "title": "Shared snacks & after-show",
+            "time": "21:30",
+            "description": "Campus CNY spreads—snacks, chat, and quieter frames as the hall empties. (Event food on campus; no off-site restaurant in the GPS trail.)",
+            "location": "UAH campus",
             "category": "food",
-            "lat": 34.725,
-            "lng": -86.64
+            "lat": 34.72816,
+            "lng": -86.64127
           }
         ]
       }
     ],
     "location": {
-      "lat": 34.725,
-      "lng": -86.64,
+      "lat": 34.72816,
+      "lng": -86.64127,
       "zoom": 15,
       "label": "UAH campus",
       "stops": [
         {
           "id": "cny-1",
           "itemId": "cny-1",
-          "lat": 34.725,
-          "lng": -86.64,
-          "label": "UAH lecture hall",
+          "lat": 34.72816,
+          "lng": -86.64127,
+          "label": "UAH · CNY gala",
           "day": 1,
           "category": "activity"
         },
         {
-          "id": "cny-2",
-          "itemId": "cny-2",
-          "lat": 34.725,
-          "lng": -86.64,
-          "label": "UAH",
-          "day": 1,
-          "category": "activity"
-        },
-        {
-          "id": "cny-3",
-          "itemId": "cny-3",
-          "lat": 34.725,
-          "lng": -86.64,
-          "label": "Campus",
+          "id": "cny-4",
+          "itemId": "cny-4",
+          "lat": 34.72816,
+          "lng": -86.64127,
+          "label": "Campus snacks",
           "day": 1,
           "category": "food"
         }
@@ -507,40 +581,51 @@
     "coverGradient": "from-[#4a5c4e] via-[#c5b8a4] to-[#2c3530]",
     "coverEmoji": "💧",
     "coverImage": "/uploads/fall-creek-falls/8920362e-5552-44a5-8679-954c7ca23cda.jpg",
-    "summary": "A short January escape to Fall Creek Falls—mist at the base of the drop, rocky creek beds, and evenings at a black-roof A-frame among bare trees.",
+    "summary": "A short January escape to Fall Creek Falls—mist at the base of the drop, rocky creek beds, and evenings at a black-roof A-frame on Window Rock Road (Sequatchie County). Drive out via Scottsboro. All on iPhone 15 Plus.",
     "members": [
       "Peng"
     ],
     "tips": [
       "Trail to the base can be slick in winter—good shoes matter",
       "Midday light on the falls is soft under overcast skies",
-      "Cabin evenings cool fast; pack a warm layer for the deck"
+      "Cabin evenings cool fast; pack a warm layer for the deck",
+      "Cabin kitchen / home meals this trip—no restaurant GPS pins"
     ],
     "days": [
       {
         "day": 1,
         "date": "2026-01-13",
-        "title": "Cabin & settle",
+        "title": "Drive & cabin",
         "items": [
+          {
+            "id": "fcf-0",
+            "title": "Road stop · Scottsboro",
+            "time": "14:00",
+            "description": "Through Scottsboro on John T Reid Parkway—stretch stop on the way to the park.",
+            "location": "Scottsboro · Alabama",
+            "category": "transport",
+            "lat": 34.61925,
+            "lng": -86.10581
+          },
           {
             "id": "fcf-1",
             "title": "Arrive at the A-frame",
-            "time": "15:00",
-            "description": "Keys, first walk around the deck, winter sun through the trees.",
-            "location": "Cabin",
+            "time": "16:00",
+            "description": "Keys, first walk around the deck, winter sun through the trees on Window Rock Road.",
+            "location": "Window Rock Road · Sequatchie County",
             "category": "stay",
-            "lat": 35.354,
-            "lng": -85.32
+            "lat": 35.35392,
+            "lng": -85.31954
           },
           {
             "id": "fcf-2",
-            "title": "Evening at the cabin",
-            "time": "18:00",
-            "description": "Warm light inside, bare woods outside.",
-            "location": "A-frame",
-            "category": "stay",
-            "lat": 35.354,
-            "lng": -85.32
+            "title": "Cabin evening · home cook",
+            "time": "18:30",
+            "description": "Warm light inside, bare woods outside. Meals at the A-frame (no restaurant stop in the GPS trail).",
+            "location": "A-frame cabin",
+            "category": "food",
+            "lat": 35.35392,
+            "lng": -85.31954
           }
         ]
       },
@@ -552,67 +637,68 @@
           {
             "id": "fcf-3",
             "title": "Fall Creek Falls",
-            "time": "10:00",
-            "description": "Down to the base—rock, spray, and the long white drop.",
-            "location": "Fall Creek Falls",
+            "time": "09:30",
+            "description": "Down Scenic Loop to the base—rock, spray, and the long white drop.",
+            "location": "Fall Creek Falls · Scenic Loop",
             "category": "sight",
-            "lat": 35.667,
-            "lng": -85.356
+            "lat": 35.66716,
+            "lng": -85.35606
           },
           {
             "id": "fcf-4",
             "title": "Creek & overlooks",
-            "time": "13:00",
-            "description": "More trails, quieter corners, last frames before the drive.",
+            "time": "11:00",
+            "description": "More trails, quieter corners, last frames before the drive home.",
             "location": "Park trails",
             "category": "activity",
-            "lat": 35.667,
-            "lng": -85.356
+            "lat": 35.66716,
+            "lng": -85.35606
+          },
+          {
+            "id": "fcf-5",
+            "title": "Back to the cabin",
+            "time": "15:00",
+            "description": "One more loop of the deck light, pack up.",
+            "location": "A-frame cabin",
+            "category": "stay",
+            "lat": 35.35392,
+            "lng": -85.31954
           }
         ]
       }
     ],
     "location": {
-      "lat": 35.667,
-      "lng": -85.356,
-      "zoom": 12,
+      "lat": 35.66716,
+      "lng": -85.35606,
+      "zoom": 10,
       "label": "Fall Creek Falls",
       "stops": [
         {
-          "id": "fcf-1",
-          "itemId": "fcf-1",
-          "lat": 35.354,
-          "lng": -85.32,
-          "label": "Cabin",
+          "id": "fcf-0",
+          "itemId": "fcf-0",
+          "lat": 34.61925,
+          "lng": -86.10581,
+          "label": "Scottsboro stop",
           "day": 1,
-          "category": "stay"
+          "category": "transport"
         },
         {
-          "id": "fcf-2",
-          "itemId": "fcf-2",
-          "lat": 35.354,
-          "lng": -85.32,
-          "label": "A-frame",
+          "id": "fcf-1",
+          "itemId": "fcf-1",
+          "lat": 35.35392,
+          "lng": -85.31954,
+          "label": "A-frame cabin",
           "day": 1,
           "category": "stay"
         },
         {
           "id": "fcf-3",
           "itemId": "fcf-3",
-          "lat": 35.667,
-          "lng": -85.356,
+          "lat": 35.66716,
+          "lng": -85.35606,
           "label": "Fall Creek Falls",
           "day": 2,
           "category": "sight"
-        },
-        {
-          "id": "fcf-4",
-          "itemId": "fcf-4",
-          "lat": 35.667,
-          "lng": -85.356,
-          "label": "Park trails",
-          "day": 2,
-          "category": "activity"
         }
       ]
     },
@@ -631,7 +717,7 @@
     "coverGradient": "from-[#1a4a6e] via-[#6a9bb8] to-[#e8d5b5]",
     "coverEmoji": "🌊",
     "coverImage": "/uploads/pingtan/279b9695-bd20-45fe-b259-c2ab3c8f2a6b.jpg",
-    "summary": "A short island escape on Pingtan—wind off the strait, granite shorelines, and soft light over fishing villages and open sea. From the folder labeled Pintan.",
+    "summary": "A short island escape on Pingtan—wind off the strait, granite shorelines at Xianren Valley (Junshan), and a northern look toward Suping. Shot mostly on iPhone 15 Plus (one frame on a friend’s iPhone 16 Pro Max).",
     "members": [
       "Peng"
     ],
@@ -639,42 +725,54 @@
       {
         "day": 1,
         "date": "2025-05-30",
-        "title": "Island evening",
+        "title": "Junshan · Xianren Valley evening",
         "items": [
           {
             "id": "pt-1",
-            "time": "16:00",
-            "title": "Arrive on the island",
-            "description": "First walk to the shore—wind, salt air, and long horizons.",
-            "location": "Pingtan coast"
+            "time": "18:00",
+            "title": "Arrive · Junshan / Xianren Valley",
+            "description": "First walk to the viewpoint—wind, salt air, and long horizons over the rocks.",
+            "location": "Xianren Valley · Junshan area",
+            "category": "sight",
+            "lat": 25.54809,
+            "lng": 119.86664
           },
           {
             "id": "pt-2",
-            "time": "18:00",
-            "title": "Golden hour by the water",
-            "description": "Rocks, tide lines, and the last warm light on the strait.",
-            "location": "Shoreline"
+            "time": "18:50",
+            "title": "Golden hour on the rocks",
+            "description": "Tide lines, stone, and the last warm light on the strait.",
+            "location": "Shoreline · Junshan",
+            "category": "sight",
+            "lat": 25.54687,
+            "lng": 119.86837
           },
           {
             "id": "pt-3",
             "time": "19:30",
             "title": "Blue hour",
-            "description": "Quieter frames as the sky cools over the sea.",
-            "location": "Coast"
+            "description": "Quieter frames as the sky cools over the sea. (No restaurant GPS pin this evening.)",
+            "location": "Coast · Junshan",
+            "category": "sight",
+            "lat": 25.54687,
+            "lng": 119.86837
           }
         ]
       },
       {
         "day": 2,
         "date": "2025-05-31",
-        "title": "Morning light",
+        "title": "Suping morning",
         "items": [
           {
             "id": "pt-4",
-            "time": "08:00",
-            "title": "Early on the island",
-            "description": "Clear air and one more set of frames before leaving.",
-            "location": "Pingtan"
+            "time": "10:00",
+            "title": "Suping area",
+            "description": "Clear air and one more set of frames on the north side of the island before leaving.",
+            "location": "Suping Town · Pingtan",
+            "category": "sight",
+            "lat": 25.63754,
+            "lng": 119.73867
           }
         ]
       }
@@ -686,35 +784,39 @@
       "label": "Pingtan",
       "stops": [
         {
-          "lat": 25.5485,
-          "lng": 119.8655,
-          "label": "South coast village",
+          "id": "pt-1",
+          "itemId": "pt-1",
+          "lat": 25.54809,
+          "lng": 119.86664,
+          "label": "Xianren Valley · Junshan",
           "day": 1,
-          "id": "stop-pingtan-0"
+          "category": "sight"
         },
         {
-          "lat": 25.5472,
-          "lng": 119.8685,
-          "label": "Shoreline rocks",
+          "id": "pt-2",
+          "itemId": "pt-2",
+          "lat": 25.54687,
+          "lng": 119.86837,
+          "label": "Junshan shoreline",
           "day": 1,
-          "id": "stop-pingtan-1"
+          "category": "sight"
         },
         {
-          "lat": 25.5468,
-          "lng": 119.8683,
-          "label": "Golden hour by the water",
-          "day": 1,
-          "id": "stop-pingtan-2"
-        },
-        {
-          "lat": 25.6375,
-          "lng": 119.7387,
-          "label": "North coast cliffs",
+          "id": "pt-4",
+          "itemId": "pt-4",
+          "lat": 25.63754,
+          "lng": 119.73867,
+          "label": "Suping",
           "day": 2,
-          "id": "stop-pingtan-3"
+          "category": "sight"
         }
       ]
-    }
+    },
+    "tips": [
+      "Island wind is serious—secure hats and light jackets",
+      "Xianren Valley rocks can be slick; watch your footing at golden hour",
+      "Restaurant names did not land in EXIF/GPS—add hand notes if you remember a spot"
+    ]
   },
   {
     "id": "beijing",
@@ -726,7 +828,7 @@
     "coverGradient": "from-[#8b3a2a] via-[#c4a574] to-[#2c3a4a]",
     "coverEmoji": "🏯",
     "coverImage": "/uploads/beijing/77797b74-c12b-4216-b5fb-9d8d691fea0f.jpg",
-    "summary": "Four spring days in Beijing—from the hills north of the city down into hutongs and red walls. Slow walks, long exposures of old stone, and frames between temple courtyards and city avenues.",
+    "summary": "Four spring days in Beijing on iPhone 15 Plus—Badaling Great Wall, the Forbidden City / Palace Museum, Temple of Heaven, Yuanmingyuan’s Western ruins, and Kunming Lake at the Summer Palace. Slow walks, museum light, and a mandarin duck on the east embankment.",
     "members": [
       "Peng"
     ],
@@ -734,84 +836,128 @@
       {
         "day": 1,
         "date": "2025-04-22",
-        "title": "North of the city",
+        "title": "Badaling Great Wall",
         "items": [
           {
             "id": "bj-1",
             "time": "10:00",
-            "title": "Into the hills",
-            "description": "Clear air and long views—first frames on the northern ridge lines.",
-            "location": "Northern Beijing hills"
+            "title": "Badaling Great Wall",
+            "description": "Clear air and long views on the ridge—first frames on Badaling Road, Yanqing.",
+            "location": "Badaling Great Wall · Yanqing",
+            "category": "sight",
+            "lat": 40.356,
+            "lng": 116.016
           },
           {
             "id": "bj-2",
             "time": "15:00",
-            "title": "Afternoon light",
+            "title": "Afternoon on the wall",
             "description": "Stone, sky, and the slow walk back down.",
-            "location": "Trail & overlooks"
+            "location": "Badaling",
+            "category": "sight",
+            "lat": 40.35364,
+            "lng": 116.01542
           }
         ]
       },
       {
         "day": 2,
         "date": "2025-04-23",
-        "title": "City center",
+        "title": "Forbidden City & Dongcheng",
         "items": [
           {
             "id": "bj-3",
             "time": "11:00",
-            "title": "Central avenues",
-            "description": "Axis of the old capital—crowds, gates, and spring trees.",
-            "location": "Central Beijing"
+            "title": "Forbidden City & Jingshan area",
+            "description": "Axis of the old capital—crowds, gates, and spring trees around Jingshan and Donghuamen.",
+            "location": "Donghuamen · Jingshan Front Street",
+            "category": "sight",
+            "lat": 39.91439,
+            "lng": 116.39123
           },
           {
             "id": "bj-4",
             "time": "16:00",
             "title": "Golden hour in the city",
-            "description": "Warmer light on walls and rooftops.",
-            "location": "City core"
+            "description": "Warmer light on walls and rooftops near the core.",
+            "location": "Central Beijing",
+            "category": "sight",
+            "lat": 39.91834,
+            "lng": 116.39125
+          },
+          {
+            "id": "bj-4b",
+            "time": "21:00",
+            "title": "Evening · Jianguomen / Dongcheng",
+            "description": "Night frames near Jianguomen—dining area on the Dongcheng/Chaoyang edge (exact restaurant not in EXIF).",
+            "location": "Jianguomen Subdistrict · Dongcheng",
+            "category": "food",
+            "lat": 39.90862,
+            "lng": 116.42715
           }
         ]
       },
       {
         "day": 3,
         "date": "2025-04-24",
-        "title": "Temples & parks",
+        "title": "Temple of Heaven · Yuanmingyuan · Summer Palace",
         "items": [
           {
             "id": "bj-5",
             "time": "10:00",
-            "title": "Morning courtyards",
-            "description": "Incense, cypress, and quiet corners between the halls.",
-            "location": "Temple grounds"
+            "title": "Temple of Heaven · Hall of Prayer for Good Harvests",
+            "description": "Blue tiles, marble stairs, and the full Hall of Prayer for Good Harvests under a clear sky.",
+            "location": "Temple of Heaven Park",
+            "category": "sight",
+            "lat": 39.88201,
+            "lng": 116.40732
           },
           {
             "id": "bj-6",
-            "time": "15:00",
-            "title": "Northwest parks",
-            "description": "Lakes, pavilions, and late spring green.",
-            "location": "Northwest Beijing"
+            "time": "14:00",
+            "title": "Yuanmingyuan · Western Mansions",
+            "description": "Stone ruins of the Western Mansions—arches, grass, and hard spring light.",
+            "location": "Old Summer Palace · Xianfashan / Western Mansions",
+            "category": "sight",
+            "lat": 40.01158,
+            "lng": 116.30793
+          },
+          {
+            "id": "bj-7",
+            "time": "17:00",
+            "title": "Summer Palace · East Embankment",
+            "description": "Kunming Lake, the Tower of Buddhist Incense on the hill, and a mandarin duck on the east embankment.",
+            "location": "Summer Palace East Embankment · Qinglongqiao",
+            "category": "sight",
+            "lat": 39.99207,
+            "lng": 116.27432
           }
         ]
       },
       {
         "day": 4,
         "date": "2025-04-25",
-        "title": "Last day in the capital",
+        "title": "Palace Museum · last day",
         "items": [
           {
-            "id": "bj-7",
+            "id": "bj-8",
             "time": "10:00",
-            "title": "Red walls again",
-            "description": "One more loop of the old city before leaving.",
-            "location": "Forbidden City area"
+            "title": "Palace Museum",
+            "description": "Red walls again—and the phoenix-crown exhibition glass cases indoors.",
+            "location": "Forbidden City · East Chang'an Avenue area",
+            "category": "sight",
+            "lat": 39.90624,
+            "lng": 116.39055
           },
           {
-            "id": "bj-8",
+            "id": "bj-9",
             "time": "15:00",
-            "title": "Closing frames",
-            "description": "Final light on stone and street.",
-            "location": "Beijing"
+            "title": "Closing frames · Wangfujing / Dongjiaominxiang",
+            "description": "Final light on stone and street near Dongjiaominxiang before leaving.",
+            "location": "Dongjiaominxiang · Dongcheng",
+            "category": "sight",
+            "lat": 39.9034,
+            "lng": 116.39677
           }
         ]
       }
@@ -819,38 +965,79 @@
     "location": {
       "lat": 39.92,
       "lng": 116.38,
-      "zoom": 11,
+      "zoom": 10,
       "label": "Beijing",
       "stops": [
         {
-          "lat": 40.359,
-          "lng": 116.02,
-          "label": "Northern hills / Great Wall area",
+          "id": "bj-1",
+          "itemId": "bj-1",
+          "lat": 40.356,
+          "lng": 116.016,
+          "label": "Badaling Great Wall",
           "day": 1,
-          "id": "stop-beijing-0"
+          "category": "sight"
         },
         {
-          "lat": 39.9087,
-          "lng": 116.3975,
-          "label": "Central Beijing",
+          "id": "bj-3",
+          "itemId": "bj-3",
+          "lat": 39.91439,
+          "lng": 116.39123,
+          "label": "Forbidden City / Jingshan",
           "day": 2,
-          "id": "stop-beijing-1"
+          "category": "sight"
         },
         {
-          "lat": 39.999,
-          "lng": 116.275,
-          "label": "Northwest parks (Summer Palace area)",
+          "id": "bj-4b",
+          "itemId": "bj-4b",
+          "lat": 39.90862,
+          "lng": 116.42715,
+          "label": "Jianguomen evening",
+          "day": 2,
+          "category": "food"
+        },
+        {
+          "id": "bj-5",
+          "itemId": "bj-5",
+          "lat": 39.88201,
+          "lng": 116.40732,
+          "label": "Temple of Heaven",
           "day": 3,
-          "id": "stop-beijing-2"
+          "category": "sight"
         },
         {
-          "lat": 39.9163,
-          "lng": 116.3972,
-          "label": "Forbidden City area",
+          "id": "bj-6",
+          "itemId": "bj-6",
+          "lat": 40.01158,
+          "lng": 116.30793,
+          "label": "Yuanmingyuan Western Mansions",
+          "day": 3,
+          "category": "sight"
+        },
+        {
+          "id": "bj-7",
+          "itemId": "bj-7",
+          "lat": 39.99207,
+          "lng": 116.27432,
+          "label": "Summer Palace East Embankment",
+          "day": 3,
+          "category": "sight"
+        },
+        {
+          "id": "bj-8",
+          "itemId": "bj-8",
+          "lat": 39.90624,
+          "lng": 116.39055,
+          "label": "Palace Museum",
           "day": 4,
-          "id": "stop-beijing-3"
+          "category": "sight"
         }
       ]
-    }
+    },
+    "tips": [
+      "Badaling is windy on the ridge—layers help even in April",
+      "Palace Museum tickets sell out; book early",
+      "Summer Palace east embankment is great for golden hour and birds",
+      "Meal stops did not resolve to named restaurants from GPS—add favorites by hand if you remember"
+    ]
   }
 ]

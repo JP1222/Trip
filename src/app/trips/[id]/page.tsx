@@ -90,8 +90,8 @@ export default async function TripPage({ params, searchParams }: Props) {
           {planned
             ? photos.length === 0
               ? "Empty until you’re back — plan above, shoot later."
-              : "Early frames. Open a photo to comment."
-            : "Open a photo to comment · share & download in the viewer."}
+              : "Early frames. Open any shot or clip to preview & comment."
+            : "Open photos or videos to preview · starred picks show ★ · comment & download."}
         </p>
       </div>
 

@@ -7,11 +7,13 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp", "heic-convert", "heic-decode"],
   // Mapbox ships modern ESM/CJS mix
   transpilePackages: ["mapbox-gl"],
-  // Allow larger photo uploads via App Router
+  // Allow larger photo + video uploads via App Router / proxy
   experimental: {
     serverActions: {
-      bodySizeLimit: "25mb",
+      bodySizeLimit: "110mb",
     },
+    // Route Handler body (formData uploads); default is 10mb
+    proxyClientMaxBodySize: "110mb",
   },
 };
 

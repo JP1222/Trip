@@ -4,7 +4,8 @@ import { getPhotos, savePhoto } from "@/lib/photos";
 
 // Node runtime required for sharp / heic-convert
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Videos can be large — allow longer processing on hosted runtimes
+export const maxDuration = 120;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -30,9 +31,16 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const file = form.get("file");
     const uploader = String(form.get("uploader") || "");
     const caption = form.get("caption");
+    // Apple Live Photo companion (.mov paired with the still)
+    const liveRaw = form.get("liveVideo");
+    const liveVideo =
+      liveRaw instanceof File && liveRaw.size > 0 ? liveRaw : undefined;
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Please choose an image file" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Please choose a photo or video file" },
+        { status: 400 },
+      );
     }
 
     const meta = await savePhoto(
@@ -40,6 +48,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       file,
       uploader,
       typeof caption === "string" ? caption : undefined,
+      liveVideo,
     );
     return NextResponse.json(meta, { status: 201 });
   } catch (err) {
