@@ -293,10 +293,7 @@ export async function generateVideoAssets(
   const storage = options.storage || localMediaStorage;
   const live = options.live === true;
   const source = sourceVideoAsset(media, live);
-  const sourcePath = storage.absolutePath(
-    source.isPublic ? "public" : "private",
-    source.storageKey,
-  );
+  const sourcePath = storage.absolutePathForAsset(source);
   const sourceProbe = await probeVideo(sourcePath, { signal: options.signal });
   const playbackFilename = live ? "live-playback.mp4" : "playback.mp4";
   const playbackKey = mediaAssetKey(

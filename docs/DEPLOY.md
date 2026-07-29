@@ -49,6 +49,20 @@ docker compose logs -f media-worker
 
 8. **Rotate collaboration invites.** Plaintext `collabToken` values are not migrated; create new Share links in admin.
 
+9. **Backfill legacy media into the derivative pipeline** (after import):
+
+```bash
+pnpm media:backfill -- --dry-run
+pnpm media:backfill
+# keep worker running until queue drains
+pnpm worker:media
+```
+
+This copies each legacy file into private `original` / `live_original` keys and enqueues
+`process_image` / `process_live_photo` / `process_video` jobs. Gallery items stay
+`ready` while regenerating; once `thumb`/`preview` exist the API prefers `/media/...` URLs.
+
+
 ## Local backend
 
 ```bash

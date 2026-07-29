@@ -77,8 +77,15 @@ async function fileSha256(filePath: string): Promise<string> {
 export class LocalMediaStorage {
   readonly privateRoot: string;
   readonly publicRoot: string;
+  readonly legacyRoot: string;
 
-  constructor(options: { privateRoot?: string; publicRoot?: string } = {}) {
+  constructor(
+    options: {
+      privateRoot?: string;
+      publicRoot?: string;
+      legacyRoot?: string;
+    } = {},
+  ) {
     this.privateRoot = path.resolve(
       options.privateRoot ||
         process.env.MEDIA_PRIVATE_ROOT ||
@@ -89,6 +96,11 @@ export class LocalMediaStorage {
         process.env.MEDIA_PUBLIC_ROOT ||
         path.join(process.cwd(), "runtime", "media-public"),
     );
+    this.legacyRoot = path.resolve(
+      options.legacyRoot ||
+        process.env.LEGACY_UPLOADS_ROOT ||
+        path.join(process.cwd(), "public", "uploads"),
+    );
   }
 
   root(area: StorageArea): string {
@@ -97,6 +109,50 @@ export class LocalMediaStorage {
 
   absolutePath(area: StorageArea, key: string): string {
     return pathInside(this.root(area), key);
+  }
+
+  /** Resolve on-disk path for a stored asset, including legacy import keys. */
+  absolutePathForAsset(asset: {
+    storageProvider: string;
+    storageKey: string;
+    isPublic: boolean;
+    role?: string;
+  }): string {
+    const key = assertStorageKey(asset.storageKey);
+    if (
+      asset.storageProvider === "legacy" ||
+      (asset.role && asset.role.startsWith("legacy_"))
+    ) {
+      return pathInside(this.legacyRoot, key);
+    }
+    return this.absolutePath(asset.isPublic ? "public" : "private", key);
+  }
+
+  async readAsset(asset: {
+    storageProvider: string;
+    storageKey: string;
+    isPublic: boolean;
+    role?: string;
+  }): Promise<Buffer> {
+    return fs.readFile(this.absolutePathForAsset(asset));
+  }
+
+  async copyIntoPrivate(
+    sourcePath: string,
+    privateKey: string,
+  ): Promise<{ byteSize: number; sha256: string }> {
+    const target = this.absolutePath("private", privateKey);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.copyFile(sourcePath, target);
+    const handle = await fs.open(target, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await syncDirectory(path.dirname(target));
+    const stat = await fs.stat(target);
+    return { byteSize: stat.size, sha256: await fileSha256(target) };
   }
 
   async ensureRoots(): Promise<void> {

@@ -469,11 +469,17 @@ export async function createQueuedMedia(
 }
 
 export async function markMediaProcessing(mediaId: string): Promise<void> {
+  // Keep already-published (ready) rows visible while regenerating derivatives.
   await query(
     `UPDATE media
-     SET state = 'processing', failure_code = NULL, failure_message = NULL,
+     SET state = CASE
+           WHEN state = 'ready' THEN 'ready'::media_state
+           ELSE 'processing'::media_state
+         END,
+         failure_code = NULL,
+         failure_message = NULL,
          updated_at = now()
-     WHERE id = $1 AND state IN ('pending', 'processing', 'failed')`,
+     WHERE id = $1 AND state IN ('pending', 'processing', 'failed', 'ready')`,
     [mediaId],
   );
 }
@@ -563,10 +569,16 @@ export async function markMediaFailed(
   code: string,
   message: string,
 ): Promise<void> {
+  // Ready items (legacy backfill) stay ready so the gallery keeps working.
   await query(
     `UPDATE media
-     SET state = 'failed', failure_code = left($2, 200),
-         failure_message = left($3, 2000), updated_at = now()
+     SET state = CASE
+           WHEN state = 'ready' THEN 'ready'::media_state
+           ELSE 'failed'::media_state
+         END,
+         failure_code = left($2, 200),
+         failure_message = left($3, 2000),
+         updated_at = now()
      WHERE id = $1 AND state <> 'deleted'`,
     [mediaId, code, message],
   );

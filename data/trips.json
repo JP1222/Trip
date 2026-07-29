@@ -5,8 +5,8 @@
     "subtitle": "Day trip from Huntsville · rim views & waterfalls",
     "destination": "Rising Fawn · Georgia · USA",
     "status": "planned",
-    "startDate": "",
-    "endDate": "",
+    "startDate": "2026-08-15",
+    "endDate": "2026-08-15",
     "coverGradient": "from-[#4a6b5a] via-[#c4b8a0] to-[#2c3a36]",
     "coverEmoji": "🏞️",
     "summary": "One full day out of Huntsville—about two hours on the road to Cloudland Canyon State Park (Rising Fawn, GA). Canyon rim overlooks, waterfall trails, and back the same evening. Date still open; edit the plan anytime.",
@@ -76,7 +76,7 @@
     "days": [
       {
         "day": 1,
-        "date": "",
+        "date": "2026-08-15",
         "title": "Huntsville → Cloudland · day hike",
         "items": [
           {

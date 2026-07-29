@@ -44,6 +44,39 @@ function mapJob(row: JobRow): MediaJob {
   };
 }
 
+/** Queue (or re-queue) a derivative job. Idempotent on (media_id, job_type). */
+export async function enqueueMediaJob(input: {
+  mediaId: string;
+  jobType: MediaJobType;
+  priority?: number;
+  payload?: Record<string, unknown>;
+  maxAttempts?: number;
+}): Promise<void> {
+  await query(
+    `INSERT INTO media_jobs (media_id, job_type, priority, max_attempts, payload, state, available_at)
+     VALUES ($1, $2, $3, $4, $5::jsonb, 'pending', now())
+     ON CONFLICT (media_id, job_type) DO UPDATE SET
+       state = 'pending',
+       priority = EXCLUDED.priority,
+       max_attempts = EXCLUDED.max_attempts,
+       payload = EXCLUDED.payload,
+       attempts = 0,
+       available_at = now(),
+       leased_until = NULL,
+       worker_id = NULL,
+       last_error = NULL,
+       finished_at = NULL,
+       updated_at = now()`,
+    [
+      input.mediaId,
+      input.jobType,
+      input.priority ?? 0,
+      input.maxAttempts ?? 3,
+      JSON.stringify(input.payload || {}),
+    ],
+  );
+}
+
 export async function claimMediaJob(
   workerId: string,
   leaseSeconds = 300,

@@ -88,8 +88,7 @@ export async function generateImageVariants(
   const storage = options.storage || localMediaStorage;
   const sourceAsset = sourceImageAsset(media);
   if (options.signal?.aborted) throw options.signal.reason;
-  const area = sourceAsset.isPublic ? "public" : "private";
-  const raw = await storage.read(area, sourceAsset.storageKey);
+  const raw = await storage.readAsset(sourceAsset);
   if (options.signal?.aborted) throw options.signal.reason;
 
   const [decoded, exif] = await Promise.all([

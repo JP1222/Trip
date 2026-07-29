@@ -36,14 +36,15 @@ async function processLivePhoto(
   storage: LocalMediaStorage,
   signal?: AbortSignal,
 ): Promise<void> {
-  // The deterministic output keys make this safe to repeat after either half succeeds.
+  // Publish still derivatives first so a video-only failure still leaves thumbs usable.
   const still = await generateImageVariants(media, { storage, signal });
+  await publishProcessedMedia(media.id, still.assets, still.metadata);
   const motion = await generateVideoAssets(media, {
     live: true,
     storage,
     signal,
   });
-  await publishProcessedMedia(media.id, [...still.assets, ...motion], still.metadata);
+  await publishProcessedMedia(media.id, motion);
 }
 
 async function purgeMedia(

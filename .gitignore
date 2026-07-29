@@ -46,6 +46,9 @@ next-env.d.ts
 public/uploads/*
 !public/uploads/.gitkeep
 
+# Local symlink to runtime/media-public (production uses nginx)
+/public/media
+
 # Runtime comments left by friends
 data/comments/*
 !data/comments/.gitkeep
