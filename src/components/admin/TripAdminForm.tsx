@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Trip } from "@/lib/types";
 
 export function TripAdminForm({ trip }: { trip: Trip }) {
-  const router = useRouter();
   const [title, setTitle] = useState(trip.title);
   const [subtitle, setSubtitle] = useState(trip.subtitle);
   const [destination, setDestination] = useState(trip.destination);
@@ -46,7 +44,6 @@ export function TripAdminForm({ trip }: { trip: Trip }) {
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error || "Save failed");
       setStatus("Saved");
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {

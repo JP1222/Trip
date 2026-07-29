@@ -5,14 +5,17 @@ function isPlannedTrip(t: Trip): boolean {
   return t.status === "planned";
 }
 
-export type WallItemKind = "trip" | "empty" | "note";
+export type WallItemKind = "trip" | "photo" | "empty" | "note";
+export type WallPhotoOrientation = "landscape" | "portrait" | "square";
 
 export type WallItem = {
   kind: WallItemKind;
   id: string;
-  /** Trip link; empty/note may omit */
+  /** Trip link; standalone photos, empty slots, and notes omit it. */
   href?: string;
   src?: string;
+  /** Optional fixed print direction; otherwise inferred from the loaded image. */
+  orientation?: WallPhotoOrientation;
   caption: string;
   /** Full destination for fallbacks / cover art */
   sub?: string;
@@ -36,7 +39,7 @@ export type WallItem = {
 };
 
 /** Convert the stored Tailwind-style color stops into a portable CSS gradient. */
-function coverGradientToCss(value?: string): string | undefined {
+export function coverGradientToCss(value?: string): string | undefined {
   const colors = value?.match(/#[0-9a-fA-F]{6}/g);
   if (!colors || colors.length < 2) return undefined;
 
@@ -297,6 +300,7 @@ export function buildWallItems(
   const tripItems = trips.map((t) => tripToWallItem(t, photosByTrip));
   const plannedCount = tripItems.filter((i) => i.planned).length;
   const livedCount = tripItems.length - plannedCount;
+  const memoryCount = livedCount + 1;
 
   const years = trips
     .map((t) => new Date(`${t.startDate}T12:00:00`).getFullYear())
@@ -321,7 +325,7 @@ export function buildWallItems(
     caption: "Our trips",
     noteLines: [
       yearLine,
-      `${livedCount} ${livedCount === 1 ? "memory" : "memories"} pinned`,
+      `${memoryCount} ${memoryCount === 1 ? "memory" : "memories"} pinned`,
       plannedCount > 0
         ? plannedCount === 1
           ? `Next: ${planned[0].caption}`
@@ -329,6 +333,17 @@ export function buildWallItems(
         : "Where to next?",
     ],
     noteSignature: "Peng · Carlie · Joel · Michelle · Beau · Shreya",
+  });
+
+  // One shared photo of the whole group. Unlike trip cards, this is a
+  // single, non-clickable print and intentionally has no stacked back photo.
+  items.push({
+    kind: "photo",
+    id: "wall-photo-our-crew",
+    src: "/wall/our-crew.jpg",
+    orientation: "landscape",
+    caption: "Our crew",
+    meta: "Peng · Carlie · Joel · Michelle · Beau · Shreya",
   });
 
   // Planned first so “coming up” is visible, then lived memories

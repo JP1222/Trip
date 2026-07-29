@@ -40,18 +40,98 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  /* Route changes must return to the top immediately. In-page trip navigation
+   * opts into smooth scrolling in its click handler instead. */
+  scroll-behavior: auto;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  /* Keep HDR video from outshining the SDR/P3 stills beside it. Browsers that
+   * do not support CSS Color HDR simply ignore this declaration. */
+  dynamic-range-limit: standard;
 }
 
 ::selection {
   background: color-mix(in srgb, var(--sea) 22%, transparent);
   color: var(--ink);
+}
+
+.trip-section-nav__eyebrow,
+.trip-section-nav__index {
+  display: none;
+}
+
+/* On wide screens, the sticky row becomes a quiet trip index in the unused
+ * margin. Keeping it outside the 80rem workspace prevents map/photo overlap. */
+@media (min-width: 1536px) {
+  .trip-section-nav {
+    position: fixed;
+    z-index: 35;
+    top: 50%;
+    right: max(1rem, calc((100vw - 80rem) / 2 - 7rem));
+    width: 7rem;
+    margin: 0;
+    padding: 0;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  .trip-section-nav__inner {
+    display: flex;
+    width: 7rem;
+    max-width: none;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0.6rem;
+    overflow: visible;
+    border: 1px solid rgba(82, 70, 57, 0.13);
+    border-radius: 1rem;
+    background: rgba(255, 252, 247, 0.88);
+    box-shadow:
+      0 1px 2px rgba(48, 38, 28, 0.06),
+      0 14px 38px rgba(48, 38, 28, 0.1);
+    backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  .trip-section-nav__eyebrow {
+    display: block;
+    padding: 0.15rem 0.45rem 0.35rem;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--ink-muted);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .trip-section-nav__link {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1.3rem 1fr;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.45rem;
+    border-radius: 0.7rem;
+    font-size: 0.78rem;
+  }
+
+  .trip-section-nav__index {
+    display: inline;
+    font-size: 0.58rem;
+    font-variant-numeric: tabular-nums;
+    color: currentColor;
+    letter-spacing: 0.04em;
+    opacity: 0.5;
+  }
+
+  .trip-section-nav__link--active .trip-section-nav__index {
+    opacity: 0.72;
+  }
 }
 
 .ambient {
@@ -366,17 +446,34 @@ body {
   }
 
   .cork-board {
+    --frame-size: 12px;
     width: min(100%, 980px);
     flex: none;
-    padding: 16px;
-    border-radius: 5px;
-    background: #e8d5b5;
+    padding: var(--frame-size);
+    border: 1px solid rgba(95, 70, 43, 0.14);
+    border-radius: 10px;
+    /* A quiet, continuous ash-wood finish. The cork and prints are the visual
+     * signature; the frame should feel physical without becoming decoration. */
+    background:
+      linear-gradient(
+        112deg,
+        rgba(255, 252, 242, 0.42) 0%,
+        rgba(255, 252, 242, 0.08) 42%,
+        rgba(104, 73, 41, 0.07) 100%
+      ),
+      repeating-linear-gradient(
+        92deg,
+        rgba(100, 72, 44, 0.025) 0,
+        rgba(100, 72, 44, 0.025) 1px,
+        transparent 1px,
+        transparent 18px
+      ),
+      #dfc9a8;
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.55) inset,
-      0 -1px 0 rgba(120, 90, 50, 0.08) inset,
-      0 1px 2px rgba(80, 55, 30, 0.06),
-      0 12px 28px rgba(80, 55, 30, 0.1),
-      0 28px 56px rgba(80, 55, 30, 0.08);
+      inset 0 1px 0 rgba(255, 252, 244, 0.72),
+      inset 0 -1px 0 rgba(86, 59, 32, 0.13),
+      0 1px 2px rgba(65, 45, 26, 0.08),
+      0 12px 30px rgba(65, 45, 26, 0.1);
   }
 
   .cork-board__surface {
@@ -392,7 +489,9 @@ body {
     background-repeat: repeat;
     background-position: 0 0;
     box-shadow:
-      inset 0 0 0 1px rgba(100, 70, 40, 0.12),
+      0 0 0 1px rgba(80, 54, 29, 0.3),
+      0 1px 4px rgba(65, 43, 23, 0.2),
+      inset 0 0 0 1px rgba(100, 70, 40, 0.14),
       inset 0 0 40px rgba(90, 60, 30, 0.06);
   }
 
@@ -426,16 +525,8 @@ body {
     overflow: visible;
   }
 
-  .gallery-wall--public .cork-board__photos {
-    --wall-slot-width: 250px;
-  }
-
   .cork-board .instant {
     --w: 240px;
-  }
-
-  .gallery-wall--public .instant--planned {
-    --w: 250px;
   }
 
   .cork-board--solo .instant {
@@ -449,9 +540,9 @@ body {
   }
 
   .cork-board {
+    --frame-size: 15px;
     width: min(94vw, 1320px);
-    padding: 20px;
-    border-radius: 6px;
+    padding: var(--frame-size);
   }
 
   .cork-board__surface {
@@ -464,16 +555,8 @@ body {
     padding: 3rem 2.75rem 3.25rem;
   }
 
-  .gallery-wall--public .cork-board__photos {
-    --wall-slot-width: 290px;
-  }
-
   .cork-board .instant {
     --w: 280px;
-  }
-
-  .gallery-wall--public .instant--planned {
-    --w: 290px;
   }
 
   .cork-board--solo .instant {
@@ -488,8 +571,9 @@ body {
   }
 
   .cork-board {
+    --frame-size: 16px;
     width: min(96vw, 1760px);
-    padding: 18px;
+    padding: var(--frame-size);
   }
 
   .cork-board__surface {
@@ -502,18 +586,6 @@ body {
     padding: 3rem 2.25rem 3.5rem;
   }
 
-  .gallery-wall--public .cork-board__photos {
-    --wall-slot-width: clamp(270px, 20vw, 320px);
-  }
-
-  .gallery-wall--public .instant {
-    --w: calc(var(--wall-slot-width) - 8px);
-  }
-
-  .gallery-wall--public .instant--planned {
-    --w: var(--wall-slot-width);
-  }
-
   .cork-board--solo .instant {
     --w: 320px;
   }
@@ -521,8 +593,9 @@ body {
 
 @media (min-width: 1800px) {
   .cork-board {
+    --frame-size: 17px;
     width: min(96vw, 1840px);
-    padding: 22px;
+    padding: var(--frame-size);
   }
 
   .cork-board__surface {
@@ -530,16 +603,8 @@ body {
     background-size: 420px 420px;
   }
 
-  .gallery-wall--public .cork-board__photos {
-    --wall-slot-width: 332px;
-  }
-
   .cork-board .instant {
     --w: 320px;
-  }
-
-  .gallery-wall--public .instant--planned {
-    --w: 332px;
   }
 
   .cork-board--solo .instant {
@@ -553,7 +618,8 @@ body {
 }
 
 .wall-item--trip,
-.wall-item--planned {
+.wall-item--planned,
+.wall-item--photo {
   position: relative;
 }
 
@@ -571,7 +637,9 @@ body {
 
 /* A second instant photo sits behind the main one. Its tinted image well is
  * visible at the exposed edges, so it reads as another print—not note paper. */
-.gallery-wall--public .wall-stack::before {
+.gallery-wall
+  .wall-item:not(.wall-item--photo)
+  .wall-stack::before {
   content: "";
   position: absolute;
   z-index: 0;
@@ -582,7 +650,7 @@ body {
   border-radius: 2px;
   background:
     linear-gradient(150deg, #35483f 0%, #7d967e 43%, #c9a675 72%, #6e5140 100%)
-      center 5.5% / 89% 73% no-repeat,
+      center 5.5% / 96% 74% no-repeat,
     linear-gradient(145deg, #fffefa 0%, #f4ecdf 100%);
   box-shadow:
     0 2px 0 rgba(221, 210, 196, 0.9),
@@ -591,18 +659,53 @@ body {
   pointer-events: none;
 }
 
+.gallery-wall .wall-item--landscape .wall-stack::before {
+  background-position: center 7%, center;
+  background-size: 96% 82%, auto;
+}
+
+.gallery-wall .wall-item--portrait .wall-stack::before {
+  background-position: center 5%, center;
+  background-size: 96% 84%, auto;
+}
+
 @media (min-width: 768px) {
-  .gallery-wall--public .wall-item {
+  .gallery-wall .cork-board__photos {
+    align-content: center;
+    align-items: flex-start;
+  }
+
+  .gallery-wall .wall-item {
     display: flex;
-    flex: 0 0 var(--wall-slot-width);
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
+  }
+
+  .gallery-wall .wall-item:nth-child(6n + 2) {
+    margin-top: 1.5rem;
+  }
+
+  .gallery-wall .wall-item:nth-child(6n + 3) {
+    margin-top: 0.3rem;
+  }
+
+  .gallery-wall .wall-item:nth-child(6n + 4) {
+    margin-top: 2.1rem;
+  }
+
+  .gallery-wall .wall-item:nth-child(6n + 5) {
+    margin-top: 0.8rem;
+  }
+
+  .gallery-wall .wall-item:nth-child(6n + 6) {
+    margin-top: 1.8rem;
   }
 }
 
 /* A visible paper edge and directional contact shadow give the cards depth
  * without turning the wall into a glossy UI dashboard. */
-.gallery-wall--public .instant {
+.gallery-wall .instant {
   z-index: 1;
   transform-origin: 50% 8%;
   border: 1px solid rgba(82, 63, 42, 0.08);
@@ -616,9 +719,22 @@ body {
     18px 30px 52px rgba(67, 45, 24, 0.07);
 }
 
-.gallery-wall--public .instant:hover,
-.gallery-wall--public .instant:focus-visible,
-.gallery-wall--public .wall-stack--active .instant {
+.gallery-wall--public a.instant {
+  cursor: pointer;
+}
+
+.gallery-wall--public .instant--standalone {
+  appearance: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: zoom-in;
+}
+
+.gallery-wall .instant:hover,
+.gallery-wall .instant:focus-visible,
+.gallery-wall .wall-stack--active .instant {
   box-shadow:
     inset 1px 1px 0 rgba(255, 255, 255, 0.95),
     inset -1px -1px 0 rgba(124, 96, 67, 0.04),
@@ -720,7 +836,7 @@ body {
   outline-offset: 5px;
 }
 
-/* Top + side borders; hosts the square photo */
+/* Top + side borders; the orientation modifiers set the photo well ratio. */
 .instant__pad {
   flex: 0 0 auto;
   padding: var(--border) var(--border) 0;
@@ -732,7 +848,7 @@ body {
 
 .instant__image {
   position: relative;
-  /* square: width = card width − 2× border */
+  /* Square is the default; landscape and portrait prints override this. */
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
@@ -743,6 +859,83 @@ body {
     0 1px 2px rgba(45, 34, 23, 0.08);
 }
 
+/* Landscape and portrait prints are the exact same 4:3 sheet, simply turned.
+ * A shared long edge keeps their physical footprint honest to instant film. */
+.gallery-wall {
+  --instant-long-edge: min(88vw, 355px);
+}
+
+.gallery-wall .instant--landscape {
+  --landscape-edge: calc(var(--instant-long-edge) * 0.98);
+  --border: calc(var(--w) * 0.045);
+  --w: var(--landscape-edge);
+  height: calc(
+    var(--landscape-edge) * 3 / 4 + max(19px, calc(var(--w) * 0.07))
+  );
+  aspect-ratio: 4 / 3;
+}
+
+.gallery-wall .instant--landscape .instant__image {
+  aspect-ratio: 3 / 2;
+}
+
+.gallery-wall .instant--portrait {
+  --w: calc(var(--instant-long-edge) * 3 / 4);
+  height: var(--instant-long-edge);
+  aspect-ratio: 3 / 4;
+}
+
+.gallery-wall .instant--portrait .instant__image {
+  /* Leave a real write-on strip below the image instead of letting the two
+   * text lines climb into the photo well. */
+  aspect-ratio: 5 / 6;
+}
+
+.gallery-wall .instant--square {
+  --w: min(78vw, 300px);
+  aspect-ratio: 89 / 108;
+}
+
+@media (min-width: 768px) {
+  .gallery-wall {
+    --instant-long-edge: 285px;
+  }
+
+  .gallery-wall .instant--square {
+    --w: 230px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gallery-wall {
+    --instant-long-edge: 296px;
+  }
+
+  .gallery-wall .instant--square {
+    --w: 235px;
+  }
+}
+
+@media (min-width: 1360px) {
+  .gallery-wall {
+    --instant-long-edge: clamp(312px, 21.5vw, 362px);
+  }
+
+  .gallery-wall .instant--square {
+    --w: clamp(250px, 17vw, 286px);
+  }
+}
+
+@media (min-width: 1800px) {
+  .gallery-wall {
+    --instant-long-edge: 378px;
+  }
+
+  .gallery-wall .instant--square {
+    --w: 300px;
+  }
+}
+
 .instant__image img {
   display: block;
   width: 100%;
@@ -751,8 +944,173 @@ body {
   transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.instant__hint {
+  position: absolute;
+  right: max(7px, calc(var(--w) * 0.03));
+  bottom: max(7px, calc(var(--w) * 0.03));
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
+  padding: 0.36em 0.62em 0.34em;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.9);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 2px 7px rgba(38, 29, 20, 0.18);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(0.58rem, calc(var(--w) * 0.031), 0.7rem);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  transition:
+    background 0.2s ease,
+    transform 0.25s ease;
+}
+
+.instant__hint--trip {
+  color: #315b58;
+}
+
+.instant__hint--photo {
+  color: #5b4435;
+}
+
+.instant__hint--edit {
+  color: #794338;
+  background: rgba(255, 247, 235, 0.94);
+}
+
+.instant:hover .instant__hint,
+.instant:focus-visible .instant__hint {
+  background: rgba(255, 253, 249, 0.98);
+  transform: translateY(-2px);
+}
+
 .instant:hover .instant__image img {
   transform: scale(1.03);
+}
+
+/* Native top-layer dialog keeps focus inside the enlarged standalone photo. */
+.wall-lightbox {
+  width: fit-content;
+  max-width: 94vw;
+  max-height: 94vh;
+  margin: auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: #2c2620;
+}
+
+.wall-lightbox::backdrop {
+  background: rgba(30, 23, 18, 0.76);
+  backdrop-filter: blur(5px) saturate(0.82);
+}
+
+.wall-lightbox__frame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: clamp(10px, 1.1vw, 16px) clamp(10px, 1.1vw, 16px)
+    clamp(14px, 1.5vw, 22px);
+  background: linear-gradient(145deg, #fffefa 0%, #fffaf2 72%, #f3e8da 100%);
+  box-shadow:
+    0 2px 0 rgba(224, 213, 199, 0.9),
+    0 24px 70px rgba(17, 12, 8, 0.42);
+  transform: rotate(-0.25deg);
+  animation: wall-lightbox-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.wall-lightbox__image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(90vw, 1080px);
+  max-height: min(76vh, 820px);
+  object-fit: contain;
+  background: #241f1a;
+  box-shadow: inset 0 0 0 1px rgba(28, 26, 23, 0.08);
+}
+
+.wall-lightbox__caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  padding: clamp(0.7rem, 1.2vw, 1rem) 1rem 0;
+  text-align: center;
+}
+
+.wall-lightbox__caption > span {
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-weight: 550;
+  line-height: 1.05;
+}
+
+.wall-lightbox__caption small {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(0.72rem, 1.2vw, 0.9rem);
+  color: #625a51;
+}
+
+.wall-lightbox__close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  z-index: 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0 0 2px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+  background: #3c342d;
+  color: #fffdf9;
+  box-shadow: 0 5px 18px rgba(17, 12, 8, 0.34);
+  font-family: system-ui, sans-serif;
+  font-size: 1.45rem;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wall-lightbox__close:hover,
+.wall-lightbox__close:focus-visible {
+  background: #2b2520;
+  outline: 2px solid rgba(255, 253, 249, 0.9);
+  outline-offset: 3px;
+}
+
+@keyframes wall-lightbox-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.965) rotate(-0.25deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(-0.25deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .wall-lightbox__image {
+    max-width: 88vw;
+    max-height: 70vh;
+  }
+
+  .wall-lightbox__close {
+    top: 8px;
+    right: 8px;
+  }
 }
 
 .instant__image::after {
@@ -868,14 +1226,19 @@ body {
 
 /* Handwritten title — scales with card width */
 .instant__caption {
+  flex-shrink: 0;
+  box-sizing: border-box;
   font-family: var(--font-hand), "Segoe Print", "Comic Sans MS", cursive;
   font-size: calc(var(--w) * 0.078);
   font-style: normal;
   font-weight: 500;
-  line-height: 1.12;
+  line-height: 1.18;
+  width: calc(100% + 0.3em);
+  margin-inline: -0.15em;
+  padding: 0.05em 0.15em 0.01em;
   color: #2c2620;
   letter-spacing: 0.005em;
-  max-width: 100%;
+  max-width: calc(100% + 0.3em);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -883,6 +1246,7 @@ body {
 
 /* Date · place */
 .instant__date {
+  flex-shrink: 0;
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: clamp(0.72rem, calc(var(--w) * 0.043), 0.9rem);
   font-weight: 400;
@@ -893,6 +1257,38 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.instant--portrait .instant__foot {
+  padding: max(4px, calc(var(--w) * 0.018)) calc(var(--w) * 0.055);
+}
+
+.instant--portrait .instant__caption {
+  font-size: calc(var(--w) * 0.07);
+  line-height: 1.2;
+}
+
+.instant--portrait .instant__date {
+  font-size: clamp(0.7rem, calc(var(--w) * 0.04), 0.84rem);
+  line-height: 1.25;
+}
+
+/* Landscape prints keep the photograph dominant, with enough paper between
+ * the image edge and handwriting to feel like a real instant print. */
+.instant--landscape .instant__foot {
+  gap: 0;
+  padding: max(6px, calc(var(--w) * 0.018)) calc(var(--w) * 0.045)
+    calc(var(--w) * 0.012);
+}
+
+.instant--landscape .instant__caption {
+  font-size: calc(var(--w) * 0.064);
+  line-height: 1.3;
+}
+
+.instant--landscape .instant__date {
+  font-size: clamp(0.7rem, calc(var(--w) * 0.036), 0.82rem);
+  line-height: 1.45;
 }
 
 /* Planning polaroid — dashed frame, soft fill */
@@ -909,6 +1305,12 @@ body {
   outline: 1.5px dashed rgba(90, 70, 50, 0.28);
   outline-offset: -6px;
   border-radius: 2px;
+}
+
+/* Keep large admin media collections cheap after additional batches load. */
+.admin-media-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 180px;
 }
 .instant__badge {
   position: absolute;
@@ -1122,9 +1524,14 @@ body {
     animation: none;
   }
 
+  .wall-lightbox__frame {
+    animation: none;
+  }
+
   .instant,
   .wall-stack,
-  .instant__image img {
+  .instant__image img,
+  .instant__hint {
     transition: none;
   }
 }
@@ -1230,8 +1637,9 @@ body {
 .admin-wall-hint {
   position: relative;
   z-index: 4;
-  text-align: center;
-  padding: 3.75rem 1rem 0.25rem;
+  padding: 1.55rem 1.25rem 1.25rem;
+  text-align: left;
+  transform: rotate(-1deg);
 }
 
 .admin-wall-actions {
@@ -1239,7 +1647,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.5rem;
 }
 
@@ -1278,16 +1686,19 @@ body {
 }
 
 .admin-wall-hint__title {
-  font-family: var(--font-serif), Georgia, serif;
-  font-size: 1.35rem;
-  color: rgba(44, 36, 28, 0.72);
-  letter-spacing: 0.02em;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4a3c28;
 }
 
 .admin-wall-hint__text {
   margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: rgba(70, 55, 40, 0.65);
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #5c4a32;
 }
 
 .admin-wall-hint__status {
@@ -1338,58 +1749,4 @@ button.admin-instant {
   box-shadow:
     0 0 0 0.5px rgba(28, 26, 23, 0.04),
     0 2px 8px rgba(28, 26, 23, 0.06) !important;
-}
-
-/* Slightly tighter wrap so cards feel like icon grid when sliding */
-.gallery-wall--admin .cork-board__photos.admin-wall-photos {
-  gap: 1.35rem 1.15rem;
-}
-
-.admin-instant__meta {
-  display: block;
-  margin-top: 0.08em;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: calc(var(--w) * 0.042);
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: #8a8278;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.admin-instant__edit {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 6;
-  border-radius: 999px;
-  background: rgba(28, 26, 23, 0.72);
-  color: #fff;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 0.28em 0.65em;
-  opacity: 0;
-  transform: translateY(4px);
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-  pointer-events: none;
-}
-
-.admin-instant:hover .admin-instant__edit,
-.admin-instant:focus-visible .admin-instant__edit {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-@media (hover: none) {
-  .admin-instant__edit {
-    opacity: 0.85;
-    transform: none;
-  }
 }

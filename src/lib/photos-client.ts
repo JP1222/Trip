@@ -3,6 +3,9 @@
 import type { PhotoMeta } from "./types";
 
 export function photoPublicUrl(tripId: string, filename: string) {
+  if (/^https?:\/\//i.test(filename) || filename.startsWith("/")) {
+    return filename;
+  }
   return `/uploads/${tripId}/${filename}`;
 }
 

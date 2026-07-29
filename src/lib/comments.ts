@@ -1,35 +1,36 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { randomUUID } from "crypto";
+import type { QueryResultRow } from "pg";
+import { query, withTransaction } from "./db";
 import type { Comment } from "./types";
 
-const commentsRoot = path.join(process.cwd(), "data", "comments");
+type CommentRow = QueryResultRow & {
+  id: string;
+  trip_id: string;
+  media_id: string | null;
+  author: string;
+  body: string;
+  created_at: Date | string;
+};
 
-function filePath(tripId: string) {
-  return path.join(commentsRoot, `${tripId}.json`);
+function isoTimestamp(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-async function ensure(tripId: string) {
-  await fs.mkdir(commentsRoot, { recursive: true });
-  try {
-    await fs.access(filePath(tripId));
-  } catch {
-    await fs.writeFile(filePath(tripId), "[]", "utf-8");
-  }
+function rowToComment(row: CommentRow): Comment {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    ...(row.media_id ? { photoId: row.media_id } : {}),
+    author: row.author,
+    body: row.body,
+    createdAt: isoTimestamp(row.created_at),
+  };
 }
 
-async function readAll(tripId: string): Promise<Comment[]> {
-  await ensure(tripId);
-  const raw = await fs.readFile(filePath(tripId), "utf-8");
-  return JSON.parse(raw) as Comment[];
-}
-
-function sortNewest(list: Comment[]): Comment[] {
-  return [...list].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-}
+const COMMENT_SELECT = `
+  SELECT id, trip_id, media_id, author, body, created_at
+  FROM comments
+`;
 
 export type CommentScope =
   | { kind: "all" }
@@ -38,8 +39,11 @@ export type CommentScope =
 
 /** Trip-level notes only (no photoId). */
 export async function getTripComments(tripId: string): Promise<Comment[]> {
-  const list = await readAll(tripId);
-  return sortNewest(list.filter((c) => !c.photoId));
+  const result = await query<CommentRow>(`${COMMENT_SELECT}
+    WHERE trip_id = $1 AND media_id IS NULL
+    ORDER BY created_at DESC, id DESC
+  `, [tripId]);
+  return result.rows.map(rowToComment);
 }
 
 /** Comments on one photo. */
@@ -47,13 +51,20 @@ export async function getPhotoComments(
   tripId: string,
   photoId: string,
 ): Promise<Comment[]> {
-  const list = await readAll(tripId);
-  return sortNewest(list.filter((c) => c.photoId === photoId));
+  const result = await query<CommentRow>(`${COMMENT_SELECT}
+    WHERE trip_id = $1 AND media_id = $2
+    ORDER BY created_at DESC, id DESC
+  `, [tripId, photoId]);
+  return result.rows.map(rowToComment);
 }
 
 /** Every comment on the trip (trip notes + photo comments). */
 export async function getComments(tripId: string): Promise<Comment[]> {
-  return sortNewest(await readAll(tripId));
+  const result = await query<CommentRow>(`${COMMENT_SELECT}
+    WHERE trip_id = $1
+    ORDER BY created_at DESC, id DESC
+  `, [tripId]);
+  return result.rows.map(rowToComment);
 }
 
 export async function getCommentsByScope(
@@ -69,13 +80,15 @@ export async function getCommentsByScope(
 export async function getPhotoCommentCounts(
   tripId: string,
 ): Promise<Record<string, number>> {
-  const list = await readAll(tripId);
-  const counts: Record<string, number> = {};
-  for (const c of list) {
-    if (!c.photoId) continue;
-    counts[c.photoId] = (counts[c.photoId] || 0) + 1;
-  }
-  return counts;
+  const result = await query<{ media_id: string; comment_count: string }>(`
+    SELECT media_id, count(*)::text AS comment_count
+    FROM comments
+    WHERE trip_id = $1 AND media_id IS NOT NULL
+    GROUP BY media_id
+  `, [tripId]);
+  return Object.fromEntries(
+    result.rows.map((row) => [row.media_id, Number(row.comment_count)]),
+  );
 }
 
 export async function addComment(
@@ -92,29 +105,29 @@ export async function addComment(
   if (text.length > 1000) throw new Error("Comment is too long (max 1000)");
   if (photoId && photoId.length > 80) throw new Error("Invalid photo");
 
-  await ensure(tripId);
-  const comment: Comment = {
-    id: randomUUID(),
-    tripId,
-    ...(photoId ? { photoId } : {}),
-    author: name,
-    body: text,
-    createdAt: new Date().toISOString(),
-  };
-  const list = await readAll(tripId);
-  list.unshift(comment);
-  await fs.writeFile(filePath(tripId), JSON.stringify(list, null, 2), "utf-8");
-  return comment;
+  return withTransaction(async (client) => {
+    const id = randomUUID();
+    const result = await client.query<CommentRow>(
+      `
+        INSERT INTO comments (id, trip_id, media_id, author, body)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, trip_id, media_id, author, body, created_at
+      `,
+      [id, tripId, photoId || null, name, text],
+    );
+    return rowToComment(result.rows[0]);
+  });
 }
 
 export async function deleteComment(
   tripId: string,
   commentId: string,
 ): Promise<boolean> {
-  await ensure(tripId);
-  const list = await readAll(tripId);
-  const next = list.filter((c) => c.id !== commentId);
-  if (next.length === list.length) return false;
-  await fs.writeFile(filePath(tripId), JSON.stringify(next, null, 2), "utf-8");
-  return true;
+  return withTransaction(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `DELETE FROM comments WHERE trip_id = $1 AND id = $2 RETURNING id`,
+      [tripId, commentId],
+    );
+    return result.rowCount === 1;
+  });
 }

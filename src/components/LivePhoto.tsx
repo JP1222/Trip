@@ -49,6 +49,7 @@ type LivePhotoThumbProps = {
   videoSrc: string;
   alt: string;
   className?: string;
+  badgeClassName?: string;
   /** Hover/long-press play in the grid (default true on desktop hover). */
   interactive?: boolean;
 };
@@ -61,19 +62,28 @@ export function LivePhotoThumb({
   videoSrc,
   alt,
   className = "",
+  badgeClassName = "top-2 left-2 sm:top-2.5 sm:left-2.5",
   interactive = true,
 }: LivePhotoThumbProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const wantsPlayback = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
+  const [videoRequested, setVideoRequested] = useState(false);
 
   const play = useCallback(() => {
     const v = videoRef.current;
-    if (!v || !interactive) return;
+    if (!interactive) return;
+    wantsPlayback.current = true;
+    if (!v) {
+      setVideoRequested(true);
+      return;
+    }
     void v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
   }, [interactive]);
 
   const stop = useCallback(() => {
+    wantsPlayback.current = false;
     const v = videoRef.current;
     if (!v) return;
     v.pause();
@@ -84,6 +94,25 @@ export function LivePhotoThumb({
     }
     setPlaying(false);
   }, []);
+
+  useEffect(() => {
+    if (!videoRequested || !interactive) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const startIfWanted = () => {
+      if (!wantsPlayback.current) return;
+      void video
+        .play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
+    };
+
+    if (video.readyState >= 2) startIfWanted();
+    else video.addEventListener("loadeddata", startIfWanted, { once: true });
+
+    return () => video.removeEventListener("loadeddata", startIfWanted);
+  }, [interactive, videoRequested]);
 
   return (
     <span
@@ -101,21 +130,25 @@ export function LivePhotoThumb({
         loading="lazy"
         draggable={false}
       />
-      <video
-        ref={videoRef}
-        src={videoSrc}
-        className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
-          playing && ready ? "opacity-100" : "opacity-0"
-        }`}
-        muted
-        playsInline
-        loop
-        preload="metadata"
-        onLoadedData={() => setReady(true)}
-        onEnded={stop}
-        aria-hidden
-      />
-      <span className="pointer-events-none absolute top-2 right-2 z-10 sm:top-2.5 sm:right-2.5">
+      {videoRequested && (
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            playing && ready ? "opacity-100" : "opacity-0"
+          }`}
+          muted
+          playsInline
+          loop
+          preload="none"
+          onLoadedData={() => setReady(true)}
+          onEnded={stop}
+          aria-hidden
+        />
+      )}
+      <span
+        className={`pointer-events-none absolute z-10 ${badgeClassName}`}
+      >
         <LiveBadge size="sm" active={playing} />
       </span>
     </span>

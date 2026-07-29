@@ -123,7 +123,15 @@ export type Trip = {
 export type PhotoMeta = {
   id: string;
   tripId: string;
+  /** Durable processing state. Gallery reads normally include ready media only. */
+  state?: "pending" | "processing" | "ready" | "failed";
   filename: string;
+  /** Smaller immutable derivative for dense admin/mobile grids. */
+  thumbnailFilename?: string;
+  /** Larger immutable derivative for the lightbox. */
+  previewFilename?: string;
+  /** Video poster derivative; avoids loading video metadata in a grid. */
+  posterFilename?: string;
   originalName: string;
   uploader: string;
   caption?: string;
@@ -165,6 +173,8 @@ export type PhotoMeta = {
   liveVideoOriginalName?: string;
   liveVideoSize?: number;
   liveVideoMimeType?: string;
+  /** Sanitized worker error for an uploader/admin; never contains a local path. */
+  processingError?: string;
 };
 
 export type Comment = {

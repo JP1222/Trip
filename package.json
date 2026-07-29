@@ -2,28 +2,45 @@
   "name": "trip",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx scripts/migrate-db.ts",
+    "db:import:legacy": "tsx scripts/migrate-legacy-data.ts",
+    "worker:media": "tsx scripts/media-worker.ts",
     "import:photos": "node scripts/import-desktop-photos.mjs"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",
+    "busboy": "^1.6.0",
     "heic-convert": "^2.1.0",
     "mapbox-gl": "^3.27.0",
     "next": "16.2.12",
+    "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "tsx": "^4.23.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/busboy": "^1.5.4",
     "@types/google.maps": "^3.65.3",
     "@types/heic-convert": "^2.1.1",
     "@types/mapbox-gl": "^3.5.0",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

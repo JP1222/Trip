@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Comment, PhotoMeta } from "@/lib/types";
 import {
   formatCameraSettings,
-  formatFileSize,
   isLivePhoto,
   isVideoMedia,
   liveVideoPublicUrl,
@@ -17,10 +16,15 @@ import { LivePhotoStage, LivePhotoThumb } from "@/components/LivePhoto";
 
 type Props = {
   tripId: string;
+  /** Server-generated so each page load shuffles without a hydration jump. */
+  randomSeed: string;
   initialPhotos: PhotoMeta[];
   /** All comments (trip + photo); used for counts and lightbox */
   initialComments?: Comment[];
 };
+
+const GALLERY_BATCH_SIZE = 48;
+type GallerySortMode = "random" | "time";
 
 /** Phone = 2 cols (小红书); desktop = 3 */
 function useGalleryColumns() {
@@ -43,19 +47,38 @@ function splitIntoColumns<T>(items: T[], columnCount: number): T[][] {
   return cols;
 }
 
-function sortGalleryPhotos(list: PhotoMeta[]): PhotoMeta[] {
+function photoTimestamp(photo: PhotoMeta): number {
+  const parsed = Date.parse(photo.takenAt || photo.uploadedAt);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortGalleryPhotosByTime(list: PhotoMeta[]): PhotoMeta[] {
   return [...list].sort((a, b) => {
-    const af = a.featured ? 1 : 0;
-    const bf = b.featured ? 1 : 0;
-    if (af !== bf) return bf - af;
-    if (a.featured && b.featured) {
-      const at = a.featuredAt ? new Date(a.featuredAt).getTime() : 0;
-      const bt = b.featuredAt ? new Date(b.featuredAt).getTime() : 0;
-      if (at !== bt) return bt - at;
-    }
-    return (
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    );
+    const byCaptureTime = photoTimestamp(b) - photoTimestamp(a);
+    if (byCaptureTime !== 0) return byCaptureTime;
+    return b.uploadedAt.localeCompare(a.uploadedAt) || a.id.localeCompare(b.id);
+  });
+}
+
+function galleryHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+/** Deterministic per shuffle key, so ordinary React updates never reshuffle. */
+function randomizeGalleryPhotos(
+  list: PhotoMeta[],
+  shuffleKey: string,
+): PhotoMeta[] {
+  return [...list].sort((a, b) => {
+    const byHash =
+      galleryHash(`${shuffleKey}:${a.id}`) -
+      galleryHash(`${shuffleKey}:${b.id}`);
+    return byHash || a.id.localeCompare(b.id);
   });
 }
 
@@ -106,35 +129,36 @@ function PlayBadge({
 function MediaThumb({
   photo,
   className,
+  liveBadgeClassName,
   loading = "lazy",
 }: {
   photo: PhotoMeta;
   className?: string;
+  liveBadgeClassName?: string;
   loading?: "lazy" | "eager";
 }) {
-  const url = photoPublicUrl(photo.tripId, photo.filename);
+  const imageName = photo.thumbnailFilename || photo.filename;
+  const url = photoPublicUrl(photo.tripId, imageName);
   const alt = photo.caption || photo.originalName;
   if (isVideoMedia(photo)) {
+    if (photo.posterFilename) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoPublicUrl(photo.tripId, photo.posterFilename)}
+          alt={alt}
+          className={className}
+          loading={loading}
+        />
+      );
+    }
     return (
-      <video
-        src={url}
-        className={className}
-        muted
-        playsInline
-        preload="metadata"
-        // First frame as poster substitute
-        onLoadedData={(e) => {
-          const v = e.currentTarget;
-          if (v.readyState >= 2 && v.currentTime === 0) {
-            try {
-              v.currentTime = 0.05;
-            } catch {
-              /* ignore seek errors */
-            }
-          }
-        }}
+      <span
+        className={`${className || ""} flex min-h-36 items-end justify-center bg-gradient-to-br from-ink via-ink-soft to-sea/80 px-3 pb-3 text-center text-[10px] text-white/55`}
         aria-label={alt}
-      />
+      >
+        <span className="max-w-full truncate">{photo.originalName}</span>
+      </span>
     );
   }
   if (isLivePhoto(photo) && photo.liveVideoFilename) {
@@ -144,6 +168,7 @@ function MediaThumb({
         videoSrc={liveVideoPublicUrl(photo.tripId, photo.liveVideoFilename)}
         alt={alt}
         className={className}
+        badgeClassName={liveBadgeClassName}
       />
     );
   }
@@ -155,23 +180,41 @@ function MediaThumb({
 
 export function PhotoGallery({
   tripId,
+  randomSeed,
   initialPhotos,
   initialComments = [],
 }: Props) {
-  const [photos, setPhotos] = useState(() => sortGalleryPhotos(initialPhotos));
+  const [photos, setPhotos] = useState(() => initialPhotos);
   const [comments, setComments] = useState(initialComments);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [sortMode, setSortMode] = useState<GallerySortMode>("random");
+  const [shuffleVersion, setShuffleVersion] = useState(0);
   const [uiVisible, setUiVisible] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(GALLERY_BATCH_SIZE);
   const columnCount = useGalleryColumns();
   const featured = useMemo(
     () => photos.filter((p) => p.featured),
     [photos],
   );
+  const orderedPhotos = useMemo(
+    () =>
+      sortMode === "time"
+        ? sortGalleryPhotosByTime(photos)
+        : randomizeGalleryPhotos(
+            photos,
+            `${tripId}:${randomSeed}:${shuffleVersion}`,
+          ),
+    [photos, randomSeed, shuffleVersion, sortMode, tripId],
+  );
+  const visiblePhotos = useMemo(
+    () => orderedPhotos.slice(0, visibleCount),
+    [orderedPhotos, visibleCount],
+  );
   const columns = useMemo(
-    () => splitIntoColumns(photos, columnCount),
-    [photos, columnCount],
+    () => splitIntoColumns(visiblePhotos, columnCount),
+    [visiblePhotos, columnCount],
   );
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -187,8 +230,8 @@ export function PhotoGallery({
   const commentCounts = useMemo(() => countsFrom(comments), [comments]);
 
   const active =
-    activeIndex !== null && photos[activeIndex]
-      ? photos[activeIndex]
+    activeIndex !== null && orderedPhotos[activeIndex]
+      ? orderedPhotos[activeIndex]
       : null;
   const activeIsVideo = active ? isVideoMedia(active) : false;
   const activeIsLive = active ? isLivePhoto(active) : false;
@@ -206,7 +249,7 @@ export function PhotoGallery({
   const refreshPhotos = useCallback(async () => {
     const res = await fetch(`/api/trips/${tripId}/photos`);
     if (res.ok) {
-      setPhotos(sortGalleryPhotos((await res.json()) as PhotoMeta[]));
+      setPhotos((await res.json()) as PhotoMeta[]);
     }
   }, [tripId]);
 
@@ -350,8 +393,8 @@ export function PhotoGallery({
   async function downloadSelected() {
     const list =
       selectMode && selected.size > 0
-        ? photos.filter((p) => selected.has(p.id))
-        : photos;
+        ? orderedPhotos.filter((p) => selected.has(p.id))
+        : orderedPhotos;
     for (const photo of list) {
       await downloadOne(photo);
       await new Promise((r) => setTimeout(r, 200));
@@ -385,7 +428,7 @@ export function PhotoGallery({
   }
 
   function openPhoto(photo: PhotoMeta) {
-    const idx = photos.findIndex((p) => p.id === photo.id);
+    const idx = orderedPhotos.findIndex((p) => p.id === photo.id);
     setPostError(null);
     setBody("");
     setUiVisible(true);
@@ -429,6 +472,49 @@ export function PhotoGallery({
 
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
+      {photos.length > 1 && (
+        <div
+          className="inline-flex items-center rounded-full border border-sand-300 bg-white/70 p-1 shadow-sm"
+          role="group"
+          aria-label="Photo order"
+        >
+          <button
+            type="button"
+            aria-pressed={sortMode === "random"}
+            title={
+              sortMode === "random" ? "Shuffle again" : "Show in random order"
+            }
+            onClick={() => {
+              setSortMode("random");
+              setShuffleVersion((version) => version + 1);
+              setVisibleCount(GALLERY_BATCH_SIZE);
+            }}
+            className={`rounded-full px-3 py-1 text-sm transition ${
+              sortMode === "random"
+                ? "bg-sea text-white shadow-sm"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            Random
+          </button>
+          <button
+            type="button"
+            aria-pressed={sortMode === "time"}
+            title="Newest photos first"
+            onClick={() => {
+              setSortMode("time");
+              setVisibleCount(GALLERY_BATCH_SIZE);
+            }}
+            className={`rounded-full px-3 py-1 text-sm transition ${
+              sortMode === "time"
+                ? "bg-sea text-white shadow-sm"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            Newest
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => openPhotoUpload()}
@@ -535,6 +621,10 @@ export function PhotoGallery({
               const n = commentCounts[photo.id] || 0;
               const isFeatured = Boolean(photo.featured);
               const isVid = isVideoMedia(photo);
+              const liveBadgeClassName =
+                selectMode || isFeatured
+                  ? "top-2 left-10 sm:top-2.5 sm:left-12"
+                  : undefined;
               return (
                 <figure
                   key={photo.id}
@@ -577,6 +667,7 @@ export function PhotoGallery({
                     <MediaThumb
                       photo={photo}
                       className="block w-full object-cover transition duration-300 group-active:opacity-95 sm:group-hover:scale-[1.02]"
+                      liveBadgeClassName={liveBadgeClassName}
                     />
                     {isVid && (
                       <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -611,7 +702,7 @@ export function PhotoGallery({
                             Video
                           </span>
                         )}
-                        {/* Live badge is on the thumb itself (top-right) */}
+                        {/* Live badge is on the thumb itself (top-left) */}
                         {n > 0 && (
                           <span className="rounded-full bg-black/35 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white backdrop-blur-[2px]">
                             {n}
@@ -673,6 +764,25 @@ export function PhotoGallery({
         ))}
       </div>
 
+      {visiblePhotos.length < photos.length && (
+        <div className="mt-8 flex flex-col items-center gap-2 text-center">
+          <p className="text-xs text-ink-muted">
+            Showing {visiblePhotos.length} of {photos.length}
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              setVisibleCount((current) =>
+                Math.min(current + GALLERY_BATCH_SIZE, photos.length),
+              )
+            }
+            className="rounded-full border border-sand-200 bg-white/80 px-5 py-2 text-sm font-medium text-ink-soft shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea"
+          >
+            Show {Math.min(GALLERY_BATCH_SIZE, photos.length - visibleCount)} more
+          </button>
+        </div>
+      )}
+
       {/* Full-screen media viewer */}
       {active && activeIndex !== null && (
         <div
@@ -712,12 +822,6 @@ export function PhotoGallery({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-white">
                   {active.uploader}
-                  {active.device ? (
-                    <span className="font-normal text-white/65">
-                      {" · "}
-                      {active.device}
-                    </span>
-                  ) : null}
                   {active.featured ? (
                     <span className="ml-2 rounded-full bg-amber-400/90 px-1.5 py-0.5 text-[10px] font-semibold text-ink">
                       ★
@@ -726,24 +830,6 @@ export function PhotoGallery({
                 </p>
                 <p className="truncate text-xs text-white/60">
                   {activeIndex + 1} / {photos.length}
-                  {activeIsVideo
-                    ? " · Video"
-                    : activeIsLive
-                      ? " · Live"
-                      : ""}
-                  {" · "}
-                  {formatFileSize(
-                    active.size + (active.liveVideoSize || 0),
-                  )}
-                  {(() => {
-                    const s = formatCameraSettings(active);
-                    return s ? (
-                      <span className="hidden text-white/50 sm:inline">
-                        {" · "}
-                        {s}
-                      </span>
-                    ) : null;
-                  })()}
                 </p>
               </div>
             </div>
@@ -860,7 +946,10 @@ export function PhotoGallery({
                   <LivePhotoStage
                     key={active.id}
                     resetKey={active.id}
-                    stillSrc={photoPublicUrl(active.tripId, active.filename)}
+                    stillSrc={photoPublicUrl(
+                      active.tripId,
+                      active.previewFilename || active.filename,
+                    )}
                     videoSrc={liveVideoPublicUrl(
                       active.tripId,
                       active.liveVideoFilename,
@@ -871,7 +960,10 @@ export function PhotoGallery({
                     still={
                       <ZoomableImage
                         resetKey={active.id}
-                        src={photoPublicUrl(active.tripId, active.filename)}
+                        src={photoPublicUrl(
+                          active.tripId,
+                          active.previewFilename || active.filename,
+                        )}
                         alt={active.caption || active.originalName}
                         imgClassName="media-viewer__media rounded-lg"
                         onTap={() => setUiVisible((v) => !v)}
@@ -887,7 +979,10 @@ export function PhotoGallery({
                   <ZoomableImage
                     key={active.id}
                     resetKey={active.id}
-                    src={photoPublicUrl(active.tripId, active.filename)}
+                    src={photoPublicUrl(
+                      active.tripId,
+                      active.previewFilename || active.filename,
+                    )}
                     alt={active.caption || active.originalName}
                     imgClassName="media-viewer__media rounded-lg"
                     onTap={() => setUiVisible((v) => !v)}

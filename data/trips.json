@@ -31,7 +31,7 @@
           "itemId": "nu-1",
           "lat": 34.7298,
           "lng": -86.5859,
-          "label": "Huntsville",
+          "label": "Huntsville, AL",
           "day": 1,
           "category": "transport"
         },
@@ -40,7 +40,7 @@
           "itemId": "nu-2",
           "lat": 34.8178,
           "lng": -85.4873,
-          "label": "Cloudland Canyon State Park",
+          "label": "122 Cloudland Canyon Park Rd, Rising Fawn, GA",
           "day": 1,
           "category": "sight"
         },
@@ -49,7 +49,7 @@
           "itemId": "nu-3",
           "lat": 34.833,
           "lng": -85.48,
-          "label": "Main Overlook / rim",
+          "label": "Main Overlook",
           "day": 1,
           "category": "sight"
         },
@@ -67,7 +67,7 @@
           "itemId": "nu-5",
           "lat": 34.7298,
           "lng": -86.5859,
-          "label": "Back to Huntsville",
+          "label": "Huntsville, AL",
           "day": 1,
           "category": "transport"
         }
@@ -259,7 +259,7 @@
           "itemId": "dc-1",
           "lat": 34.3225,
           "lng": -87.7818,
-          "label": "Trailhead",
+          "label": "Trailhead · Dismals Canyon",
           "day": 1,
           "category": "activity"
         },
@@ -268,7 +268,25 @@
           "itemId": "dc-2",
           "lat": 34.3225,
           "lng": -87.7818,
-          "label": "Canyon trail",
+          "label": "Main canyon trail",
+          "day": 1,
+          "category": "sight"
+        },
+        {
+          "id": "dc-3",
+          "itemId": "dc-3",
+          "lat": 34.3225,
+          "lng": -87.7818,
+          "label": "Canyon floor",
+          "day": 1,
+          "category": "sight"
+        },
+        {
+          "id": "dc-4",
+          "itemId": "dc-4",
+          "lat": 34.3225,
+          "lng": -87.7818,
+          "label": "Creek & falls",
           "day": 1,
           "category": "sight"
         },
@@ -277,7 +295,7 @@
           "itemId": "dc-5",
           "lat": 34.3225,
           "lng": -87.7818,
-          "label": "Dismalites",
+          "label": "Night canyon",
           "day": 1,
           "category": "activity"
         }
@@ -560,7 +578,7 @@
     "endDate": "2026-01-14",
     "coverGradient": "from-[#4a5c4e] via-[#c5b8a4] to-[#2c3530]",
     "coverEmoji": "💧",
-    "coverImage": "/uploads/fall-creek-falls/000a91e1-5fc0-4c76-aebd-83bb12e7c13a.jpg",
+    "coverImage": "/uploads/fall-creek-falls/123295f5-bcfd-4cdb-9a50-eb562c785ae2.jpg",
     "summary": "A short January escape to Fall Creek Falls—mist at the base of the drop, rocky creek beds, and evenings at a black-roof A-frame on Window Rock Road (Sequatchie County). Drive out via Scottsboro.",
     "members": [
       "Peng"
@@ -658,7 +676,7 @@
           "itemId": "fcf-0",
           "lat": 34.61925,
           "lng": -86.10581,
-          "label": "Scottsboro stop",
+          "label": "Scottsboro · Alabama",
           "day": 1,
           "category": "transport"
         },
@@ -667,18 +685,45 @@
           "itemId": "fcf-1",
           "lat": 35.35392,
           "lng": -85.31954,
-          "label": "A-frame cabin",
+          "label": "Window Rock Road · Sequatchie County",
           "day": 1,
           "category": "stay"
+        },
+        {
+          "id": "fcf-2",
+          "itemId": "fcf-2",
+          "lat": 35.35392,
+          "lng": -85.31954,
+          "label": "A-frame cabin",
+          "day": 1,
+          "category": "food"
         },
         {
           "id": "fcf-3",
           "itemId": "fcf-3",
           "lat": 35.66716,
           "lng": -85.35606,
-          "label": "Fall Creek Falls",
+          "label": "Fall Creek Falls · Scenic Loop",
           "day": 2,
           "category": "sight"
+        },
+        {
+          "id": "fcf-4",
+          "itemId": "fcf-4",
+          "lat": 35.66716,
+          "lng": -85.35606,
+          "label": "Park trails",
+          "day": 2,
+          "category": "activity"
+        },
+        {
+          "id": "fcf-5",
+          "itemId": "fcf-5",
+          "lat": 35.35392,
+          "lng": -85.31954,
+          "label": "A-frame cabin",
+          "day": 2,
+          "category": "stay"
         }
       ]
     },
@@ -696,7 +741,7 @@
     "endDate": "2025-05-31",
     "coverGradient": "from-[#1a4a6e] via-[#6a9bb8] to-[#e8d5b5]",
     "coverEmoji": "🌊",
-    "coverImage": "/uploads/pingtan/34048560-eaf6-4772-882f-d1d50450df31.jpg",
+    "coverImage": "/uploads/pingtan/03d11557-802e-4b44-8e06-db9196dd1549.jpg",
     "summary": "A short island escape on Pingtan—wind off the strait, granite shorelines at Xianren Valley (Junshan), and a northern look toward Suping.",
     "members": [
       "Peng"
@@ -709,8 +754,8 @@
         "items": [
           {
             "id": "pt-1",
-            "time": "18:00",
             "title": "Arrive · Junshan / Xianren Valley",
+            "time": "18:00",
             "description": "First walk to the viewpoint—wind, salt air, and long horizons over the rocks.",
             "location": "Xianren Valley · Junshan area",
             "category": "sight",
@@ -719,8 +764,8 @@
           },
           {
             "id": "pt-2",
-            "time": "18:50",
             "title": "Golden hour on the rocks",
+            "time": "18:50",
             "description": "Tide lines, stone, and the last warm light on the strait.",
             "location": "Shoreline · Junshan",
             "category": "sight",
@@ -729,8 +774,8 @@
           },
           {
             "id": "pt-3",
-            "time": "19:30",
             "title": "Blue hour",
+            "time": "19:30",
             "description": "Quieter frames as the sky cools over the sea. (No restaurant GPS pin this evening.)",
             "location": "Coast · Junshan",
             "category": "sight",
@@ -746,8 +791,8 @@
         "items": [
           {
             "id": "pt-4",
-            "time": "10:00",
             "title": "Suping area",
+            "time": "10:00",
             "description": "Clear air and one more set of frames on the north side of the island before leaving.",
             "location": "Suping Town · Pingtan",
             "category": "sight",
@@ -768,7 +813,7 @@
           "itemId": "pt-1",
           "lat": 25.54809,
           "lng": 119.86664,
-          "label": "Xianren Valley · Junshan",
+          "label": "Xianren Valley · Junshan area",
           "day": 1,
           "category": "sight"
         },
@@ -777,7 +822,16 @@
           "itemId": "pt-2",
           "lat": 25.54687,
           "lng": 119.86837,
-          "label": "Junshan shoreline",
+          "label": "Shoreline · Junshan",
+          "day": 1,
+          "category": "sight"
+        },
+        {
+          "id": "pt-3",
+          "itemId": "pt-3",
+          "lat": 25.54687,
+          "lng": 119.86837,
+          "label": "Coast · Junshan",
           "day": 1,
           "category": "sight"
         },
@@ -786,7 +840,7 @@
           "itemId": "pt-4",
           "lat": 25.63754,
           "lng": 119.73867,
-          "label": "Suping",
+          "label": "Suping Town · Pingtan",
           "day": 2,
           "category": "sight"
         }
@@ -796,7 +850,11 @@
       "Island wind is serious—secure hats and light jackets",
       "Xianren Valley rocks can be slick; watch your footing at golden hour",
       "Restaurant names did not land in EXIF/GPS—add hand notes if you remember a spot"
-    ]
+    ],
+    "budget": {
+      "currency": "USD",
+      "items": []
+    }
   },
   {
     "id": "beijing",
@@ -820,8 +878,8 @@
         "items": [
           {
             "id": "bj-1",
-            "time": "10:00",
             "title": "Badaling Great Wall",
+            "time": "10:00",
             "description": "Clear air and long views on the ridge—first frames on Badaling Road, Yanqing.",
             "location": "Badaling Great Wall · Yanqing",
             "category": "sight",
@@ -830,8 +888,8 @@
           },
           {
             "id": "bj-2",
-            "time": "15:00",
             "title": "Afternoon on the wall",
+            "time": "15:00",
             "description": "Stone, sky, and the slow walk back down.",
             "location": "Badaling",
             "category": "sight",
@@ -847,8 +905,8 @@
         "items": [
           {
             "id": "bj-3",
-            "time": "11:00",
             "title": "Forbidden City & Jingshan area",
+            "time": "11:00",
             "description": "Axis of the old capital—crowds, gates, and spring trees around Jingshan and Donghuamen.",
             "location": "Donghuamen · Jingshan Front Street",
             "category": "sight",
@@ -857,8 +915,8 @@
           },
           {
             "id": "bj-4",
-            "time": "16:00",
             "title": "Golden hour in the city",
+            "time": "16:00",
             "description": "Warmer light on walls and rooftops near the core.",
             "location": "Central Beijing",
             "category": "sight",
@@ -867,8 +925,8 @@
           },
           {
             "id": "bj-4b",
-            "time": "21:00",
             "title": "Evening · Jianguomen / Dongcheng",
+            "time": "21:00",
             "description": "Night frames near Jianguomen—dining area on the Dongcheng/Chaoyang edge (exact restaurant not in EXIF).",
             "location": "Jianguomen Subdistrict · Dongcheng",
             "category": "food",
@@ -884,8 +942,8 @@
         "items": [
           {
             "id": "bj-5",
-            "time": "10:00",
             "title": "Temple of Heaven · Hall of Prayer for Good Harvests",
+            "time": "10:00",
             "description": "Blue tiles, marble stairs, and the full Hall of Prayer for Good Harvests under a clear sky.",
             "location": "Temple of Heaven Park",
             "category": "sight",
@@ -894,8 +952,8 @@
           },
           {
             "id": "bj-6",
-            "time": "14:00",
             "title": "Yuanmingyuan · Western Mansions",
+            "time": "14:00",
             "description": "Stone ruins of the Western Mansions—arches, grass, and hard spring light.",
             "location": "Old Summer Palace · Xianfashan / Western Mansions",
             "category": "sight",
@@ -904,8 +962,8 @@
           },
           {
             "id": "bj-7",
-            "time": "17:00",
             "title": "Summer Palace · East Embankment",
+            "time": "17:00",
             "description": "Kunming Lake, the Tower of Buddhist Incense on the hill, and a mandarin duck on the east embankment.",
             "location": "Summer Palace East Embankment · Qinglongqiao",
             "category": "sight",
@@ -921,8 +979,8 @@
         "items": [
           {
             "id": "bj-8",
-            "time": "10:00",
             "title": "Palace Museum",
+            "time": "10:00",
             "description": "Red walls again—and the phoenix-crown exhibition glass cases indoors.",
             "location": "Forbidden City · East Chang'an Avenue area",
             "category": "sight",
@@ -931,8 +989,8 @@
           },
           {
             "id": "bj-9",
-            "time": "15:00",
             "title": "Closing frames · Wangfujing / Dongjiaominxiang",
+            "time": "15:00",
             "description": "Final light on stone and street near Dongjiaominxiang before leaving.",
             "location": "Dongjiaominxiang · Dongcheng",
             "category": "sight",
@@ -953,7 +1011,16 @@
           "itemId": "bj-1",
           "lat": 40.356,
           "lng": 116.016,
-          "label": "Badaling Great Wall",
+          "label": "Badaling Great Wall · Yanqing",
+          "day": 1,
+          "category": "sight"
+        },
+        {
+          "id": "bj-2",
+          "itemId": "bj-2",
+          "lat": 40.35364,
+          "lng": 116.01542,
+          "label": "Badaling",
           "day": 1,
           "category": "sight"
         },
@@ -962,7 +1029,16 @@
           "itemId": "bj-3",
           "lat": 39.91439,
           "lng": 116.39123,
-          "label": "Forbidden City / Jingshan",
+          "label": "Donghuamen · Jingshan Front Street",
+          "day": 2,
+          "category": "sight"
+        },
+        {
+          "id": "bj-4",
+          "itemId": "bj-4",
+          "lat": 39.91834,
+          "lng": 116.39125,
+          "label": "Central Beijing",
           "day": 2,
           "category": "sight"
         },
@@ -971,7 +1047,7 @@
           "itemId": "bj-4b",
           "lat": 39.90862,
           "lng": 116.42715,
-          "label": "Jianguomen evening",
+          "label": "Jianguomen Subdistrict · Dongcheng",
           "day": 2,
           "category": "food"
         },
@@ -980,7 +1056,7 @@
           "itemId": "bj-5",
           "lat": 39.88201,
           "lng": 116.40732,
-          "label": "Temple of Heaven",
+          "label": "Temple of Heaven Park",
           "day": 3,
           "category": "sight"
         },
@@ -989,7 +1065,7 @@
           "itemId": "bj-6",
           "lat": 40.01158,
           "lng": 116.30793,
-          "label": "Yuanmingyuan Western Mansions",
+          "label": "Old Summer Palace · Xianfashan / Western Mansions",
           "day": 3,
           "category": "sight"
         },
@@ -998,7 +1074,7 @@
           "itemId": "bj-7",
           "lat": 39.99207,
           "lng": 116.27432,
-          "label": "Summer Palace East Embankment",
+          "label": "Summer Palace East Embankment · Qinglongqiao",
           "day": 3,
           "category": "sight"
         },
@@ -1007,7 +1083,16 @@
           "itemId": "bj-8",
           "lat": 39.90624,
           "lng": 116.39055,
-          "label": "Palace Museum",
+          "label": "Forbidden City · East Chang'an Avenue area",
+          "day": 4,
+          "category": "sight"
+        },
+        {
+          "id": "bj-9",
+          "itemId": "bj-9",
+          "lat": 39.9034,
+          "lng": 116.39677,
+          "label": "Dongjiaominxiang · Dongcheng",
           "day": 4,
           "category": "sight"
         }
@@ -1018,6 +1103,10 @@
       "Palace Museum tickets sell out; book early",
       "Summer Palace east embankment is great for golden hour and birds",
       "Meal stops did not resolve to named restaurants from GPS—add favorites by hand if you remember"
-    ]
+    ],
+    "budget": {
+      "currency": "USD",
+      "items": []
+    }
   }
 ]

@@ -5,6 +5,20 @@ import type { PhotoMeta } from "./types";
 import { processUploadImage } from "./image-process";
 import { extractPhotoExif, type PhotoExif } from "./exif";
 import { pairLivePhotoFiles, type MediaUploadUnit } from "./photos-client";
+import {
+  createQueuedMedia,
+  getPhotoMetaPage,
+  getTripMediaById,
+  listPhotoMetaForTrip,
+  mediaToPhotoMeta,
+  softDeleteMedia,
+  updateMediaMetadata,
+} from "./media/repository";
+import {
+  assertStorageKey,
+  localMediaStorage,
+  mediaAssetKey,
+} from "./media/storage";
 
 const uploadsRoot = path.join(process.cwd(), "public", "uploads");
 
@@ -36,6 +50,12 @@ const ALLOWED_VIDEO_MIME = new Set([
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|hei[cf]|avif|bmp|tiff?)$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogg|ogv)$/i;
+
+function databaseMediaEnabled(): boolean {
+  const configured = (process.env.MEDIA_BACKEND || "").toLowerCase();
+  if (configured === "legacy" || configured === "json") return false;
+  return configured === "db" || configured === "postgres" || Boolean(process.env.DATABASE_URL);
+}
 
 function tripDir(tripId: string) {
   return path.join(uploadsRoot, tripId);
@@ -72,6 +92,7 @@ export function sortPhotos(photos: PhotoMeta[]): PhotoMeta[] {
 }
 
 export async function getPhotos(tripId: string): Promise<PhotoMeta[]> {
+  if (databaseMediaEnabled()) return listPhotoMetaForTrip(tripId);
   await ensureTripDir(tripId);
   const raw = await fs.readFile(metaPath(tripId), "utf-8");
   const photos = JSON.parse(raw) as PhotoMeta[];
@@ -82,12 +103,57 @@ export async function getPhoto(
   tripId: string,
   photoId: string,
 ): Promise<PhotoMeta | null> {
+  if (databaseMediaEnabled()) {
+    const media = await getTripMediaById(tripId, photoId);
+    return media ? mediaToPhotoMeta(media) : null;
+  }
   const photos = await getPhotos(tripId);
   return photos.find((p) => p.id === photoId) || null;
 }
 
 export function photoFilePath(tripId: string, filename: string): string {
+  if (filename.startsWith("/media/")) {
+    return localMediaStorage.absolutePath(
+      "public",
+      assertStorageKey(filename.slice("/media/".length)),
+    );
+  }
+  if (filename.includes("/") || filename.includes("\\")) {
+    throw new Error("Invalid media filename");
+  }
   return path.join(tripDir(tripId), filename);
+}
+
+export async function getPhotosPage(
+  tripId: string,
+  options: { limit?: number; cursor?: string } = {},
+): Promise<{ items: PhotoMeta[]; nextCursor: string | null; total: number }> {
+  if (databaseMediaEnabled()) return getPhotoMetaPage(tripId, options);
+  const photos = await getPhotos(tripId);
+  const limit = Math.max(1, Math.min(100, Math.floor(options.limit || 48)));
+  let start = 0;
+  if (options.cursor) {
+    try {
+      const parsed = JSON.parse(
+        Buffer.from(options.cursor, "base64url").toString("utf8"),
+      ) as { id?: string };
+      const index = photos.findIndex((photo) => photo.id === parsed.id);
+      if (index < 0) throw new Error("missing cursor item");
+      start = index + 1;
+    } catch {
+      throw new Error("Invalid media cursor");
+    }
+  }
+  const items = photos.slice(start, start + limit);
+  const last = items[items.length - 1];
+  return {
+    items,
+    nextCursor:
+      start + items.length < photos.length && last
+        ? Buffer.from(JSON.stringify({ id: last.id }), "utf8").toString("base64url")
+        : null,
+    total: photos.length,
+  };
 }
 
 export async function getAllPhotos(tripIds: string[]): Promise<PhotoMeta[]> {
@@ -164,6 +230,136 @@ export type SavePhotoOptions = {
   skipMetaWrite?: boolean;
 };
 
+function safeOriginalUploadName(name: string, fallback: string): string {
+  const basename = path.basename(name || fallback).replace(/[\u0000-\u001f\u007f]/g, "_");
+  return (basename || fallback).slice(0, 255);
+}
+
+function sourceExtension(name: string, isVideo: boolean): string {
+  const extension = path.extname(name).toLowerCase();
+  const allowed = isVideo
+    ? new Set([".mp4", ".webm", ".mov", ".m4v", ".ogg", ".ogv"])
+    : new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif", ".avif", ".bmp", ".tif", ".tiff"]);
+  if (allowed.has(extension)) return extension;
+  return isVideo ? ".video" : ".image";
+}
+
+async function queueMediaBuffer(
+  tripId: string,
+  raw: Buffer,
+  originalFileName: string,
+  mimeHint: string,
+  isVideo: boolean,
+  options: SavePhotoOptions,
+): Promise<PhotoMeta> {
+  const id = randomUUID();
+  const version = 1;
+  const originalName = safeOriginalUploadName(
+    originalFileName,
+    isVideo ? "video.mp4" : "photo.jpg",
+  );
+  const uploader = (options.uploader || "").trim() || "Anonymous traveler";
+  const caption = options.caption?.trim() || undefined;
+  if (uploader.length > 80) throw new Error("Uploader name is too long");
+  if (caption && caption.length > 2000) throw new Error("Caption is too long");
+
+  await localMediaStorage.ensureRoots();
+  const staged: string[] = [];
+  const promoted: Array<{ key: string; role: string }> = [];
+  try {
+    const originalExtension = sourceExtension(originalName, isVideo);
+    const originalStage = await localMediaStorage.stageBuffer(
+      `${id}/original-${randomUUID()}${originalExtension}`,
+      raw,
+    );
+    staged.push(originalStage.key);
+    const originalKey = mediaAssetKey(
+      tripId,
+      id,
+      version,
+      `original${originalExtension}`,
+    );
+    await localMediaStorage.promoteStaged(originalStage.key, originalKey);
+    staged.splice(staged.indexOf(originalStage.key), 1);
+    promoted.push({ key: originalKey, role: "original" });
+
+    const assets: Parameters<typeof createQueuedMedia>[0]["assets"] = [
+      {
+        role: "original",
+        storageKey: originalKey,
+        mimeType: mimeHint || "application/octet-stream",
+        byteSize: originalStage.byteSize,
+        sha256: originalStage.sha256,
+        isPublic: false,
+      },
+    ];
+
+    if (options.liveVideo) {
+      const liveRaw = Buffer.from(await options.liveVideo.arrayBuffer());
+      if (liveRaw.length > MAX_VIDEO_BYTES) {
+        throw new Error("Live Photo video must be under 100MB");
+      }
+      const liveName = safeOriginalUploadName(options.liveVideo.name, "live.mov");
+      const liveExtension = sourceExtension(liveName, true);
+      const liveStage = await localMediaStorage.stageBuffer(
+        `${id}/live-${randomUUID()}${liveExtension}`,
+        liveRaw,
+      );
+      staged.push(liveStage.key);
+      const liveKey = mediaAssetKey(
+        tripId,
+        id,
+        version,
+        `live-original${liveExtension}`,
+      );
+      await localMediaStorage.promoteStaged(liveStage.key, liveKey);
+      staged.splice(staged.indexOf(liveStage.key), 1);
+      promoted.push({ key: liveKey, role: "live_original" });
+      assets.push({
+        role: "live_original",
+        storageKey: liveKey,
+        mimeType: options.liveVideo.type || "video/quicktime",
+        byteSize: liveStage.byteSize,
+        sha256: liveStage.sha256,
+        isPublic: false,
+      });
+    }
+
+    const kind = options.liveVideo ? "live_photo" : isVideo ? "video" : "image";
+    const queued = await createQueuedMedia({
+      id,
+      tripId,
+      kind,
+      uploader,
+      caption,
+      originalName,
+      sourceMimeType: mimeHint || "application/octet-stream",
+      sourceBytes: raw.length,
+      featured: options.featured,
+      assets,
+      jobType:
+        kind === "live_photo"
+          ? "process_live_photo"
+          : kind === "video"
+            ? "process_video"
+            : "process_image",
+    });
+    return mediaToPhotoMeta(queued);
+  } catch (error) {
+    await Promise.all(staged.map((key) => localMediaStorage.discardStaged(key)));
+    await Promise.all(
+      promoted.map(({ key, role }) =>
+        localMediaStorage.moveToTrash(
+          "private",
+          key,
+          `${tripId}/${id}/failed-ingest/${role}-${path.posix.basename(key)}`,
+        ),
+      ),
+    );
+    throw error;
+  }
+}
+
 /**
  * Write Live Photo companion .mov next to the still and patch meta fields.
  */
@@ -231,6 +427,17 @@ export async function savePhotoBuffer(
     if (raw.length > 80 * 1024 * 1024) {
       throw new Error("Each image must be under 80MB");
     }
+  }
+
+  if (databaseMediaEnabled()) {
+    return queueMediaBuffer(
+      tripId,
+      raw,
+      name,
+      mimeHint || "application/octet-stream",
+      isVideo,
+      options,
+    );
   }
 
   const id = randomUUID();
@@ -380,6 +587,9 @@ export async function writePhotosMeta(
   tripId: string,
   photos: PhotoMeta[],
 ): Promise<void> {
+  if (databaseMediaEnabled()) {
+    throw new Error("writePhotosMeta is only available for the legacy JSON backend");
+  }
   await ensureTripDir(tripId);
   await fs.writeFile(
     metaPath(tripId),
@@ -393,6 +603,7 @@ export function tripUploadsDir(tripId: string) {
 }
 
 export function photoPublicUrl(tripId: string, filename: string) {
+  if (filename.startsWith("/")) return filename;
   return `/uploads/${tripId}/${filename}`;
 }
 
@@ -409,6 +620,18 @@ export async function deletePhotos(
   tripId: string,
   photoIds: string[],
 ): Promise<{ deleted: string[]; removedUrls: string[] }> {
+  if (databaseMediaEnabled()) {
+    const removed = await softDeleteMedia(tripId, photoIds.filter(Boolean));
+    const removedUrls: string[] = [];
+    for (const media of removed) {
+      const meta = mediaToPhotoMeta(media);
+      removedUrls.push(photoPublicUrl(tripId, meta.filename));
+      if (meta.liveVideoFilename) {
+        removedUrls.push(photoPublicUrl(tripId, meta.liveVideoFilename));
+      }
+    }
+    return { deleted: removed.map((media) => media.id), removedUrls };
+  }
   await ensureTripDir(tripId);
   const idSet = new Set(photoIds.filter(Boolean));
   if (idSet.size === 0) return { deleted: [], removedUrls: [] };
@@ -470,6 +693,9 @@ export async function updatePhoto(
   photoId: string,
   patch: PhotoPatch,
 ): Promise<PhotoMeta | null> {
+  if (databaseMediaEnabled()) {
+    return updateMediaMetadata(tripId, photoId, patch);
+  }
   await ensureTripDir(tripId);
   const raw = await fs.readFile(metaPath(tripId), "utf-8");
   const photos = JSON.parse(raw) as PhotoMeta[];

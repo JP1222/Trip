@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { Pushpin } from "@/components/Pushpin";
-import type { WallItem } from "@/lib/wall";
+import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
 
 export type AdminWallCard = WallItem & {
   tripId: string;
@@ -30,6 +30,20 @@ function rotateFor(id: string) {
   return angles[hash(id) % angles.length];
 }
 
+function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
+  const ratio = image.naturalWidth / image.naturalHeight;
+  if (ratio >= 1.12) return "landscape";
+  if (ratio <= 0.9) return "portrait";
+  return "square";
+}
+
+const decorPins = [
+  { top: "8%", left: "6%", tone: "rose" },
+  { top: "12%", left: "92%", tone: "gold" },
+  { top: "78%", left: "90%", tone: "sage" },
+  { top: "86%", left: "8%", tone: "blue" },
+] as const;
+
 function moveItem(list: AdminWallCard[], fromId: string, toId: string) {
   if (fromId === toId) return list;
   const from = list.findIndex((i) => i.tripId === fromId);
@@ -49,6 +63,10 @@ export function AdminPolaroidWall({ items: initial }: Props) {
   const router = useRouter();
   const [items, setItems] = useState(initial);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [photoOrientations, setPhotoOrientations] = useState<
+    Record<string, WallPhotoOrientation>
+  >({});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -63,13 +81,15 @@ export function AdminPolaroidWall({ items: initial }: Props) {
   const liRefs = useRef(new Map<string, HTMLElement>());
   const pendingFlip = useRef<Map<string, DOMRect> | null>(null);
 
-  itemsRef.current = items;
-
   useEffect(() => {
     // Allow entrance animation once, then use FLIP for reorders
     const t = window.setTimeout(() => setReady(true), 600);
     return () => window.clearTimeout(t);
   }, []);
+
+  useLayoutEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   // FLIP: after order change, animate others sliding into new slots
   useLayoutEffect(() => {
@@ -212,6 +232,13 @@ export function AdminPolaroidWall({ items: initial }: Props) {
     }
   }
 
+  function rememberOrientation(itemId: string, image: HTMLImageElement) {
+    const next = orientationFor(image);
+    setPhotoOrientations((current) =>
+      current[itemId] === next ? current : { ...current, [itemId]: next },
+    );
+  }
+
   function onCardClick(tripId: string) {
     if (didDrag.current) {
       didDrag.current = false;
@@ -241,40 +268,66 @@ export function AdminPolaroidWall({ items: initial }: Props) {
     <div className="gallery-wall gallery-wall--admin">
       <div className="cork-board">
         <div className="cork-board__surface">
-          <div className="admin-wall-hint">
-            <p className="admin-wall-hint__title">Admin wall</p>
-            <p className="admin-wall-hint__text">
-              Hold &amp; drag — others slide aside · Tap to edit
-            </p>
-            <div className="admin-wall-actions">
-              <button
-                type="button"
-                className="admin-wall-sort"
-                onClick={sortByDate}
-                disabled={saving || items.length < 2}
-              >
-                {dateSort === "newest"
-                  ? "Date ↑ oldest first"
-                  : dateSort === "oldest"
-                    ? "Date ↓ newest first"
-                    : "Sort by date"}
-              </button>
-            </div>
-            {(saving || status) && (
-              <p className="admin-wall-hint__status" role="status">
-                {saving ? "Saving order…" : status}
-              </p>
-            )}
+          <div className="cork-board__pins" aria-hidden>
+            {decorPins.map((pin, index) => (
+              <span
+                key={index}
+                className={`cork-pin cork-pin--${pin.tone}`}
+                style={{ top: pin.top, left: pin.left }}
+              />
+            ))}
+          </div>
+
+          <div className="cork-board__tape" aria-hidden>
+            <span className="cork-tape cork-tape--a" />
+            <span className="cork-tape cork-tape--b" />
           </div>
 
           <ul
             className="cork-board__photos admin-wall-photos"
             onDragOver={(e) => e.preventDefault()}
           >
+            <li className="wall-item wall-item--note wall-note-wrap admin-wall-tools">
+              <section className="wall-note admin-wall-hint">
+                <span className="wall-note__pin" aria-hidden />
+                <p className="admin-wall-hint__title">Manage trips</p>
+                <p className="admin-wall-hint__text">
+                  Drag to reorder · Tap a photo to edit
+                </p>
+                <div className="admin-wall-actions">
+                  <button
+                    type="button"
+                    className="admin-wall-sort"
+                    onClick={sortByDate}
+                    disabled={saving || items.length < 2}
+                  >
+                    {dateSort === "newest"
+                      ? "Date ↑ oldest first"
+                      : dateSort === "oldest"
+                        ? "Date ↓ newest first"
+                        : "Sort by date"}
+                  </button>
+                </div>
+                {(saving || status) && (
+                  <p className="admin-wall-hint__status" role="status">
+                    {saving ? "Saving order…" : status}
+                  </p>
+                )}
+              </section>
+            </li>
+
             {items.map((item, index) => {
               const rotate = rotateFor(item.id);
               const line2 = item.meta || item.dateLabel;
               const isDragging = dragId === item.tripId;
+              const active = hoverId === item.id && !isDragging;
+              const orientation =
+                item.orientation ||
+                (item.src
+                  ? photoOrientations[item.id] || "landscape"
+                  : item.planned
+                    ? "portrait"
+                    : "square");
 
               return (
                 <li
@@ -283,7 +336,7 @@ export function AdminPolaroidWall({ items: initial }: Props) {
                     if (el) liRefs.current.set(item.tripId, el);
                     else liRefs.current.delete(item.tripId);
                   }}
-                  className={`admin-wall-slot ${
+                  className={`admin-wall-slot wall-item wall-item--trip wall-item--${orientation} ${
                     ready ? "" : "animate-fade-up"
                   } ${isDragging ? "admin-wall-slot--source" : ""}`}
                   style={
@@ -294,85 +347,134 @@ export function AdminPolaroidWall({ items: initial }: Props) {
                         }
                   }
                 >
-                  <button
-                    type="button"
-                    draggable
-                    onDragStart={(e) => onDragStart(item.tripId, e)}
-                    onDragEnter={(e) => onDragEnter(item.tripId, e)}
-                    onDragOver={(e) => onDragOver(item.tripId, e)}
-                    onDrop={onDrop}
-                    onDragEnd={onDragEnd}
-                    onClick={() => onCardClick(item.tripId)}
-                    className={`instant group admin-instant ${
-                      item.planned ? "instant--planned" : ""
-                    } ${isDragging ? "admin-instant--dragging" : ""}`}
+                  <div
+                    className={`wall-stack${active ? " wall-stack--active" : ""}`}
                     style={{
-                      // Source slot: keep tilt subtle; ghost follows cursor
-                      transform: isDragging
-                        ? "rotate(0deg) scale(0.96)"
-                        : `rotate(${rotate}deg)`,
-                      cursor: isDragging ? "grabbing" : "grab",
+                      transform: active
+                        ? "translateY(-7px) scale(1.025)"
+                        : undefined,
                     }}
-                    aria-label={`Edit ${item.caption}. Drag to reorder.`}
                   >
-                    <Pushpin />
-                    {item.planned && (
-                      <span className="instant__badge">Planning</span>
-                    )}
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={(e) => onDragStart(item.tripId, e)}
+                      onDragEnter={(e) => onDragEnter(item.tripId, e)}
+                      onDragOver={(e) => onDragOver(item.tripId, e)}
+                      onDrop={onDrop}
+                      onDragEnd={onDragEnd}
+                      onMouseEnter={() => setHoverId(item.id)}
+                      onMouseLeave={() => setHoverId(null)}
+                      onFocus={() => setHoverId(item.id)}
+                      onBlur={() => setHoverId(null)}
+                      onClick={() => onCardClick(item.tripId)}
+                      className={`instant instant--${orientation} group admin-instant ${
+                        item.planned ? "instant--planned" : ""
+                      } ${isDragging ? "admin-instant--dragging" : ""}`}
+                      style={{
+                        transform: isDragging
+                          ? "rotate(0deg) scale(0.96)"
+                          : active
+                            ? "rotate(0deg)"
+                            : `rotate(${rotate}deg)`,
+                        cursor: isDragging ? "grabbing" : "grab",
+                      }}
+                      aria-label={`Edit ${item.caption}. Drag to reorder.`}
+                    >
+                      <Pushpin />
+                      {item.planned && (
+                        <span className="instant__badge">Planning</span>
+                      )}
 
-                    <div className="instant__pad">
-                      <div className="instant__image">
-                        {item.src ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={item.src}
-                            alt={item.caption}
-                            draggable={false}
-                            loading={index < 6 ? "eager" : "lazy"}
-                          />
-                        ) : (
-                          <div
-                            className={`instant__cover${item.planned ? " instant__cover--planned" : ""}`}
-                            style={
-                              item.planned
-                                ? undefined
-                                : {
-                                    background:
-                                      "linear-gradient(155deg, #6b5c4a 0%, #2e2820 100%)",
-                                  }
-                            }
+                      <div className="instant__pad">
+                        <div className="instant__image">
+                          {item.src ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.src}
+                              alt={item.caption}
+                              draggable={false}
+                              loading={index < 6 ? "eager" : "lazy"}
+                              ref={(image) => {
+                                if (
+                                  !item.orientation &&
+                                  image?.complete &&
+                                  image.naturalWidth > 0
+                                ) {
+                                  rememberOrientation(item.id, image);
+                                }
+                              }}
+                              onLoad={({ currentTarget }) => {
+                                if (!item.orientation) {
+                                  rememberOrientation(item.id, currentTarget);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className={`instant__cover${item.planned ? " instant__cover--planned" : ""}`}
+                              style={
+                                item.planned
+                                  ? item.coverGradient
+                                    ? { background: item.coverGradient }
+                                    : undefined
+                                  : {
+                                      background:
+                                        "linear-gradient(155deg, #6b5c4a 0%, #2e2820 100%)",
+                                    }
+                              }
+                            >
+                              <span className="instant__cover-wash" aria-hidden />
+                              {item.planned && (
+                                <span className="instant__cover-art" aria-hidden>
+                                  <span className="instant__cover-emoji">
+                                    {item.coverEmoji || "✦"}
+                                  </span>
+                                  <svg
+                                    className="instant__cover-route"
+                                    viewBox="0 0 180 88"
+                                    fill="none"
+                                  >
+                                    <path
+                                      d="M12 67C42 25 67 79 99 45C121 22 142 27 168 12"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeDasharray="4 7"
+                                    />
+                                    <circle cx="12" cy="67" r="4" fill="currentColor" />
+                                    <circle cx="168" cy="12" r="5" fill="currentColor" />
+                                    <circle cx="168" cy="12" r="2" fill="white" />
+                                  </svg>
+                                </span>
+                              )}
+                              <span className="instant__cover-label">
+                                {item.planned
+                                  ? "Up next"
+                                  : item.sub || "Journey"}
+                              </span>
+                              <span className="instant__cover-name">
+                                {item.caption}
+                              </span>
+                            </div>
+                          )}
+                          <span
+                            className="instant__hint instant__hint--edit"
+                            aria-hidden="true"
                           >
-                            <span className="instant__cover-wash" aria-hidden />
-                            <span className="instant__cover-label">
-                              {item.planned
-                                ? "Up next"
-                                : item.sub || "Journey"}
-                            </span>
-                            <span className="instant__cover-name">
-                              {item.caption}
-                            </span>
-                          </div>
+                            Edit <span>↗</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="instant__foot">
+                        <span className="instant__caption">{item.caption}</span>
+                        {line2 && (
+                          <span className="instant__date">{line2}</span>
                         )}
                       </div>
-                    </div>
-
-                    <div className="instant__foot">
-                      <span className="instant__caption">{item.caption}</span>
-                      {line2 && (
-                        <span className="instant__date">{line2}</span>
-                      )}
-                      <span className="admin-instant__meta">
-                        {item.photoCount} photos
-                        {item.commentCount > 0
-                          ? ` · ${item.commentCount} notes`
-                          : ""}
-                      </span>
-                    </div>
-
-                    <span className="admin-instant__edit" aria-hidden>
-                      Edit
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 </li>
               );
             })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PhotoMeta } from "@/lib/types";
 import {
@@ -21,6 +21,7 @@ type Props = {
 };
 
 const MAX_BATCH = 50;
+const ADMIN_MEDIA_BATCH_SIZE = 60;
 
 function sortAdminPhotos(list: PhotoMeta[]): PhotoMeta[] {
   return [...list].sort((a, b) => {
@@ -44,7 +45,6 @@ export function AdminPhotos({
   photos: initial,
   coverImage: initialCover,
 }: Props) {
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState(() => sortAdminPhotos(initial));
   const [cover, setCover] = useState(initialCover || "");
@@ -55,6 +55,7 @@ export function AdminPhotos({
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "featured">("all");
+  const [visibleCount, setVisibleCount] = useState(ADMIN_MEDIA_BATCH_SIZE);
   /** Index into visiblePhotos for full-screen preview */
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -67,6 +68,11 @@ export function AdminPhotos({
     if (filter === "featured") return photos.filter((p) => p.featured);
     return photos;
   }, [photos, filter]);
+
+  const renderedPhotos = useMemo(
+    () => visiblePhotos.slice(0, visibleCount),
+    [visiblePhotos, visibleCount],
+  );
 
   const previewPhoto =
     previewIndex != null ? visiblePhotos[previewIndex] ?? null : null;
@@ -103,22 +109,6 @@ export function AdminPhotos({
     };
   }, [previewIndex, closePreview, goPreviewPrev, goPreviewNext]);
 
-  // If filter/list shrinks under current index, clamp or close
-  useEffect(() => {
-    if (previewIndex == null) return;
-    if (visiblePhotos.length === 0) {
-      setPreviewIndex(null);
-      return;
-    }
-    if (previewIndex >= visiblePhotos.length) {
-      setPreviewIndex(visiblePhotos.length - 1);
-    }
-  }, [visiblePhotos.length, previewIndex]);
-
-  const refresh = useCallback(() => {
-    router.refresh();
-  }, [router]);
-
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -149,7 +139,6 @@ export function AdminPhotos({
       setCover(url);
       setStatus("Polaroid cover updated");
       setTimeout(() => setStatus(null), 2000);
-      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not set cover");
     } finally {
@@ -189,11 +178,11 @@ export function AdminPhotos({
           ),
         ),
       );
+      closePreview();
       setStatus(
         nextFeatured ? "Added to Highlights" : "Removed from Highlights",
       );
       setTimeout(() => setStatus(null), 2000);
-      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update");
     } finally {
@@ -214,7 +203,6 @@ export function AdminPhotos({
       setCover("");
       setStatus("Polaroid cover cleared");
       setTimeout(() => setStatus(null), 2000);
-      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not clear");
     } finally {
@@ -247,6 +235,7 @@ export function AdminPhotos({
 
       const gone = new Set(data.deleted || ids);
       setPhotos((list) => list.filter((p) => !gone.has(p.id)));
+      closePreview();
       setSelected((prev) => {
         const next = new Set(prev);
         gone.forEach((id) => next.delete(id));
@@ -257,7 +246,6 @@ export function AdminPhotos({
         `Deleted ${gone.size} photo${gone.size === 1 ? "" : "s"}`,
       );
       setTimeout(() => setStatus(null), 2500);
-      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -335,7 +323,6 @@ export function AdminPhotos({
         );
       }
       setTimeout(() => setStatus(null), 3000);
-      refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -503,7 +490,11 @@ export function AdminPhotos({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setFilter("all")}
+            onClick={() => {
+              setFilter("all");
+              setVisibleCount(ADMIN_MEDIA_BATCH_SIZE);
+              setPreviewIndex(null);
+            }}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
               filter === "all"
                 ? "bg-ink text-white"
@@ -514,7 +505,11 @@ export function AdminPhotos({
           </button>
           <button
             type="button"
-            onClick={() => setFilter("featured")}
+            onClick={() => {
+              setFilter("featured");
+              setVisibleCount(ADMIN_MEDIA_BATCH_SIZE);
+              setPreviewIndex(null);
+            }}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
               filter === "featured"
                 ? "bg-sea text-white"
@@ -539,16 +534,22 @@ export function AdminPhotos({
           No Highlights yet — star items below (★).
         </p>
       ) : (
-        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-          {visiblePhotos.map((p, index) => {
+        <div className="space-y-4">
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+            {renderedPhotos.map((p, index) => {
             const url = photoPublicUrl(p.tripId, p.filename);
+            const gridUrl = photoPublicUrl(
+              p.tripId,
+              (isVideoMedia(p) ? p.posterFilename : p.thumbnailFilename) ||
+                p.filename,
+            );
             const isCover = cover === url;
             const isSelected = selected.has(p.id);
             const isFeatured = Boolean(p.featured);
             const isVid = isVideoMedia(p);
             const isLive = isLivePhoto(p);
             return (
-              <li key={p.id} className="group relative">
+              <li key={p.id} className="admin-media-item group relative">
                 <div
                   className={`relative aspect-square overflow-hidden rounded-xl border-2 bg-sand-100 transition ${
                     isCover
@@ -566,31 +567,21 @@ export function AdminPhotos({
                     className="absolute inset-0 z-0 cursor-zoom-in"
                     aria-label={`Preview ${p.originalName || "media"}`}
                   >
-                    {isVid ? (
-                      <video
-                        src={url}
-                        className="h-full w-full object-cover"
-                        muted
-                        playsInline
-                        preload="metadata"
-                        onLoadedData={(e) => {
-                          const v = e.currentTarget;
-                          if (v.readyState >= 2 && v.currentTime === 0) {
-                            try {
-                              v.currentTime = 0.05;
-                            } catch {
-                              /* ignore */
-                            }
-                          }
-                        }}
-                      />
+                    {isVid && !p.posterFilename ? (
+                      <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink via-ink-soft to-sea/80 text-white">
+                        <span className="max-w-[80%] truncate px-2 pt-12 text-[9px] text-white/55">
+                          {p.originalName}
+                        </span>
+                      </span>
                     ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={url}
+                      <Image
+                        src={gridUrl}
                         alt={p.caption || p.originalName}
                         className="h-full w-full object-cover"
+                        fill
+                        sizes="(min-width: 1280px) 190px, (min-width: 1024px) 16vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33vw"
                         loading="lazy"
+                        decoding="async"
                         draggable={false}
                       />
                     )}
@@ -704,8 +695,36 @@ export function AdminPhotos({
                 </p>
               </li>
             );
-          })}
-        </ul>
+            })}
+          </ul>
+
+          {renderedPhotos.length < visiblePhotos.length && (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <p className="text-xs text-ink-muted">
+                Showing {renderedPhotos.length} of {visiblePhotos.length}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleCount((current) =>
+                    Math.min(
+                      current + ADMIN_MEDIA_BATCH_SIZE,
+                      visiblePhotos.length,
+                    ),
+                  )
+                }
+                className="rounded-full border border-sand-200 bg-white px-5 py-2 text-sm font-medium text-ink-soft shadow-sm transition hover:-translate-y-0.5 hover:border-sand-300 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea"
+              >
+                Show{" "}
+                {Math.min(
+                  ADMIN_MEDIA_BATCH_SIZE,
+                  visiblePhotos.length - renderedPhotos.length,
+                )}{" "}
+                more
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {selected.size > 0 && (
@@ -890,7 +909,7 @@ export function AdminPhotos({
                 resetKey={previewPhoto.id}
                 stillSrc={photoPublicUrl(
                   previewPhoto.tripId,
-                  previewPhoto.filename,
+                  previewPhoto.previewFilename || previewPhoto.filename,
                 )}
                 videoSrc={liveVideoPublicUrl(
                   previewPhoto.tripId,
@@ -902,7 +921,7 @@ export function AdminPhotos({
                   <img
                     src={photoPublicUrl(
                       previewPhoto.tripId,
-                      previewPhoto.filename,
+                      previewPhoto.previewFilename || previewPhoto.filename,
                     )}
                     alt={previewPhoto.caption || previewPhoto.originalName}
                     className="max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"
@@ -915,7 +934,7 @@ export function AdminPhotos({
                 key={previewPhoto.id}
                 src={photoPublicUrl(
                   previewPhoto.tripId,
-                  previewPhoto.filename,
+                  previewPhoto.previewFilename || previewPhoto.filename,
                 )}
                 alt={previewPhoto.caption || previewPhoto.originalName}
                 className="max-h-[min(78vh,900px)] max-w-full rounded-lg object-contain shadow-2xl"

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -106,6 +107,7 @@ export default async function TripPage({ params, searchParams }: Props) {
         <>
           <PhotoGallery
             tripId={trip.id}
+            randomSeed={randomUUID()}
             initialPhotos={photos}
             initialComments={allComments}
           />

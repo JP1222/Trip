@@ -2,7 +2,11 @@ import { AdminPolaroidWall } from "@/components/admin/AdminPolaroidWall";
 import { getComments } from "@/lib/comments";
 import { getPhotos } from "@/lib/photos";
 import { getTrips } from "@/lib/trips";
-import { formatPolaroidMeta } from "@/lib/wall";
+import {
+  coverGradientToCss,
+  formatPolaroidMeta,
+  formatPolaroidPlace,
+} from "@/lib/wall";
 import { photoPublicUrl } from "@/lib/photos-client";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +26,7 @@ export default async function AdminHomePage() {
 
       const planned = t.status === "planned";
       const meta = planned
-        ? `Planning · ${t.destination}`
+        ? `Planning · ${formatPolaroidPlace(t.destination) || "TBD"}`
         : formatPolaroidMeta(t.startDate, t.endDate, t.destination);
 
       return {
@@ -30,12 +34,14 @@ export default async function AdminHomePage() {
         id: `admin-trip-${t.id}`,
         tripId: t.id,
         href: `/admin/trips/${t.id}`,
-        src: t.coverImage || fallback,
+        src: planned ? t.coverImage || undefined : t.coverImage || fallback,
         caption: t.title,
         sub: t.destination,
         meta,
         dateLabel: meta,
         planned,
+        coverGradient: coverGradientToCss(t.coverGradient),
+        coverEmoji: t.coverEmoji,
         startDate: t.startDate,
         endDate: t.endDate,
         photoCount: photos.length,

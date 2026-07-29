@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pushpin } from "@/components/Pushpin";
-import type { WallItem } from "@/lib/wall";
+import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
 
 function hash(s: string) {
   let h = 0;
@@ -13,8 +13,15 @@ function hash(s: string) {
 
 function rotateFor(id: string, solo: boolean) {
   if (solo) return -1;
-  const angles = [-1.2, -0.7, -0.35, 0.35, 0.65, 1.1, -0.9, 0.5];
+  const angles = [-3.2, 2.4, -1.7, 3.6, -2.6, 1.4, -0.9, 2.9];
   return angles[hash(id) % angles.length];
+}
+
+function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
+  const ratio = image.naturalWidth / image.naturalHeight;
+  if (ratio >= 1.12) return "landscape";
+  if (ratio <= 0.9) return "portrait";
+  return "square";
 }
 
 const decorPins = [
@@ -30,6 +37,11 @@ type Props = {
 
 export function PolaroidWall({ items }: Props) {
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<WallItem | null>(null);
+  const previewDialogRef = useRef<HTMLDialogElement>(null);
+  const [photoOrientations, setPhotoOrientations] = useState<
+    Record<string, WallPhotoOrientation>
+  >({});
   const tripCount = items.filter((i) => i.kind === "trip").length;
   const solo = tripCount === 1 && items.length <= 3;
 
@@ -41,6 +53,26 @@ export function PolaroidWall({ items }: Props) {
       })),
     [items, solo],
   );
+
+  useEffect(() => {
+    const dialog = previewDialogRef.current;
+    if (!dialog) return;
+
+    if (previewPhoto && !dialog.open) dialog.showModal();
+    if (!previewPhoto && dialog.open) dialog.close();
+  }, [previewPhoto]);
+
+  function rememberOrientation(itemId: string, image: HTMLImageElement) {
+    const next = orientationFor(image);
+    setPhotoOrientations((current) =>
+      current[itemId] === next ? current : { ...current, [itemId]: next },
+    );
+  }
+
+  function closePreview() {
+    if (previewDialogRef.current?.open) previewDialogRef.current.close();
+    setPreviewPhoto(null);
+  }
 
   return (
     <div className="gallery-wall gallery-wall--public">
@@ -131,8 +163,15 @@ export function PolaroidWall({ items }: Props) {
                 );
               }
 
-              // trip (lived or planned)
+              // Trip card or standalone wall photo.
               const line2 = item.meta || item.dateLabel;
+              const orientation =
+                item.orientation ||
+                (item.src
+                  ? photoOrientations[item.id] || "landscape"
+                  : item.planned
+                    ? "portrait"
+                    : "square");
               const inner = (
                 <>
                   <Pushpin />
@@ -147,6 +186,20 @@ export function PolaroidWall({ items }: Props) {
                           src={item.src}
                           alt={item.caption}
                           loading={index < 6 ? "eager" : "lazy"}
+                          ref={(image) => {
+                            if (
+                              !item.orientation &&
+                              image?.complete &&
+                              image.naturalWidth > 0
+                            ) {
+                              rememberOrientation(item.id, image);
+                            }
+                          }}
+                          onLoad={({ currentTarget }) => {
+                            if (!item.orientation) {
+                              rememberOrientation(item.id, currentTarget);
+                            }
+                          }}
                         />
                       ) : (
                         <div
@@ -196,6 +249,22 @@ export function PolaroidWall({ items }: Props) {
                           </span>
                         </div>
                       )}
+                      {item.href && (
+                        <span
+                          className="instant__hint instant__hint--trip"
+                          aria-hidden="true"
+                        >
+                          Open trip <span>↗</span>
+                        </span>
+                      )}
+                      {item.kind === "photo" && (
+                        <span
+                          className="instant__hint instant__hint--photo"
+                          aria-hidden="true"
+                        >
+                          Enlarge <span>⤢</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="instant__foot">
@@ -204,11 +273,17 @@ export function PolaroidWall({ items }: Props) {
                   </div>
                 </>
               );
+              const itemTypeClass =
+                item.kind === "photo"
+                  ? "wall-item--photo"
+                  : item.planned
+                    ? "wall-item--planned"
+                    : "wall-item--trip";
 
               return (
                 <li
                   key={item.id}
-                  className={`animate-fade-up wall-item ${item.planned ? "wall-item--planned" : "wall-item--trip"}${active ? " wall-item--active" : ""}`}
+                  className={`animate-fade-up wall-item ${itemTypeClass} wall-item--${orientation}${active ? " wall-item--active" : ""}`}
                   style={{ animationDelay: delay }}
                 >
                   <div
@@ -226,7 +301,7 @@ export function PolaroidWall({ items }: Props) {
                     {item.href ? (
                       <Link
                         href={item.href}
-                        className={`instant group${item.planned ? " instant--planned" : ""}`}
+                        className={`instant instant--${orientation} group${item.planned ? " instant--planned" : ""}`}
                         style={{
                           transform: active
                             ? "rotate(0deg)"
@@ -235,9 +310,23 @@ export function PolaroidWall({ items }: Props) {
                       >
                         {inner}
                       </Link>
+                    ) : item.kind === "photo" ? (
+                      <button
+                        type="button"
+                        className={`instant instant--standalone instant--${orientation}`}
+                        style={{
+                          transform: active
+                            ? "rotate(0deg)"
+                            : `rotate(${rotate}deg)`,
+                        }}
+                        aria-label={`Enlarge ${item.caption}`}
+                        onClick={() => setPreviewPhoto(item)}
+                      >
+                        {inner}
+                      </button>
                     ) : (
                       <div
-                        className={`instant${item.planned ? " instant--planned" : ""}`}
+                        className={`instant instant--${orientation}${item.planned ? " instant--planned" : ""}`}
                         style={{
                           transform: active
                             ? "rotate(0deg)"
@@ -262,6 +351,40 @@ export function PolaroidWall({ items }: Props) {
           </ul>
         </div>
       </div>
+
+      <dialog
+        ref={previewDialogRef}
+        className="wall-lightbox"
+        aria-labelledby="wall-lightbox-title"
+        onClose={() => setPreviewPhoto(null)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closePreview();
+        }}
+      >
+        {previewPhoto && (
+          <figure className="wall-lightbox__frame">
+            <button
+              type="button"
+              className="wall-lightbox__close"
+              aria-label="Close enlarged photo"
+              autoFocus
+              onClick={closePreview}
+            >
+              ×
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="wall-lightbox__image"
+              src={previewPhoto.src}
+              alt={previewPhoto.caption}
+            />
+            <figcaption className="wall-lightbox__caption">
+              <span id="wall-lightbox-title">{previewPhoto.caption}</span>
+              {previewPhoto.meta && <small>{previewPhoto.meta}</small>}
+            </figcaption>
+          </figure>
+        )}
+      </dialog>
     </div>
   );
 }

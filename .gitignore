@@ -50,6 +50,10 @@ public/uploads/*
 data/comments/*
 !data/comments/.gitkeep
 
+# Production bind mounts and generated media never belong in Git
+/runtime/
+/uploads/
+
 # OS / editor
 .DS_Store
 *.swp

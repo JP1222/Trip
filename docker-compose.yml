@@ -1,71 +1,218 @@
-# Trip journal — Docker Compose for Oracle + Traefik
-#
-# Server (oracle):
-#   cd ~/docker/trip
-#   cp .env.example .env   # set ADMIN_* and map keys
-#   docker compose up -d --build
-#
-# Public URL: https://trip.jpzen.cn  (Traefik TLS via Cloudflare DNS challenge)
-# Join external network: traefik-servicenet (same as photosite / lumen)
+# Production-oriented single-host stack. Traefik remains the external TLS edge.
+
+x-app-environment: &app-environment
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+  APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
+  APP_SECRET: ${APP_SECRET:?Set APP_SECRET in .env}
+  ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME in .env}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+  MEDIA_PRIVATE_ROOT: /app/media-private
+  MEDIA_PUBLIC_ROOT: /app/media-public
+  MEDIA_PUBLIC_BASE_URL: /media
+  LEGACY_DATA_ROOT: /app/legacy-data
+  LEGACY_UPLOADS_ROOT: /app/legacy-uploads
+  TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
+  postgres:
+    image: postgres:17.10-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trip}
+      POSTGRES_USER: ${POSTGRES_USER:-trip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ./runtime/postgres:/var/lib/postgresql/data
+    networks:
+      - trip-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    shm_size: 256mb
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logging
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    image: trip-worker:${TRIP_IMAGE_TAG:-latest}
+    restart: "no"
+    init: true
+    command: ["pnpm", "db:migrate"]
+    environment:
+      <<: *app-environment
+      APP_RUNTIME_ROLE: migrate
+    volumes:
+      - ./runtime/media-private:/app/media-private
+      - ./runtime/media-public:/app/media-public
+      - ./data:/app/legacy-data:ro
+      - ${LEGACY_UPLOADS_PATH:-./uploads}:/app/legacy-uploads:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trip-internal
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logging
+
   trip:
     build:
       context: .
       dockerfile: Dockerfile
-      # Baked into client bundle during `next build` (from host `.env`)
+      target: runner
       args:
         NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
         NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
         NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-}
-    image: trip:latest
-    container_name: trip
+    image: trip-web:${TRIP_IMAGE_TAG:-latest}
     restart: unless-stopped
-    # No host port publish — Traefik reaches the container on the docker network
-    expose:
-      - "3000"
-    env_file:
-      - .env
+    init: true
+    expose: ["3000"]
     environment:
-      NODE_ENV: production
-      HOSTNAME: "0.0.0.0"
+      <<: *app-environment
+      APP_RUNTIME_ROLE: web
+      HOSTNAME: 0.0.0.0
       PORT: "3000"
-      # Also available at runtime (server components / API)
       NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
       NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-}
     volumes:
-      # Bind mounts so rsync/backup are simple
-      - ./data:/app/data
-      - ./uploads:/app/public/uploads
+      - ./runtime/media-private:/app/media-private
+      - ./runtime/media-public:/app/media-public:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
+      - trip-internal
       - traefik-servicenet
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+      - /app/.next/cache:rw,noexec,nosuid,size=256m
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${WEB_MEMORY_LIMIT:-1536m}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    stop_grace_period: 45s
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-servicenet
-      - "traefik.http.routers.trip.rule=Host(`trip.jpzen.cn`)"
+      - "traefik.http.routers.trip.rule=Host(`${TRIP_HOST:-trip.jpzen.cn}`)"
       - traefik.http.routers.trip.entrypoints=websecure
       - traefik.http.routers.trip.tls=true
       - traefik.http.routers.trip.tls.certresolver=production
       - traefik.http.services.trip.loadbalancer.server.port=3000
-      # Photo uploads can be multi‑MB
-      - traefik.http.middlewares.trip-buffer.buffering.maxRequestBodyBytes=52428800
-      - traefik.http.middlewares.trip-buffer.buffering.memRequestBodyBytes=2097152
-      - traefik.http.routers.trip.middlewares=trip-buffer
+      - traefik.http.middlewares.trip-upload.buffering.maxRequestBodyBytes=136314880
+      - traefik.http.middlewares.trip-upload.buffering.memRequestBodyBytes=1048576
+      - traefik.http.middlewares.trip-security.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.trip-security.headers.frameDeny=true
+      - traefik.http.middlewares.trip-security.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.trip-security.headers.stsSeconds=31536000
+      - traefik.http.middlewares.trip-security.headers.stsIncludeSubdomains=true
+      - traefik.http.routers.trip.middlewares=trip-upload,trip-security
       - com.centurylinklabs.watchtower.enable=false
+    logging: *json-logging
+
+  media-worker:
+    image: trip-worker:${TRIP_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    command: ["pnpm", "worker:media"]
+    environment:
+      <<: *app-environment
+      APP_RUNTIME_ROLE: worker
+      MEDIA_WORKER_ID: ${MEDIA_WORKER_ID:-oracle-1}
+      MEDIA_IMAGE_CONCURRENCY: ${MEDIA_IMAGE_CONCURRENCY:-2}
+      MEDIA_VIDEO_CONCURRENCY: ${MEDIA_VIDEO_CONCURRENCY:-1}
+    volumes:
+      - ./runtime/media-private:/app/media-private
+      - ./runtime/media-public:/app/media-public
+      - ${LEGACY_UPLOADS_PATH:-./uploads}:/app/legacy-uploads:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - trip-internal
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: ${WORKER_MEMORY_LIMIT:-4g}
+    stop_grace_period: 10m
+    logging: *json-logging
+
+  media:
+    image: nginx:1.30.4-alpine
+    restart: unless-stopped
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
+    expose: ["8080"]
+    volumes:
+      - ./docker/nginx-media.conf:/etc/nginx/nginx.conf:ro
+      - ./runtime/media-public:/srv/media-public:ro
+      - ${LEGACY_UPLOADS_PATH:-./uploads}:/srv/legacy-uploads:ro
+    networks:
+      - traefik-servicenet
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 40s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-servicenet
+      - "traefik.http.routers.trip-media.rule=Host(`${TRIP_HOST:-trip.jpzen.cn}`) && (PathPrefix(`/media/`) || PathPrefix(`/uploads/`))"
+      - traefik.http.routers.trip-media.priority=100
+      - traefik.http.routers.trip-media.entrypoints=websecure
+      - traefik.http.routers.trip-media.tls=true
+      - traefik.http.routers.trip-media.tls.certresolver=production
+      - traefik.http.services.trip-media.loadbalancer.server.port=8080
+      - traefik.http.routers.trip-media.middlewares=trip-security
+      - com.centurylinklabs.watchtower.enable=false
+    logging: *json-logging
 
 networks:
+  trip-internal:
+    internal: true
   traefik-servicenet:
     external: true

@@ -26,7 +26,7 @@ export default async function AdminTripPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-sand-50">
       <div className="mx-auto max-w-6xl space-y-8 px-5 pt-20 pb-16 sm:px-8 xl:max-w-7xl">
-        <AdminTripShare tripId={trip.id} collabToken={trip.collabToken} />
+        <AdminTripShare tripId={trip.id} />
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
