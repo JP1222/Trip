@@ -261,10 +261,16 @@ async function selectMediaFromPool(
   return result.rows.map(mapMediaRow);
 }
 
-export async function listMediaForTrip(tripId: string): Promise<MediaWithAssets[]> {
+export async function listMediaForTrip(
+  tripId: string,
+  options: { includePending?: boolean } = {},
+): Promise<MediaWithAssets[]> {
+  const stateSql = options.includePending
+    ? "m.state IN ('ready', 'pending', 'processing')"
+    : "m.state = 'ready'";
   const result = await query<MediaRow>(
     `${MEDIA_SELECT}
-     WHERE m.trip_id = $1 AND m.state = 'ready'
+     WHERE m.trip_id = $1 AND ${stateSql}
      GROUP BY m.id
      ORDER BY m.featured DESC, m.featured_at DESC NULLS LAST,
               m.uploaded_at DESC, m.id DESC`,
@@ -273,8 +279,11 @@ export async function listMediaForTrip(tripId: string): Promise<MediaWithAssets[
   return result.rows.map(mapMediaRow);
 }
 
-export async function listPhotoMetaForTrip(tripId: string): Promise<PhotoMeta[]> {
-  return (await listMediaForTrip(tripId)).map(mediaToPhotoMeta);
+export async function listPhotoMetaForTrip(
+  tripId: string,
+  options: { includePending?: boolean } = {},
+): Promise<PhotoMeta[]> {
+  return (await listMediaForTrip(tripId, options)).map(mediaToPhotoMeta);
 }
 
 type MediaCursor = {

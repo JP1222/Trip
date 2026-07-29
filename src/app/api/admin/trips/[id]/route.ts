@@ -1,21 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { writeAuditEvent } from "@/lib/audit";
+import { getCurrentAdminSession } from "@/lib/auth";
 import { sanitizeBudget } from "@/lib/budget";
+import { attachRequestId, getRequestId } from "@/lib/observability/request-id";
+import { validateRequestOrigin } from "@/lib/security/origin";
+import { getClientIpHash } from "@/lib/security/request";
 import { updateTrip, type TripEditable } from "@/lib/trips";
 import type { DayPlan, TripLocation } from "@/lib/types";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  if (!(await isAdmin())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const requestId = getRequestId(req);
+  if (!validateRequestOrigin(req).ok) {
+    return attachRequestId(
+      NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      requestId,
+    );
+  }
+
+  const session = await getCurrentAdminSession().catch(() => null);
+  if (!session) {
+    return attachRequestId(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      requestId,
+    );
   }
 
   const { id } = await ctx.params;
   try {
-    const body = (await req.json()) as Partial<TripEditable> & {
-      collabToken?: string | null;
-    };
+    const body = (await req.json()) as Partial<TripEditable>;
     const patch: Partial<TripEditable> = {};
 
     if (typeof body.title === "string") patch.title = body.title.trim();
@@ -46,10 +63,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (body.location && typeof body.location === "object") {
       patch.location = body.location as TripLocation;
     }
-    if ("collabToken" in body) {
-      patch.collabToken =
-        body.collabToken == null ? "" : String(body.collabToken);
-    }
+    // collabToken is no longer stored on trips; use capability invites.
     if (body.budget !== undefined) {
       patch.budget = sanitizeBudget(body.budget) ?? {
         currency: "USD",
@@ -59,10 +73,29 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
     const trip = await updateTrip(id, patch);
     if (!trip) {
-      return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+      return attachRequestId(
+        NextResponse.json({ error: "Trip not found" }, { status: 404 }),
+        requestId,
+      );
     }
-    return NextResponse.json(trip);
+
+    await writeAuditEvent({
+      actorType: "admin",
+      actorId: session.id,
+      action: "trip.updated",
+      entityType: "trip",
+      entityId: id,
+      requestId,
+      ipHash: getClientIpHash(req),
+      details: { fields: Object.keys(patch) },
+    });
+
+    const { collabToken: _, ...safe } = trip;
+    return attachRequestId(NextResponse.json(safe), requestId);
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return attachRequestId(
+      NextResponse.json({ error: "Invalid request" }, { status: 400 }),
+      requestId,
+    );
   }
 }

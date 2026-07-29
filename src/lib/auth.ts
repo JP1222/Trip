@@ -40,6 +40,10 @@ export type CreatedAdminSession = AdminSession & {
   token: string;
 };
 
+function useDatabase(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
 function asDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
 }
@@ -66,6 +70,15 @@ function hashSessionToken(token: string): string {
     .digest("hex");
 }
 
+/** Deterministic local-only token when PostgreSQL is not configured. */
+function legacyExpectedToken(): string | null {
+  const { adminUsername, adminPassword, appSecret } = getSecurityEnvironment();
+  if (!adminUsername || !adminPassword) return null;
+  return createHash("sha256")
+    .update(`wander:${adminUsername}:${adminPassword}:${appSecret}`)
+    .digest("hex");
+}
+
 export function verifyCredentials(
   inputUser: string,
   inputPassword: string,
@@ -89,6 +102,20 @@ export async function createAdminSession(input: {
   const username = input.username?.trim() || environment.adminUsername;
   if (!username || username !== environment.adminUsername) {
     throw new Error("Cannot create a session for an unknown administrator");
+  }
+
+  if (!useDatabase()) {
+    const token = legacyExpectedToken();
+    if (!token) throw new Error("Admin credentials are not configured");
+    const now = new Date();
+    return {
+      id: "legacy-local",
+      username,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + environment.sessionTtlSeconds * 1000),
+      lastSeenAt: now,
+      token,
+    };
   }
 
   const id = randomUUID();
@@ -125,9 +152,32 @@ export async function createAdminSession(input: {
 export async function getAdminSessionFromToken(
   token: string | null | undefined,
 ): Promise<AdminSession | null> {
+  if (!token) return null;
+
+  if (!useDatabase()) {
+    const expected = legacyExpectedToken();
+    if (!expected || token.length !== expected.length) return null;
+    try {
+      if (!timingSafeEqual(Buffer.from(token), Buffer.from(expected))) {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+    const { adminUsername, sessionTtlSeconds } = getSecurityEnvironment();
+    const now = new Date();
+    return {
+      id: "legacy-local",
+      username: adminUsername,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + sessionTtlSeconds * 1000),
+      lastSeenAt: now,
+    };
+  }
+
   // The previous deterministic token was a 64-character hex value. Requiring
   // the exact random-token format makes it impossible to accept by accident.
-  if (!token || !SESSION_TOKEN_PATTERN.test(token)) return null;
+  if (!SESSION_TOKEN_PATTERN.test(token)) return null;
 
   const { adminUsername } = getSecurityEnvironment();
   const result = await query<AdminSessionRow>(
@@ -149,7 +199,13 @@ export async function getAdminSessionFromToken(
 
 export async function getCurrentAdminSession(): Promise<AdminSession | null> {
   const jar = await cookies();
-  return getAdminSessionFromToken(jar.get(ADMIN_COOKIE)?.value);
+  const primary = await getAdminSessionFromToken(jar.get(ADMIN_COOKIE)?.value);
+  if (primary) return primary;
+  // Cutover: accept the legacy cookie only when still on JSON mode.
+  if (!useDatabase()) {
+    return getAdminSessionFromToken(jar.get(LEGACY_ADMIN_COOKIE)?.value);
+  }
+  return null;
 }
 
 export async function isAdmin(): Promise<boolean> {
@@ -164,7 +220,9 @@ export async function isAdmin(): Promise<boolean> {
 export async function revokeAdminSessionToken(
   token: string | null | undefined,
 ): Promise<boolean> {
-  if (!token || !SESSION_TOKEN_PATTERN.test(token)) return false;
+  if (!token) return false;
+  if (!useDatabase()) return true;
+  if (!SESSION_TOKEN_PATTERN.test(token)) return false;
   const result = await query(
     `UPDATE admin_sessions
      SET revoked_at = COALESCE(revoked_at, now())
@@ -209,4 +267,3 @@ export function clearAdminSessionCookies(response: NextResponse): void {
     maxAge: 0,
   });
 }
-

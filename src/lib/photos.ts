@@ -91,8 +91,13 @@ export function sortPhotos(photos: PhotoMeta[]): PhotoMeta[] {
   });
 }
 
-export async function getPhotos(tripId: string): Promise<PhotoMeta[]> {
-  if (databaseMediaEnabled()) return listPhotoMetaForTrip(tripId);
+export async function getPhotos(
+  tripId: string,
+  options: { includePending?: boolean } = {},
+): Promise<PhotoMeta[]> {
+  if (databaseMediaEnabled()) {
+    return listPhotoMetaForTrip(tripId, options);
+  }
   await ensureTripDir(tripId);
   const raw = await fs.readFile(metaPath(tripId), "utf-8");
   const photos = JSON.parse(raw) as PhotoMeta[];

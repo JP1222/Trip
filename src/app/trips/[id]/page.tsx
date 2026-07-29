@@ -11,6 +11,14 @@ import { TripSectionNav } from "@/components/TripSectionNav";
 import { getComments, getTripComments } from "@/lib/comments";
 import { getPhotos } from "@/lib/photos";
 import {
+  hasActiveTripInvite,
+  verifyInviteToken,
+} from "@/lib/security/access";
+import {
+  readTripCapabilityCookie,
+  verifyTripCapabilityCookie,
+} from "@/lib/security/capabilities";
+import {
   formatDateRange,
   getTrip,
   isPlannedTrip,
@@ -49,12 +57,20 @@ export default async function TripPage({ params, searchParams }: Props) {
   const planned = isPlannedTrip(trip);
 
   const editParam = (sp.edit || "").trim();
-  const verifiedToken =
-    trip.collabToken && editParam && editParam === trip.collabToken
-      ? editParam
-      : null;
+  const invite = editParam
+    ? await verifyInviteToken(trip.id, editParam)
+    : null;
+  const cookiePlan = await verifyTripCapabilityCookie(trip.id, "plan").catch(
+    () => null,
+  );
+  const cookieToken = cookiePlan
+    ? await readTripCapabilityCookie(trip.id).catch(() => null)
+    : null;
+  const verifiedToken = invite ? editParam : cookieToken;
+  const collabEnabled =
+    Boolean(verifiedToken) || (await hasActiveTripInvite(trip.id));
 
-  // Never ship collabToken to the public client (page source scrape)
+  // Never ship secrets to the public client (page source scrape)
   const publicTrip = { ...trip, collabToken: undefined };
 
   const navTabs = planned
@@ -197,7 +213,7 @@ export default async function TripPage({ params, searchParams }: Props) {
             trip={publicTrip}
             planned={planned}
             dayCount={days}
-            collabEnabled={Boolean(trip.collabToken)}
+            collabEnabled={collabEnabled}
             verifiedToken={verifiedToken}
           />
         </Suspense>

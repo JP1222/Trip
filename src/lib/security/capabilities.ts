@@ -137,6 +137,17 @@ export async function listTripCapabilities(
   return result.rows.map(mapCapability);
 }
 
+/** Active (unrevoked, unexpired) capabilities for a trip. */
+export async function listActiveTripCapabilities(
+  tripId: string,
+): Promise<TripCapability[]> {
+  const now = Date.now();
+  return (await listTripCapabilities(tripId)).filter(
+    (capability) =>
+      !capability.revokedAt && capability.expiresAt.getTime() > now,
+  );
+}
+
 export async function revokeTripCapability(
   tripId: string,
   capabilityId: string,

@@ -199,9 +199,11 @@ export function getSecurityEnvironment(): SecurityEnvironment {
     appOrigin: process.env.APP_ORIGIN || "http://localhost:3000",
     databaseUrl: process.env.DATABASE_URL || "",
     mediaPrivateRoot:
-      process.env.MEDIA_PRIVATE_ROOT || path.join(workspaceRoot, "media-private"),
+      process.env.MEDIA_PRIVATE_ROOT ||
+      path.join(workspaceRoot, "runtime", "media-private"),
     mediaPublicRoot:
-      process.env.MEDIA_PUBLIC_ROOT || path.join(workspaceRoot, "media-public"),
+      process.env.MEDIA_PUBLIC_ROOT ||
+      path.join(workspaceRoot, "runtime", "media-public"),
     sessionTtlSeconds: parseInteger(
       "ADMIN_SESSION_TTL_SECONDS",
       process.env.ADMIN_SESSION_TTL_SECONDS,
@@ -213,7 +215,7 @@ export function getSecurityEnvironment(): SecurityEnvironment {
     trustProxyHops: parseInteger(
       "TRUST_PROXY_HOPS",
       process.env.TRUST_PROXY_HOPS,
-      1,
+      0,
       0,
       5,
       [],

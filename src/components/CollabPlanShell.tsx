@@ -81,18 +81,34 @@ export function CollabPlanShell({
     };
   }, [panelOpen, editing]);
 
+  async function exchangeCapability(candidate: string): Promise<boolean> {
+    // Production: hashed capability cookie. Legacy JSON backend has no table —
+    // fall through to plan PATCH which still accepts the plaintext token.
+    const res = await fetch(`/api/trips/${trip.id}/capability`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: candidate }),
+    });
+    if (res.ok) return true;
+    if (res.status === 404 || res.status === 503) {
+      const probe = await fetch(`/api/trips/${trip.id}/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: candidate, tips: trip.tips || [] }),
+      });
+      return probe.ok;
+    }
+    return false;
+  }
+
   async function tryUnlock(candidate: string) {
     const t = candidate.trim();
     if (!t || busy) return;
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/trips/${trip.id}/plan`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: t, tips: trip.tips || [] }),
-      });
-      if (!res.ok) {
+      const ok = await exchangeCapability(t);
+      if (!ok) {
         setMsg("Invalid code or link.");
         setTimeout(() => setMsg(null), 2500);
         return;
@@ -110,6 +126,12 @@ export function CollabPlanShell({
     }
   }
 
+  useEffect(() => {
+    if (!verifiedToken) return;
+    void exchangeCapability(verifiedToken).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exchange once per verified token
+  }, [verifiedToken, trip.id]);
+
   function exitEdit() {
     setEditing(false);
     setPanelOpen(false);
@@ -120,6 +142,9 @@ export function CollabPlanShell({
     setToken("");
     setEditing(false);
     setPanelOpen(false);
+    void fetch(`/api/trips/${trip.id}/capability`, { method: "DELETE" }).catch(
+      () => undefined,
+    );
     setMsg("Edit access cleared");
     setTimeout(() => setMsg(null), 2000);
   }

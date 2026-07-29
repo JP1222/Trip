@@ -19,7 +19,7 @@ export default async function AdminTripPage({ params }: Props) {
   if (!trip) notFound();
 
   const [photos, comments] = await Promise.all([
-    getPhotos(id),
+    getPhotos(id, { includePending: true }),
     getComments(id),
   ]);
 

@@ -1,24 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { getCurrentAdminSession } from "@/lib/auth";
+import { attachRequestId, getRequestId } from "@/lib/observability/request-id";
 import { deletePhoto, updatePhoto, type PhotoPatch } from "@/lib/photos";
+import { validateRequestOrigin } from "@/lib/security/origin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string; photoId: string }> };
 
-export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  if (!(await isAdmin())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const requestId = getRequestId(req);
+  if (!validateRequestOrigin(req).ok) {
+    return attachRequestId(
+      NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      requestId,
+    );
+  }
+  if (!(await getCurrentAdminSession().catch(() => null))) {
+    return attachRequestId(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      requestId,
+    );
   }
   const { id, photoId } = await ctx.params;
   const ok = await deletePhoto(id, photoId);
   if (!ok) {
-    return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+    return attachRequestId(
+      NextResponse.json({ error: "Photo not found" }, { status: 404 }),
+      requestId,
+    );
   }
-  return NextResponse.json({ ok: true });
+  return attachRequestId(NextResponse.json({ ok: true }), requestId);
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  if (!(await isAdmin())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const requestId = getRequestId(req);
+  if (!validateRequestOrigin(req).ok) {
+    return attachRequestId(
+      NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      requestId,
+    );
+  }
+  if (!(await getCurrentAdminSession().catch(() => null))) {
+    return attachRequestId(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      requestId,
+    );
   }
   const { id, photoId } = await ctx.params;
   try {
@@ -34,17 +62,26 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       patch.featured = body.featured;
     }
     if (!("caption" in patch) && !("featured" in patch)) {
-      return NextResponse.json(
-        { error: "Nothing to update (caption or featured)" },
-        { status: 400 },
+      return attachRequestId(
+        NextResponse.json(
+          { error: "Nothing to update (caption or featured)" },
+          { status: 400 },
+        ),
+        requestId,
       );
     }
     const photo = await updatePhoto(id, photoId, patch);
     if (!photo) {
-      return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+      return attachRequestId(
+        NextResponse.json({ error: "Photo not found" }, { status: 404 }),
+        requestId,
+      );
     }
-    return NextResponse.json(photo);
+    return attachRequestId(NextResponse.json(photo), requestId);
   } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return attachRequestId(
+      NextResponse.json({ error: "Invalid request" }, { status: 400 }),
+      requestId,
+    );
   }
 }

@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
+import { createReadStream, promises as fs } from "fs";
+import { Readable } from "stream";
 import {
   safeDownloadBasename,
   stripImageMetadata,
 } from "@/lib/image-process";
+import { attachRequestId, getRequestId } from "@/lib/observability/request-id";
 import {
   getPhoto,
   photoFilePath,
 } from "@/lib/photos";
 import { isVideoMedia } from "@/lib/photos-client";
+import {
+  consumeRateLimit,
+  createRateLimitKey,
+  rateLimitHeaders,
+} from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/request";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string; photoId: string }> };
 
@@ -20,51 +31,94 @@ type Ctx = { params: Promise<{ id: string; photoId: string }> };
  * Query: ?part=live → companion Live Photo video
  */
 export async function GET(req: NextRequest, ctx: Ctx) {
+  const requestId = getRequestId(req);
   const { id: tripId, photoId } = await ctx.params;
+
+  const rateLimit = await consumeRateLimit({
+    bucketKey: createRateLimitKey("photo-download", getClientIp(req), tripId),
+    limit: 120,
+    windowMs: 15 * 60 * 1000,
+  }).catch(() => null);
+  if (rateLimit && !rateLimit.allowed) {
+    return attachRequestId(
+      NextResponse.json(
+        { error: "Too many downloads. Try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) },
+      ),
+      requestId,
+    );
+  }
+
   const part = req.nextUrl.searchParams.get("part");
   const photo = await getPhoto(tripId, photoId);
   if (!photo) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return attachRequestId(
+      NextResponse.json({ error: "Not found" }, { status: 404 }),
+      requestId,
+    );
   }
+
+  const headersBase: HeadersInit = {
+    "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
+    ...(rateLimit ? rateLimitHeaders(rateLimit) : {}),
+  };
 
   if (part === "live") {
     if (!photo.liveVideoFilename) {
-      return NextResponse.json({ error: "No Live video" }, { status: 404 });
+      return attachRequestId(
+        NextResponse.json({ error: "No Live video" }, { status: 404 }),
+        requestId,
+      );
     }
     try {
-      const buf = await fs.readFile(
-        photoFilePath(tripId, photo.liveVideoFilename),
-      );
+      const filePath = photoFilePath(tripId, photo.liveVideoFilename);
+      const stat = await fs.stat(filePath);
+      const stream = createReadStream(filePath);
       const name =
         photo.liveVideoOriginalName || photo.liveVideoFilename || "live.mov";
-      return new NextResponse(new Uint8Array(buf), {
-        headers: {
-          "Content-Type": photo.liveVideoMimeType || "video/quicktime",
-          "Content-Disposition": contentDisposition(name),
-          "Cache-Control": "private, no-store",
-          "X-Content-Type-Options": "nosniff",
-        },
-      });
+      return attachRequestId(
+        new NextResponse(Readable.toWeb(stream) as ReadableStream, {
+          headers: {
+            ...headersBase,
+            "Content-Type": photo.liveVideoMimeType || "video/quicktime",
+            "Content-Length": String(stat.size),
+            "Content-Disposition": contentDisposition(name),
+          },
+        }),
+        requestId,
+      );
     } catch {
-      return NextResponse.json({ error: "File missing" }, { status: 404 });
+      return attachRequestId(
+        NextResponse.json({ error: "File missing" }, { status: 404 }),
+        requestId,
+      );
     }
   }
 
   try {
-    const raw = await fs.readFile(photoFilePath(tripId, photo.filename));
+    const filePath = photoFilePath(tripId, photo.filename);
 
     if (isVideoMedia(photo)) {
+      const stat = await fs.stat(filePath);
+      const stream = createReadStream(filePath);
       const name = photo.originalName || photo.filename;
-      return new NextResponse(new Uint8Array(raw), {
-        headers: {
-          "Content-Type": photo.mimeType || "video/mp4",
-          "Content-Disposition": contentDisposition(name),
-          "Cache-Control": "private, no-store",
-          "X-Content-Type-Options": "nosniff",
-        },
-      });
+      return attachRequestId(
+        new NextResponse(Readable.toWeb(stream) as ReadableStream, {
+          headers: {
+            ...headersBase,
+            "Content-Type": photo.mimeType || "video/mp4",
+            "Content-Length": String(stat.size),
+            "Content-Disposition": contentDisposition(name),
+          },
+        }),
+        requestId,
+      );
     }
 
+    // Prefer a pre-stripped download derivative when the path is under /media/
+    // and a sibling download asset might exist — otherwise strip on the fly.
+    const raw = await fs.readFile(filePath);
     const stripped = await stripImageMetadata(raw);
     const base = safeDownloadBasename(
       photo.originalName || photo.filename,
@@ -72,17 +126,22 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     );
     const downloadName = `${base}${stripped.ext}`;
 
-    return new NextResponse(new Uint8Array(stripped.buffer), {
-      headers: {
-        "Content-Type": stripped.mimeType,
-        "Content-Disposition": contentDisposition(downloadName),
-        "Cache-Control": "private, no-store",
-        "X-Content-Type-Options": "nosniff",
-        "X-Privacy": "metadata-stripped",
-      },
-    });
+    return attachRequestId(
+      new NextResponse(new Uint8Array(stripped.buffer), {
+        headers: {
+          ...headersBase,
+          "Content-Type": stripped.mimeType,
+          "Content-Disposition": contentDisposition(downloadName),
+          "X-Privacy": "metadata-stripped",
+        },
+      }),
+      requestId,
+    );
   } catch {
-    return NextResponse.json({ error: "File missing" }, { status: 404 });
+    return attachRequestId(
+      NextResponse.json({ error: "File missing" }, { status: 404 }),
+      requestId,
+    );
   }
 }
 

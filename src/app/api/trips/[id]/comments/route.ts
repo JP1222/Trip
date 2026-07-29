@@ -4,8 +4,19 @@ import {
   getCommentsByScope,
   type CommentScope,
 } from "@/lib/comments";
+import { attachRequestId, getRequestId } from "@/lib/observability/request-id";
 import { getPhotos } from "@/lib/photos";
+import { validateRequestOrigin } from "@/lib/security/origin";
+import {
+  consumeRateLimit,
+  createRateLimitKey,
+  rateLimitHeaders,
+} from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/request";
 import { getTrip } from "@/lib/trips";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -30,10 +41,42 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
+  const requestId = getRequestId(req);
+  if (!validateRequestOrigin(req).ok) {
+    return attachRequestId(
+      NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      requestId,
+    );
+  }
+
   const { id } = await ctx.params;
   const trip = await getTrip(id);
   if (!trip) {
-    return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+    return attachRequestId(
+      NextResponse.json({ error: "Trip not found" }, { status: 404 }),
+      requestId,
+    );
+  }
+
+  const rateLimit = await consumeRateLimit({
+    bucketKey: createRateLimitKey("comment", getClientIp(req), id),
+    limit: 40,
+    windowMs: 15 * 60 * 1000,
+  }).catch(() => null);
+  if (!rateLimit) {
+    return attachRequestId(
+      NextResponse.json({ error: "Service unavailable" }, { status: 503 }),
+      requestId,
+    );
+  }
+  if (!rateLimit.allowed) {
+    return attachRequestId(
+      NextResponse.json(
+        { error: "Too many comments. Try again later." },
+        { status: 429, headers: rateLimitHeaders(rateLimit) },
+      ),
+      requestId,
+    );
   }
 
   try {
@@ -50,9 +93,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (photoId) {
       const photos = await getPhotos(id);
       if (!photos.some((p) => p.id === photoId)) {
-        return NextResponse.json(
-          { error: "Photo not found" },
-          { status: 404 },
+        return attachRequestId(
+          NextResponse.json({ error: "Photo not found" }, { status: 404 }),
+          requestId,
         );
       }
     }
@@ -63,9 +106,21 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       String(body.body || ""),
       photoId,
     );
-    return NextResponse.json(comment, { status: 201 });
+    return attachRequestId(
+      NextResponse.json(comment, {
+        status: 201,
+        headers: {
+          "Cache-Control": "no-store",
+          ...rateLimitHeaders(rateLimit),
+        },
+      }),
+      requestId,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Could not post";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return attachRequestId(
+      NextResponse.json({ error: message }, { status: 400 }),
+      requestId,
+    );
   }
 }

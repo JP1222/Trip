@@ -151,6 +151,12 @@ export async function queueStagedMedia(
       });
     }
 
+    const jobType =
+      kind === "live_photo"
+        ? "process_live_photo"
+        : kind === "video"
+          ? "process_video"
+          : "process_image";
     const queued = await createQueuedMedia({
       id,
       tripId: input.tripId,
@@ -163,13 +169,34 @@ export async function queueStagedMedia(
       sourceBytes: input.primary.byteSize,
       featured: input.featured,
       assets,
-      jobType:
-        kind === "live_photo"
-          ? "process_live_photo"
-          : kind === "video"
-            ? "process_video"
-            : "process_image",
+      jobType,
     });
+
+    // Optional same-process processing for small deploys / local without a worker.
+    if (process.env.MEDIA_INLINE_PROCESS === "1") {
+      try {
+        const { processMediaJob } = await import("./processor");
+        await processMediaJob({
+          id: 0,
+          mediaId: id,
+          jobType,
+          state: "processing",
+          priority: 0,
+          attempts: 1,
+          maxAttempts: 1,
+          payload: {},
+          availableAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        const { getMediaById } = await import("./repository");
+        const ready = await getMediaById(id);
+        if (ready) return mediaToPhotoMeta(ready);
+      } catch (error) {
+        console.error("[media] inline process failed", error);
+      }
+    }
+
     return mediaToPhotoMeta(queued);
   } catch (error) {
     await Promise.all(
