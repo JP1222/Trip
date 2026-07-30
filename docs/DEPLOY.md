@@ -4,11 +4,10 @@ PostgreSQL is the **only** metadata store. JSON file mode has been removed.
 
 ## Topology
 
-- `trip` — Next.js web (standalone)
+- `trip` — Next.js web (standalone); also serves public derivatives at `/media/*`
 - `media-worker` — Sharp/FFmpeg derivative pipeline
 - `postgres` — metadata, sessions, capabilities, job queue
-- `media` — nginx serving public derivatives under `/media` (optional read-only legacy mount for import only)
-- Traefik terminates TLS (external)
+- Traefik (external) terminates TLS and reverse-proxies to `trip` only
 
 See [ADR 0001](./adr/0001-production-backend.md).
 

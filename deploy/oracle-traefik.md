@@ -4,7 +4,9 @@ Target host: `oracle`
 Public URL: **https://trip.jpzen.cn**  
 Proxy: existing Traefik on `traefik-servicenet` (Cloudflare DNS ACME)
 
-Stack: **Postgres + Next.js + media-worker + nginx `/media`**.  
+Stack: **Postgres + Next.js + media-worker**.  
+Traefik (existing host) terminates TLS and routes `trip.jpzen.cn` → `trip` web.  
+Public derivatives (`/media/...`) are served by Next.js — **no nginx**.  
 See [`docs/DEPLOY.md`](../docs/DEPLOY.md) for topology and first cutover.
 
 ## Sync code from Mac
@@ -57,6 +59,7 @@ ssh oracle 'cd ~/docker/trip && docker compose up -d --build'
 ## Notes
 
 - Build **on the server** (arm64 Ampere) so `sharp` matches the CPU.
-- Public derivatives are under `runtime/media-public` (served as `/media/...`), not `public/uploads`.
-- Traefik labels match other apps on `traefik-servicenet` + production cert resolver.
+- Public derivatives are under `runtime/media-public` and served by Next at `/media/...` (not `public/uploads`).
+- Compose services: `postgres`, `migrate` (oneshot), `trip`, `media-worker`.
+- Traefik labels on `trip` only (`traefik-servicenet` + production cert resolver).
 - No host port 3000 — avoids clash with other services.

@@ -28,6 +28,11 @@ public/uploads/**
 uploads
 uploads/**
 
+# Runtime state is bind-mounted; never send as build context
+# (postgres data dir is root-only and breaks docker build)
+runtime
+runtime/**
+
 # comments are runtime; trips.json is seeded from data/
 data/comments/**
 !data/comments/.gitkeep
