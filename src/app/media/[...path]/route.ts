@@ -27,7 +27,8 @@ type Ctx = { params: Promise<{ path: string[] }> };
 
 /**
  * Public media derivatives (grid-1080, full.jpg, live-playback, posters, …).
- * Served by the Next.js container so Traefik only needs one backend — no nginx.
+ * Production: Traefik routes /media/ to the nginx `media` service first.
+ * This route is the local-dev / fallback path when nginx is not in front.
  */
 export async function GET(req: NextRequest, ctx: Ctx) {
   const segments = (await ctx.params).path;
