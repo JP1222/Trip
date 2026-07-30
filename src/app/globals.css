@@ -54,6 +54,37 @@ body {
   dynamic-range-limit: standard;
 }
 
+/*
+ * Home cork wall: iOS rubber-band overscroll paints past the document.
+ * Match body to cork so top/bottom don't flash cream sand.
+ */
+html.page-home {
+  overscroll-behavior-y: none;
+  background-color: #c9a87a;
+}
+
+html.page-home body {
+  background-color: #c9a87a;
+  background-image: url("/textures/cork-tile.jpg");
+  background-size: 240px 240px;
+  background-repeat: repeat;
+  background-attachment: fixed;
+  overscroll-behavior-y: none;
+}
+
+/* Fixed cork underlay so overscroll always has cork behind content */
+html.page-home body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: #c9a87a;
+  background-image: url("/textures/cork-tile.jpg");
+  background-size: 240px 240px;
+  background-repeat: repeat;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--sea) 22%, transparent);
   color: var(--ink);
@@ -217,27 +248,125 @@ body {
 }
 
 
-/* Full-screen media viewer (photos + videos) */
+/* Full-screen media viewer (photos + videos) — PhotoSwipe stage + custom chrome */
 .media-viewer {
   -webkit-tap-highlight-color: transparent;
+  /* Solid black avoids muddy blur over cork wall on phones */
+  background: #000;
 }
 .media-viewer__media {
   -webkit-user-select: none;
   user-select: none;
+  /* Never crop stills/videos in the stage */
+  object-fit: contain;
 }
 .media-viewer__stage {
-  /* Let ZoomableImage fill and capture multi-touch */
+  /* PhotoSwipe owns multi-touch inside this box */
   touch-action: none;
+  /* Stage owns remaining height after chrome + aside */
+  min-height: 0;
+  /* Avoid 0-height first paint (PhotoSwipe would init at 1×1) */
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+  /* Letterbox must stay black — never cream/white page bg */
+  background: #000;
+}
+/* Prev/next sit mid-stage (not mid-screen, which puts them over comments) */
+.media-viewer__nav {
+  top: 50%;
+  transform: translateY(-50%);
 }
 .media-viewer__aside {
   /* Safer mobile browser chrome */
   padding-bottom: env(safe-area-inset-bottom, 0);
+  /* iOS overscroll bounce contained */
+  -webkit-overflow-scrolling: touch;
 }
 .media-viewer video::-webkit-media-controls-panel {
   background-image: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
 }
 
-/* Pinch / wheel zoom stage */
+/* PhotoSwipe nested in our stage (not full-viewport fixed overlay) */
+.media-viewer-pswp.pswp {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
+  --pswp-root-z-index: 1;
+  --pswp-bg: #000;
+  --pswp-placeholder-bg: #000;
+  background: #000;
+  contain: layout style size;
+}
+.media-viewer-pswp .pswp__bg {
+  background: #000;
+  opacity: 1 !important;
+}
+.media-viewer-pswp .pswp__top-bar,
+.media-viewer-pswp .pswp__button,
+.media-viewer-pswp .pswp__counter {
+  display: none !important;
+}
+/* Full-bleed stills — no card radius/shadow (those read as white fringes) */
+.media-viewer-pswp .pswp__img {
+  border-radius: 0;
+  box-shadow: none;
+  background: #000;
+}
+.media-viewer-pswp .pswp__img--placeholder,
+.media-viewer-pswp .pswp__img--placeholder--blank {
+  background: #000 !important;
+}
+.media-viewer-pswp__video-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  /* Allow scrubbing video controls; horizontal swipe still works on edges */
+  pointer-events: none;
+}
+.media-viewer-pswp__video {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: #000;
+  box-shadow: none;
+  pointer-events: auto;
+  object-fit: contain;
+}
+/*
+ * Live playing: hide PhotoSwipe still completely so companion video is the only
+ * visible layer (avoids “audio plays, still frozen” from poster/still on top).
+ */
+.media-viewer__stage--live-playing .media-viewer-pswp {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none !important;
+}
+.media-viewer__live-layer {
+  /* Sit above stage content; chrome (z-30) stays clickable */
+  touch-action: manipulation;
+}
+.media-viewer__live-video {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #000;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Pinch / wheel zoom stage (admin / legacy ZoomableImage) */
 .zoomable {
   -webkit-user-select: none;
   user-select: none;
@@ -327,12 +456,13 @@ body {
 }
 
 /*
- * Public wall: trinkets paint *above* polaroids (scrapbook-on-top look)
- * but the whole layer is pointer-events: none so clicks reach photos.
- * Hover motion is driven by JS class `.board-widget--hovered`.
+ * Public wall: trinkets sit *under* polaroids so they never cover photos.
+ * They still show in cork gaps / margins. Layer is pointer-events: none
+ * so clicks reach photos. Hover motion: `.board-widget--hovered` (JS).
+ * Admin keeps widgets above photos for drag/resize (see below).
  */
 .gallery-wall--public .board-widget-layer {
-  z-index: 14; /* above .cork-board__photos (z-index: 3) */
+  z-index: 2; /* below .cork-board__photos (z-index: 3) */
   overflow: hidden;
   pointer-events: none;
 }

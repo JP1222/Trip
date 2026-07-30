@@ -19,10 +19,11 @@ See [ADR 0001](./adr/0001-production-backend.md).
    - `data/trips.json` + `data/comments/`
    - binaries at `LEGACY_UPLOADS_PATH` (often `./public/uploads`)
 3. `mkdir -p runtime/media-private runtime/media-public runtime/postgres runtime/backups`
-4. Build and start:
+4. Build and start (first time = full stack):
 
 ```bash
 docker compose up -d --build
+# Day-to-day updates from Mac: pnpm deploy:oracle   (web only; see deploy/oracle-traefik.md)
 ```
 
 5. Import legacy data (idempotent):

@@ -47,20 +47,47 @@ docker compose ps
 REMOTE
 ```
 
-## Update after code change
+## Update after code change (preferred)
+
+From your Mac (repo root). **Default is web-only** — does not rebuild ffmpeg/worker:
 
 ```bash
-rsync -avz --delete \
+pnpm deploy:oracle          # same as: pnpm deploy:oracle:web
+# or:
+./scripts/deploy-oracle.sh web
+```
+
+| Target | When | Approx. cost |
+|--------|------|----------------|
+| `web` (default) | UI / API / CSS | Next build only |
+| `worker` | media pipeline / scripts / `db/` worker code | ffmpeg image (cached) |
+| `media` | `docker/nginx-media.conf` only | recreate nginx, no build |
+| `migrate` | new SQL under `db/migrations` | oneshot container |
+| `all` | first cutover / Dockerfile base change | full stack |
+
+```bash
+pnpm deploy:oracle:worker
+pnpm deploy:oracle:media
+./scripts/deploy-oracle.sh migrate
+pnpm deploy:oracle:all
+```
+
+### Manual equivalent (web only)
+
+```bash
+rsync -az --delete \
   --exclude node_modules --exclude .next --exclude .git \
   --exclude '.env*' --exclude 'public/uploads' --exclude 'public/media' \
   --exclude uploads --exclude runtime --exclude data --exclude '.pnpm-store' \
   ./ oracle:~/docker/trip/
-ssh oracle 'cd ~/docker/trip && docker compose up -d --build'
+ssh oracle 'cd ~/docker/trip && docker compose build trip && docker compose up -d --no-deps --force-recreate trip'
 ```
+
+Avoid bare `docker compose up -d --build` for day-to-day deploys: it rebuilds **web + worker** (ffmpeg apt) every time.
 
 ## Notes
 
-- Build **on the server** (arm64 Ampere) so `sharp` matches the CPU.
+- Build **on the server** (arm64 Ampere) so `sharp` matches the CPU. Dockerfile uses BuildKit cache mounts (pnpm / Next / apt / npm) so the **2nd** web deploy is much faster.
 - Public derivatives live in `runtime/media-public` and are served by nginx as `/media/...` (not `public/uploads`).
 - Compose services: `postgres`, `migrate` (oneshot), `trip`, `media-worker`, `media`.
 - Ensure media files are world-readable (`chmod -R a+rX runtime/media-public`) so nginx user `101` can read them.

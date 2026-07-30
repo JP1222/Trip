@@ -438,7 +438,7 @@ export function ZoomableImage({
         <img
           src={src}
           alt={alt}
-          className={`zoomable__img max-h-[min(70vh,720px)] w-auto max-w-full select-none object-contain shadow-2xl lg:max-h-[min(82vh,900px)] ${imgClassName}`}
+          className={`zoomable__img h-auto w-auto max-h-full max-w-full select-none object-contain shadow-2xl ${imgClassName}`}
           draggable={false}
           // Avoid browser image drag / long-press save fighting gestures
           onDragStart={(e) => e.preventDefault()}

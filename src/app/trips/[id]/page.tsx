@@ -24,6 +24,7 @@ import {
   isPlannedTrip,
   tripDurationDays,
 } from "@/lib/trips";
+import { coverGradientToCss } from "@/lib/wall";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -132,21 +133,28 @@ export default async function TripPage({ params, searchParams }: Props) {
     </section>
   );
 
+  const heroGradient =
+    coverGradientToCss(trip.coverGradient) ??
+    "linear-gradient(145deg, #efeae2 0%, #e0d8cc 100%)";
+
   return (
     <div className="relative overflow-hidden pb-20">
       <div
-        className="ambient -left-16 top-20 h-72 w-72 bg-sea/15"
+        className="ambient -left-10 top-16 h-56 w-56 bg-sea/20 sm:-left-16 sm:top-20 sm:h-72 sm:w-72 sm:bg-sea/15"
         aria-hidden
       />
       <div
-        className="ambient right-0 top-40 h-64 w-64 bg-coral/15"
+        className="ambient -right-6 top-32 h-48 w-48 bg-coral/20 sm:right-0 sm:top-40 sm:h-64 sm:w-64 sm:bg-coral/15"
         aria-hidden
       />
 
       <section
-        className={`relative border-b border-sand-200/60 bg-gradient-to-br ${trip.coverGradient}`}
+        className="relative border-b border-sand-200/60"
+        style={{ background: heroGradient }}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.5),transparent_50%)]" />
+        {/* Light wash only — keep cover colors visible (esp. mobile) */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_0%,rgba(255,255,255,0.38),transparent_55%)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/15 via-transparent to-black/[0.06]" />
         <div className="relative mx-auto max-w-7xl px-5 pt-14 pb-8 sm:px-8 sm:pt-16 sm:pb-10 xl:px-10">
           <div className="flex flex-wrap items-center gap-2">
             {planned && (

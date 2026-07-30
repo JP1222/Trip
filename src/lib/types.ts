@@ -156,6 +156,12 @@ export type PhotoMeta = {
   /** image/* or video/* */
   mimeType: string;
   size: number;
+  /**
+   * Pixel size of the primary public still / video (orientation-corrected).
+   * Used by the lightbox so PhotoSwipe does not assume landscape.
+   */
+  width?: number;
+  height?: number;
   uploadedAt: string;
   /**
    * Admin-starred pick — shows ★ in the gallery and sorts first.

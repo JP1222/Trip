@@ -87,10 +87,25 @@ export async function generateImageVariants(
   const raw = await storage.readAsset(sourceAsset);
   if (options.signal?.aborted) throw options.signal.reason;
 
-  const [decoded, exif] = await Promise.all([
-    decodeInput(media, raw, sourceAsset.mimeType),
-    extractPhotoExif(raw, media.originalName).catch(() => ({})),
-  ]);
+  const decoded = await decodeInput(media, raw, sourceAsset.mimeType);
+  if (options.signal?.aborted) throw options.signal.reason;
+
+  // Prefer EXIF from the raw capture (HEIC/JPEG). If HEIC→JPEG conversion
+  // produced a buffer that still carries EXIF (e.g. macOS sips), merge that
+  // too — many iPhone imports only get exposure tags after convert.
+  let exif = await extractPhotoExif(raw, media.originalName).catch(() => ({}));
+  if (
+    decoded !== raw &&
+    (exif as { aperture?: number }).aperture == null &&
+    !(exif as { shutter?: string }).shutter &&
+    (exif as { iso?: number }).iso == null
+  ) {
+    const fromDecoded = await extractPhotoExif(
+      decoded,
+      media.originalName.replace(/\.hei[cf]$/i, ".jpg"),
+    ).catch(() => ({}));
+    exif = { ...fromDecoded, ...exif };
+  }
 
   const inputMetadata = await sharp(decoded, {
     failOn: "warning",
@@ -105,19 +120,26 @@ export async function generateImageVariants(
 
   // Full-resolution public still — used for lightbox preview + download (no resize).
   if (options.signal?.aborted) throw options.signal.reason;
+  // Keep EXIF on the public full still when the decoded buffer still carries it
+  // (e.g. JPEG with APP1). HEIC converted without EXIF stays clean. Download
+  // route still strips GPS for privacy on explicit download.
   const fullPipeline = sharp(decoded, {
     failOn: "warning",
     limitInputPixels: MAX_INPUT_PIXELS,
     sequentialRead: true,
   })
     .rotate()
-    .toColorspace("srgb")
+    .toColorspace("srgb");
+  if (inputMetadata.exif) {
+    fullPipeline.withMetadata();
+  }
+  const full = await fullPipeline
     .jpeg({
       quality: 92,
       mozjpeg: true,
       chromaSubsampling: "4:2:0",
-    });
-  const full = await fullPipeline.toBuffer({ resolveWithObject: true });
+    })
+    .toBuffer({ resolveWithObject: true });
   const fullKey = mediaAssetKey(
     media.tripId,
     media.id,

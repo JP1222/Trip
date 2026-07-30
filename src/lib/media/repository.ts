@@ -239,6 +239,15 @@ export function mediaToPhotoMeta(media: MediaWithAssets): PhotoMeta {
   if (media.assets.poster) {
     result.posterFilename = publicFilename(media.assets.poster, filename);
   }
+  // Prefer dimensions of the public full still (lightbox); fall back to primary.
+  const sizeSource =
+    media.kind === "video"
+      ? media.assets.poster || primary
+      : media.assets.download || media.assets.preview || primary;
+  if (sizeSource?.width && sizeSource?.height) {
+    result.width = sizeSource.width;
+    result.height = sizeSource.height;
+  }
   if (media.kind === "live_photo" && live) {
     result.liveVideoFilename = publicFilename(live, live.storageKey);
     result.liveVideoOriginalName = media.assets.live_original

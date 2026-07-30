@@ -1,3 +1,4 @@
+import { HomeScrollTheme } from "@/components/HomeScrollTheme";
 import { PolaroidWall } from "@/components/PolaroidWall";
 import { getPhotos } from "@/lib/photos";
 import { getTrips } from "@/lib/trips";
@@ -21,6 +22,7 @@ export default async function Home() {
 
   return (
     <div className="relative">
+      <HomeScrollTheme />
       <h1 className="sr-only">Our trips</h1>
       <PolaroidWall items={items} widgets={widgets} />
     </div>

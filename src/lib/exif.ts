@@ -248,8 +248,10 @@ export function parseExifBuffer(exifBuf: Buffer): PhotoExif {
     out.aperture = Math.round(f * 10) / 10;
   }
 
-  // ISO 0x8827 (PhotographicSensitivity) or 0x8831
-  const isoRaw = exif[0x8827]?.value ?? exif[0x8831]?.value;
+  // ISO 0x8827 (PhotographicSensitivity) or 0x8831 / 0x8832
+  // Type 3 SHORT may be count>1 — we already take the first short in readIfd.
+  const isoRaw =
+    exif[0x8827]?.value ?? exif[0x8831]?.value ?? exif[0x8832]?.value;
   if (typeof isoRaw === "number" && isoRaw > 0) out.iso = Math.round(isoRaw);
 
   // FocalLength 0x920A
@@ -316,8 +318,15 @@ function trimNum(n: number): string {
     : (Math.round(n * 10) / 10).toString();
 }
 
+function hasExposure(p: PhotoExif): boolean {
+  return p.aperture != null || Boolean(p.shutter) || p.iso != null;
+}
+
 /**
  * Extract full EXIF from a raw image buffer via sharp.
+ * For HEIC (common on iPhone), sharp often omits EXIF on Linux — after the
+ * caller converts to JPEG we re-run this on the JPEG. On macOS, `sips` can
+ * also dump a few keys when the buffer is a HEIC file.
  */
 export async function extractPhotoExif(
   input: Buffer,
@@ -338,10 +347,53 @@ export async function extractPhotoExif(
     // HEIC may fail before conversion — ignore
   }
 
+  // macOS fallback for HEIC when sharp has no EXIF payload
+  if (
+    !hasExposure(parsed) &&
+    process.platform === "darwin" &&
+    /\.hei[cf]$/i.test(originalName)
+  ) {
+    try {
+      const fromSips = await extractExifViaSips(input);
+      parsed = { ...fromSips, ...parsed, device: parsed.device || fromSips.device };
+    } catch {
+      /* ignore */
+    }
+  }
+
   if (!parsed.device) {
     parsed.device = inferDeviceFromName(originalName);
   }
   return parsed;
+}
+
+/** Best-effort HEIC EXIF via macOS sips (import pipeline on developer Macs). */
+async function extractExifViaSips(input: Buffer): Promise<PhotoExif> {
+  const fs = await import("fs/promises");
+  const os = await import("os");
+  const path = await import("path");
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "trip-exif-"));
+  const src = path.join(dir, "in.heic");
+  try {
+    await fs.writeFile(src, input);
+    // Convert with sips — macOS usually keeps EXIF on the JPEG.
+    const jpg = path.join(dir, "out.jpg");
+    await execFileAsync(
+      "sips",
+      ["-s", "format", "jpeg", src, "--out", jpg],
+      { timeout: 60_000 },
+    );
+    const jpegBuf = await fs.readFile(jpg);
+    const sharp = (await import("sharp")).default;
+    const meta = await sharp(jpegBuf, { failOn: "none" }).metadata();
+    if (meta.exif) return parseExifBuffer(Buffer.from(meta.exif));
+    return {};
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 

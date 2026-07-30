@@ -248,9 +248,9 @@ function parseExifBuffer(exifBuf) {
   return out;
 }
 
-async function extractExif(raw, name) {
+async function extractExifFromBuffer(buf, name) {
   try {
-    const meta = await sharp(raw, {
+    const meta = await sharp(buf, {
       failOn: "none",
       limitInputPixels: 100_000_000,
     }).metadata();
@@ -262,7 +262,25 @@ async function extractExif(raw, name) {
   } catch {
     /* ignore */
   }
-  return { device: inferDeviceFromName(name) };
+  return {};
+}
+
+function hasExposure(p) {
+  return p.aperture != null || Boolean(p.shutter) || p.iso != null;
+}
+
+/**
+ * iPhone HEIC often has no EXIF via sharp until converted with sips (which
+ * keeps EXIF on the JPEG). Try raw first, then post-convert buffer.
+ */
+async function extractExif(raw, name, convertedJpeg) {
+  let p = await extractExifFromBuffer(raw, name);
+  if (!hasExposure(p) && convertedJpeg?.length) {
+    const p2 = await extractExifFromBuffer(convertedJpeg, name);
+    p = { ...p2, ...p, device: p.device || p2.device };
+  }
+  if (!p.device) p.device = inferDeviceFromName(name);
+  return p;
 }
 
 // ─── Image process ──────────────────────────────────────────────────────────
@@ -309,7 +327,7 @@ async function processImage(raw, name, mime) {
       console.warn("  heic convert failed, trying sharp:", name, err.message);
     }
   }
-  const { data, info } = await sharp(working, {
+  let pipeline = sharp(working, {
     failOn: "none",
     limitInputPixels: 100_000_000,
   })
@@ -321,10 +339,18 @@ async function processImage(raw, name, mime) {
       withoutEnlargement: true,
     })
     // Keep Display P3 ICC — forcing sRGB kills iPhone “HDR look” on wide-gamut screens
-    .keepIccProfile()
+    .keepIccProfile();
+  // Preserve EXIF when the intermediate still has it (sips HEIC→JPEG does).
+  try {
+    const meta = await sharp(working, { failOn: "none" }).metadata();
+    if (meta.exif) pipeline = pipeline.withMetadata();
+  } catch {
+    /* ignore */
+  }
+  const { data, info } = await pipeline
     .jpeg({ quality: JPEG_QUALITY, mozjpeg: true, chromaSubsampling: "4:4:4" })
     .toBuffer({ resolveWithObject: true });
-  return { buffer: data, width: info.width, height: info.height };
+  return { buffer: data, width: info.width, height: info.height, working };
 }
 
 // ─── Source walk ────────────────────────────────────────────────────────────
@@ -520,12 +546,12 @@ async function importOne(tripId, src, uploader) {
   const id = randomUUID();
   const base = path.basename(src.name, path.extname(src.name)).trim() || "photo";
   const mime = mimeFor(src.name, src.isVideo);
-  const exif = await extractExif(raw, src.name);
 
   let filename;
   let originalName;
   let mimeType;
   let size;
+  let exif = { device: inferDeviceFromName(src.name) };
 
   if (src.isVideo) {
     const ext = path.extname(src.name).toLowerCase() || ".mp4";
@@ -534,6 +560,7 @@ async function importOne(tripId, src, uploader) {
     mimeType = mime;
     size = raw.length;
     await fs.writeFile(path.join(UPLOADS, tripId, filename), raw);
+    exif = await extractExif(raw, src.name);
   } else {
     const processed = await processImage(raw, src.name, mime);
     filename = `${id}.jpg`;
@@ -541,6 +568,8 @@ async function importOne(tripId, src, uploader) {
     mimeType = "image/jpeg";
     size = processed.buffer.length;
     await fs.writeFile(path.join(UPLOADS, tripId, filename), processed.buffer);
+    // HEIC: prefer EXIF from sips-converted JPEG (working), then raw
+    exif = await extractExif(raw, src.name, processed.working);
   }
 
   const meta = {

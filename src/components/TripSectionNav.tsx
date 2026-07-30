@@ -54,10 +54,11 @@ export function TripSectionNav({ tabs }: Props) {
 
   return (
     <nav
-      className="trip-section-nav sticky top-14 z-30 -mx-5 border-b border-sand-200/70 bg-sand-50/90 px-5 backdrop-blur-md sm:-mx-8 sm:px-8"
+      className="trip-section-nav sticky top-14 z-30 border-b border-sand-200/70 bg-sand-50/90 backdrop-blur-md"
       aria-label="Trip sections"
     >
-      <div className="trip-section-nav__inner mx-auto flex max-w-6xl gap-1 overflow-x-auto py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Same gutters as trip body (max-w-7xl + px-5/8/10) — no -mx full-bleed squeeze */}
+      <div className="trip-section-nav__inner mx-auto flex max-w-7xl gap-1.5 overflow-x-auto px-5 py-2.5 sm:gap-2 sm:px-8 sm:py-3 xl:px-10 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <span className="trip-section-nav__eyebrow" aria-hidden="true">
           Jump to
         </span>
@@ -68,7 +69,7 @@ export function TripSectionNav({ tabs }: Props) {
               key={t.id}
               href={`#${t.id}`}
               onClick={(event) => scrollToSection(event, t.id)}
-              className={`trip-section-nav__link shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+              className={`trip-section-nav__link shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
                 isOn
                   ? "trip-section-nav__link--active bg-ink text-white"
                   : "text-ink-soft hover:bg-white/80 hover:text-ink"

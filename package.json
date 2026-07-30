@@ -18,12 +18,18 @@
     "db:migrate": "tsx scripts/migrate-db.ts",
     "db:import:legacy": "tsx scripts/migrate-legacy-data.ts",
     "media:backfill": "tsx scripts/backfill-legacy-media.ts",
+    "media:reextract-exif": "tsx scripts/reextract-exif-from-desktop.ts",
     "media:video-posters": "tsx scripts/generate-video-posters.ts",
     "worker:media": "tsx scripts/media-worker.ts",
     "import:photos": "node scripts/import-desktop-photos.mjs",
     "smoke:backend": "tsx scripts/smoke-backend.ts",
     "backup": "bash scripts/backup.sh",
-    "restore": "bash scripts/restore.sh"
+    "restore": "bash scripts/restore.sh",
+    "deploy:oracle": "bash scripts/deploy-oracle.sh",
+    "deploy:oracle:web": "bash scripts/deploy-oracle.sh web",
+    "deploy:oracle:worker": "bash scripts/deploy-oracle.sh worker",
+    "deploy:oracle:media": "bash scripts/deploy-oracle.sh media",
+    "deploy:oracle:all": "bash scripts/deploy-oracle.sh all"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",
@@ -32,6 +38,7 @@
     "mapbox-gl": "^3.27.0",
     "next": "16.2.12",
     "pg": "^8.22.0",
+    "photoswipe": "^5.4.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "sharp": "^0.35.3",

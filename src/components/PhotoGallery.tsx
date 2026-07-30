@@ -1,22 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Comment, PhotoMeta } from "@/lib/types";
 import {
-  formatCameraSettings,
   isLivePhoto,
   isVideoMedia,
   liveVideoPublicUrl,
   photoDownloadUrl,
   photoPublicUrl,
 } from "@/lib/photos-client";
-import {
-  photoFullPublicUrl,
-  photoListPublicUrl,
-} from "@/lib/media-url";
+import { photoListPublicUrl } from "@/lib/media-url";
 import { openPhotoUpload } from "@/components/PhotoUpload";
-import { ZoomableImage } from "@/components/ZoomableImage";
-import { LivePhotoStage, LivePhotoThumb } from "@/components/LivePhoto";
+import { LivePhotoThumb } from "@/components/LivePhoto";
+import { MediaViewer } from "@/components/MediaViewer";
 
 type Props = {
   tripId: string;
@@ -84,19 +80,6 @@ function randomizeGalleryPhotos(
       galleryHash(`${shuffleKey}:${b.id}`);
     return byHash || a.id.localeCompare(b.id);
   });
-}
-
-function formatWhen(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
 }
 
 function countsFrom(list: Comment[]): Record<string, number> {
@@ -199,7 +182,6 @@ export function PhotoGallery({
   const [selectMode, setSelectMode] = useState(false);
   const [sortMode, setSortMode] = useState<GallerySortMode>("random");
   const [shuffleVersion, setShuffleVersion] = useState(0);
-  const [uiVisible, setUiVisible] = useState(true);
   const [visibleCount, setVisibleCount] = useState(GALLERY_BATCH_SIZE);
   const columnCount = useGalleryColumns();
   const featured = useMemo(
@@ -225,10 +207,6 @@ export function PhotoGallery({
     [visiblePhotos, columnCount],
   );
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [photoZoomed, setPhotoZoomed] = useState(false);
-  const [livePlaying, setLivePlaying] = useState(false);
-
   // Lightbox comment form
   const [author, setAuthor] = useState("");
   const [body, setBody] = useState("");
@@ -236,23 +214,6 @@ export function PhotoGallery({
   const [postBusy, setPostBusy] = useState(false);
 
   const commentCounts = useMemo(() => countsFrom(comments), [comments]);
-
-  const active =
-    activeIndex !== null && orderedPhotos[activeIndex]
-      ? orderedPhotos[activeIndex]
-      : null;
-  const activeIsVideo = active ? isVideoMedia(active) : false;
-  const activeIsLive = active ? isLivePhoto(active) : false;
-
-  const activeComments = useMemo(() => {
-    if (!active) return [];
-    return comments
-      .filter((c) => c.photoId === active.id)
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-  }, [comments, active]);
 
   const refreshPhotos = useCallback(async () => {
     const res = await fetch(`/api/trips/${tripId}/photos`);
@@ -276,79 +237,7 @@ export function PhotoGallery({
 
   const closeViewer = useCallback(() => {
     setActiveIndex(null);
-    setUiVisible(true);
-    setPhotoZoomed(false);
-    setLivePlaying(false);
   }, []);
-
-  const goPrev = useCallback(() => {
-    setActiveIndex((i) => {
-      if (i === null || photos.length === 0) return i;
-      return (i - 1 + photos.length) % photos.length;
-    });
-    setPostError(null);
-    setBody("");
-    setUiVisible(true);
-    setPhotoZoomed(false);
-    setLivePlaying(false);
-  }, [photos.length]);
-
-  const goNext = useCallback(() => {
-    setActiveIndex((i) => {
-      if (i === null || photos.length === 0) return i;
-      return (i + 1) % photos.length;
-    });
-    setPostError(null);
-    setBody("");
-    setUiVisible(true);
-    setPhotoZoomed(false);
-    setLivePlaying(false);
-  }, [photos.length]);
-
-  useEffect(() => {
-    if (activeIndex === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        closeViewer();
-        return;
-      }
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goPrev();
-        return;
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goNext();
-        return;
-      }
-      if (e.key === " " && activeIsVideo && videoRef.current) {
-        // Space toggles play when not typing in an input
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
-        e.preventDefault();
-        const v = videoRef.current;
-        if (v.paused) void v.play();
-        else v.pause();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [activeIndex, closeViewer, goPrev, goNext, activeIsVideo]);
-
-  // Pause video when leaving a slide
-  useEffect(() => {
-    const v = videoRef.current;
-    return () => {
-      v?.pause();
-    };
-  }, [activeIndex]);
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -411,7 +300,9 @@ export function PhotoGallery({
 
   async function postPhotoComment(e: React.FormEvent) {
     e.preventDefault();
-    if (!active) return;
+    const photo =
+      activeIndex !== null ? orderedPhotos[activeIndex] : undefined;
+    if (!photo) return;
     setPostBusy(true);
     setPostError(null);
     try {
@@ -421,7 +312,7 @@ export function PhotoGallery({
         body: JSON.stringify({
           author,
           body,
-          photoId: active.id,
+          photoId: photo.id,
         }),
       });
       const data = (await res.json()) as Comment & { error?: string };
@@ -439,33 +330,8 @@ export function PhotoGallery({
     const idx = orderedPhotos.findIndex((p) => p.id === photo.id);
     setPostError(null);
     setBody("");
-    setUiVisible(true);
-    setPhotoZoomed(false);
-    setLivePlaying(false);
     setActiveIndex(idx >= 0 ? idx : 0);
     void refreshComments();
-  }
-
-  // Video-only swipe (photos use ZoomableImage gestures)
-  const videoSwipeStart = useRef<{ x: number; y: number } | null>(null);
-
-  function onVideoTouchStart(e: React.TouchEvent) {
-    if (e.touches.length !== 1) return;
-    videoSwipeStart.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-    };
-  }
-
-  function onVideoTouchEnd(e: React.TouchEvent) {
-    if (!videoSwipeStart.current) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - videoSwipeStart.current.x;
-    const dy = t.clientY - videoSwipeStart.current.y;
-    videoSwipeStart.current = null;
-    if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-    if (dx > 0) goPrev();
-    else goNext();
   }
 
   const videoCount = useMemo(
@@ -791,366 +657,27 @@ export function PhotoGallery({
         </div>
       )}
 
-      {/* Full-screen media viewer */}
-      {active && activeIndex !== null && (
-        <div
-          className="media-viewer fixed inset-0 z-50 flex flex-col bg-black/92 backdrop-blur-md"
-          role="dialog"
-          aria-modal
-          aria-label={activeIsVideo ? "Video viewer" : "Photo viewer"}
-        >
-          {/* Top chrome */}
-          <div
-            className={`media-viewer__chrome absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 px-3 py-3 transition-opacity duration-200 sm:px-5 ${
-              uiVisible ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={closeViewer}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-                aria-label="Close"
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path
-                    d="M18 6L6 18M6 6l12 12"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-white">
-                  {active.uploader}
-                  {active.featured ? (
-                    <span className="ml-2 rounded-full bg-amber-400/90 px-1.5 py-0.5 text-[10px] font-semibold text-ink">
-                      ★
-                    </span>
-                  ) : null}
-                </p>
-                <p className="truncate text-xs text-white/60">
-                  {activeIndex + 1} / {photos.length}
-                </p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void downloadOne(active)}
-                className="hidden rounded-full bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20 sm:inline-flex"
-              >
-                Download
-              </button>
-              <button
-                type="button"
-                onClick={() => void downloadOne(active)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 sm:hidden"
-                aria-label="Download"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    d="M12 4v12m0 0l-4-4m4 4l4-4M5 19h14"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Stage: media + prev/next */}
-          <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div
-              className="relative flex min-h-0 flex-1 items-center justify-center"
-              onTouchStart={activeIsVideo ? onVideoTouchStart : undefined}
-              onTouchEnd={activeIsVideo ? onVideoTouchEnd : undefined}
-            >
-              {photos.length > 1 && !photoZoomed && !livePlaying && (
-                <>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goPrev();
-                    }}
-                    className={`absolute left-2 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/25 sm:flex ${
-                      uiVisible ? "opacity-100" : "pointer-events-none opacity-0"
-                    }`}
-                    aria-label="Previous"
-                  >
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        d="M15 18l-6-6 6-6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goNext();
-                    }}
-                    className={`absolute right-2 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/25 sm:flex ${
-                      uiVisible ? "opacity-100" : "pointer-events-none opacity-0"
-                    }`}
-                    aria-label="Next"
-                  >
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        d="M9 18l6-6-6-6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                </>
-              )}
-
-              <div className="media-viewer__stage flex h-full min-h-0 w-full max-w-full flex-1 items-center justify-center px-1 pt-14 pb-2 sm:px-4 sm:pt-16 sm:pb-4 lg:px-12 lg:pb-8">
-                {activeIsVideo ? (
-                  <video
-                    key={active.id}
-                    ref={videoRef}
-                    src={photoPublicUrl(active.tripId, active.filename)}
-                    poster={
-                      active.posterFilename
-                        ? photoPublicUrl(active.tripId, active.posterFilename)
-                        : undefined
-                    }
-                    className="media-viewer__media max-h-[min(70vh,720px)] w-auto max-w-full rounded-lg bg-black object-contain shadow-2xl lg:max-h-[min(82vh,900px)]"
-                    controls
-                    playsInline
-                    preload="metadata"
-                    autoPlay
-                    onClick={() => setUiVisible((v) => !v)}
-                  />
-                ) : activeIsLive && active.liveVideoFilename ? (
-                  <LivePhotoStage
-                    key={active.id}
-                    resetKey={active.id}
-                    stillSrc={photoFullPublicUrl(active)}
-                    videoSrc={liveVideoPublicUrl(
-                      active.tripId,
-                      active.liveVideoFilename,
-                    )}
-                    alt={active.caption || active.originalName}
-                    onPlayingChange={setLivePlaying}
-                    onTap={() => setUiVisible((v) => !v)}
-                    still={
-                      <ZoomableImage
-                        resetKey={active.id}
-                        src={photoFullPublicUrl(active)}
-                        alt={active.caption || active.originalName}
-                        imgClassName="media-viewer__media rounded-lg"
-                        onTap={() => setUiVisible((v) => !v)}
-                        onSwipe={(dir) => {
-                          if (dir === "prev") goPrev();
-                          else goNext();
-                        }}
-                        onZoomChange={setPhotoZoomed}
-                      />
-                    }
-                  />
-                ) : (
-                  <ZoomableImage
-                    key={active.id}
-                    resetKey={active.id}
-                    src={photoFullPublicUrl(active)}
-                    alt={active.caption || active.originalName}
-                    imgClassName="media-viewer__media rounded-lg"
-                    onTap={() => setUiVisible((v) => !v)}
-                    onSwipe={(dir) => {
-                      if (dir === "prev") goPrev();
-                      else goNext();
-                    }}
-                    onZoomChange={setPhotoZoomed}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Side / bottom panel: meta + comments */}
-            <aside
-              className={`media-viewer__aside relative z-20 flex max-h-[38vh] w-full shrink-0 flex-col border-t border-white/10 bg-ink/95 transition-[max-height] duration-200 sm:max-h-[42vh] lg:max-h-none lg:w-[340px] lg:border-t-0 lg:border-l lg:border-white/10 ${
-                uiVisible ? "" : "max-h-0 overflow-hidden lg:max-h-none"
-              }`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-5">
-                {active.caption ? (
-                  <p className="text-sm leading-relaxed text-white/90">
-                    {active.caption}
-                  </p>
-                ) : (
-                  <p className="truncate text-sm text-white/50">
-                    {active.originalName}
-                  </p>
-                )}
-                <p className="mt-1.5 text-xs text-white/45">
-                  {active.device ? (
-                    <span className="text-white/60">{active.device}</span>
-                  ) : null}
-                  {active.device ? " · " : ""}
-                  {formatWhen(active.takenAt || active.uploadedAt)}
-                  {activeIsVideo
-                    ? " · Video"
-                    : activeIsLive
-                      ? " · Live Photo"
-                      : " · Photo"}
-                </p>
-                {(() => {
-                  const settings = formatCameraSettings(active);
-                  if (!settings && !active.lens) return null;
-                  return (
-                    <div className="mt-2.5 space-y-1.5">
-                      {settings ? (
-                        <p className="flex flex-wrap gap-1.5 font-mono text-[11px] leading-relaxed tracking-wide text-white/75">
-                          {settings.split(" · ").map((part) => (
-                            <span
-                              key={part}
-                              className="rounded-md bg-white/10 px-1.5 py-0.5 text-white/80"
-                            >
-                              {part}
-                            </span>
-                          ))}
-                        </p>
-                      ) : null}
-                      {active.lens ? (
-                        <p className="truncate text-[10px] text-white/40">
-                          {active.lens}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5">
-                <div className="mb-3 flex items-baseline justify-between gap-2">
-                  <h3 className="text-sm font-medium text-white/90">
-                    Comments
-                  </h3>
-                  <span className="text-xs text-white/40">
-                    {activeComments.length}{" "}
-                    {activeComments.length === 1 ? "note" : "notes"}
-                  </span>
-                </div>
-
-                <form
-                  onSubmit={(e) => void postPhotoComment(e)}
-                  className="mb-4 space-y-2"
-                >
-                  <div className="grid gap-2 sm:grid-cols-[120px_1fr] lg:grid-cols-1">
-                    <input
-                      value={author}
-                      onChange={(e) => setAuthor(e.target.value)}
-                      maxLength={40}
-                      placeholder="Your name *"
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/35 focus:border-sea/50 focus:ring-2 focus:ring-sea/20"
-                    />
-                    <input
-                      value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      maxLength={500}
-                      placeholder={
-                        activeIsVideo
-                          ? "Great clip…"
-                          : "Love this light…"
-                      }
-                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/35 focus:border-sea/50 focus:ring-2 focus:ring-sea/20"
-                    />
-                  </div>
-                  {postError && (
-                    <p className="text-sm text-coral">{postError}</p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={postBusy}
-                    className="rounded-full bg-sea px-4 py-1.5 text-sm text-white transition hover:bg-sea-soft disabled:opacity-60"
-                  >
-                    {postBusy ? "Posting…" : "Post"}
-                  </button>
-                </form>
-
-                <div className="space-y-2.5 pb-4">
-                  {activeComments.length === 0 ? (
-                    <p className="text-sm text-white/40">
-                      No comments yet — leave the first note.
-                    </p>
-                  ) : (
-                    activeComments.map((c) => (
-                      <article
-                        key={c.id}
-                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"
-                      >
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium text-white/90">
-                            {c.author}
-                          </p>
-                          <time className="text-[11px] text-white/35">
-                            {formatWhen(c.createdAt)}
-                          </time>
-                        </div>
-                        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-white/70">
-                          {c.body}
-                        </p>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </div>
-            </aside>
-          </div>
-
-          {/* Mobile gesture hint */}
-          {uiVisible && !photoZoomed && !livePlaying && (
-            <p className="pointer-events-none absolute bottom-[40vh] left-1/2 z-10 -translate-x-1/2 text-[10px] tracking-wide text-white/30 uppercase sm:hidden lg:bottom-6">
-              {activeIsVideo
-                ? photos.length > 1
-                  ? "Swipe for next"
-                  : ""
-                : activeIsLive
-                  ? photos.length > 1
-                    ? "Tap LIVE · pinch zoom · swipe"
-                    : "Tap LIVE to play · pinch to zoom"
-                  : photos.length > 1
-                    ? "Pinch to zoom · swipe for next"
-                    : "Pinch or double-tap to zoom"}
-            </p>
-          )}
-        </div>
-      )}
+      {activeIndex !== null && orderedPhotos[activeIndex] ? (
+        <MediaViewer
+          photos={orderedPhotos}
+          index={activeIndex}
+          comments={comments}
+          onClose={closeViewer}
+          onIndexChange={(next) => {
+            setActiveIndex(next);
+            setPostError(null);
+            setBody("");
+          }}
+          onDownload={downloadOne}
+          author={author}
+          body={body}
+          postError={postError}
+          postBusy={postBusy}
+          onAuthorChange={setAuthor}
+          onBodyChange={setBody}
+          onPostComment={(e) => void postPhotoComment(e)}
+        />
+      ) : null}
     </div>
   );
 }
