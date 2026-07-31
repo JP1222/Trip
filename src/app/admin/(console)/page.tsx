@@ -117,6 +117,8 @@ export default async function AdminHomePage() {
       formatArticleDate(article.publishedAt) ||
       formatArticleDate(article.updatedAt);
     const hidden = article.wallStyle === "none";
+    const sortDate =
+      article.publishedAt || article.updatedAt || article.createdAt;
     if (article.wallStyle === "note") {
       const noteLines = article.excerpt
         ? article.excerpt
@@ -136,6 +138,7 @@ export default async function AdminHomePage() {
         noteLines,
         noteSignature: article.status === "draft" ? "Draft" : "Writing",
         draft: article.status === "draft",
+        sortDate,
       };
     }
     return {
@@ -152,6 +155,7 @@ export default async function AdminHomePage() {
         "linear-gradient(145deg, #5a8582 0%, #3d6664 52%, #2a4543 100%)",
       coverEmoji: "✎",
       draft: article.status === "draft",
+      sortDate,
     };
   });
 

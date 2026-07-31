@@ -80,10 +80,18 @@ html.page-trip {
   background-color: var(--trip-chrome, var(--sand-100));
 }
 
-/* Full-screen media viewer: match iOS status bar to the black stage. */
+/* Full-screen media viewer: paint safe areas + status/toolbar chrome black. */
 html.page-media-viewer {
-  background-color: #000;
+  background-color: #000 !important;
   color-scheme: dark;
+}
+html.page-media-viewer body {
+  background-color: #000 !important;
+  background-image: none !important;
+  color-scheme: dark;
+}
+html.page-media-viewer body::before {
+  display: none !important;
 }
 
 /* Fixed cork underlay so overscroll always has cork behind content */

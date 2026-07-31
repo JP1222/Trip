@@ -9,6 +9,10 @@ import {
   useState,
 } from "react";
 import {
+  AdminChromeActions,
+  adminChromePillClass,
+} from "@/components/admin/AdminChrome";
+import {
   AdminWallPhotoEditor,
   type EditableBoardPhoto,
 } from "@/components/admin/AdminWallPhotoEditor";
@@ -49,6 +53,8 @@ export type AdminArticleCard = Omit<WallItem, "kind"> & {
   /** `none` = hidden from public wall; still shown on the admin board for editing */
   wallStyle: "polaroid" | "note" | "none";
   draft?: boolean;
+  /** ISO date for board “Sort by date” (published → updated → created). */
+  sortDate?: string;
 };
 
 /** Grid sticky — one cell in the polaroid row (not a floating trinket). */
@@ -79,6 +85,18 @@ function slotKey(item: AdminWallCard): string {
   if (item.kind === "photo") return `photo:${item.photoId}`;
   if (item.kind === "note") return `note:${item.noteId}`;
   return `article:${item.articleId}`;
+}
+
+function isDatedPin(
+  item: AdminWallCard,
+): item is AdminTripCard | AdminArticleCard {
+  return item.kind === "trip" || item.kind === "article";
+}
+
+/** Stable ISO-ish key for sorting trips + articles together. */
+function pinSortDate(item: AdminTripCard | AdminArticleCard): string {
+  if (item.kind === "trip") return item.startDate || item.endDate || "";
+  return item.sortDate || "";
 }
 
 const decorPins = [
@@ -362,25 +380,25 @@ export function AdminPolaroidWall({
     pendingFlip.current = captureRects();
 
     const current = itemsRef.current;
-    const trips = current.filter((i): i is AdminTripCard => i.kind === "trip");
-    const sortedTrips = [...trips].sort((a, b) => {
+    const dated = current.filter(isDatedPin);
+    const sortedDated = [...dated].sort((a, b) => {
       const cmp =
-        a.startDate.localeCompare(b.startDate) ||
-        a.endDate.localeCompare(b.endDate) ||
-        a.caption.localeCompare(b.caption);
+        pinSortDate(a).localeCompare(pinSortDate(b)) ||
+        a.caption.localeCompare(b.caption) ||
+        slotKey(a).localeCompare(slotKey(b));
       return nextDir === "newest" ? -cmp : cmp;
     });
-    let tripIdx = 0;
-    // Keep non-trip pins where they are; only reshuffle trip cards in place.
+    let datedIdx = 0;
+    // Keep notes/photos fixed; reshuffle trips + articles into those slots.
     const next = current.map((item) =>
-      item.kind === "trip" ? sortedTrips[tripIdx++]! : item,
+      isDatedPin(item) ? sortedDated[datedIdx++]! : item,
     );
     setDateSort(nextDir);
     setItems(next);
     void persistWallOrder(next);
   }
 
-  const tripCount = items.filter((i) => i.kind === "trip").length;
+  const datedPinCount = items.filter(isDatedPin).length;
 
   function openArticle(articleId: string) {
     if (suppressClickAfterDrag()) return;
@@ -418,8 +436,34 @@ export function AdminPolaroidWall({
     }
   }
 
+  const sortLabel =
+    dateSort === "newest"
+      ? "Oldest first"
+      : dateSort === "oldest"
+        ? "Newest first"
+        : "Sort by date";
+
   return (
     <div className="gallery-wall gallery-wall--admin">
+      <AdminChromeActions>
+        <button
+          type="button"
+          className={adminChromePillClass}
+          onClick={sortByDate}
+          disabled={saving || datedPinCount < 2}
+          title="Sort trips and articles by date"
+        >
+          {sortLabel}
+        </button>
+        {(saving || status) && (
+          <p
+            className="rounded-full bg-white/70 px-3 py-1.5 text-[12px] font-medium text-ink-soft shadow-sm ring-1 ring-black/[0.06]"
+            role="status"
+          >
+            {saving ? "Saving…" : status}
+          </p>
+        )}
+      </AdminChromeActions>
       <div className="cork-board">
         <div className="cork-board__surface">
           <div className="cork-board__pins" aria-hidden>
@@ -442,26 +486,6 @@ export function AdminPolaroidWall({
             editable
             onChange={setWidgets}
           />
-
-          <div className="admin-wall-toolbar">
-            <button
-              type="button"
-              className="admin-wall-sort"
-              onClick={sortByDate}
-              disabled={saving || tripCount < 2}
-            >
-              {dateSort === "newest"
-                ? "Date ↑ oldest first"
-                : dateSort === "oldest"
-                  ? "Date ↓ newest first"
-                  : "Sort trips by date"}
-            </button>
-            {(saving || status) && (
-              <p className="admin-wall-toolbar__status" role="status">
-                {saving ? "Saving order…" : status}
-              </p>
-            )}
-          </div>
 
           <ul
             className="cork-board__photos admin-wall-photos"

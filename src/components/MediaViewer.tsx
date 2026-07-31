@@ -166,27 +166,78 @@ export function MediaViewer({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Black status bar / overscroll while the viewer is open (iOS Safari).
+  // Black status / toolbar chrome while open (iOS Safari samples theme-color +
+  // html/body paint under the safe areas). Replace metas so Safari picks it up.
   useEffect(() => {
     const root = document.documentElement;
+    const body = document.body;
     root.classList.add("page-media-viewer");
+    const prevRootScheme = root.style.colorScheme;
+    const prevBodyBg = body.style.backgroundColor;
+    root.style.colorScheme = "dark";
+    body.style.backgroundColor = "#000000";
 
-    let meta = document.querySelector('meta[name="theme-color"]');
-    const created = !meta;
-    const prev = meta?.getAttribute("content") ?? null;
-    if (!meta) {
-      meta = document.createElement("meta");
+    const priorMetas = Array.from(
+      document.querySelectorAll('meta[name="theme-color"]'),
+    );
+    const priorSnapshots = priorMetas.map((el) => ({
+      el,
+      content: el.getAttribute("content"),
+      media: el.getAttribute("media"),
+      parent: el.parentNode,
+      next: el.nextSibling,
+    }));
+    for (const el of priorMetas) el.remove();
+
+    const metas = ["#000000", "#000000"].map((content, i) => {
+      const meta = document.createElement("meta");
       meta.setAttribute("name", "theme-color");
+      meta.setAttribute("content", content);
+      meta.setAttribute(
+        "media",
+        i === 0
+          ? "(prefers-color-scheme: light)"
+          : "(prefers-color-scheme: dark)",
+      );
       document.head.appendChild(meta);
+      return meta;
+    });
+    // Also a media-less tag — some Safari builds only read this one.
+    const metaDefault = document.createElement("meta");
+    metaDefault.setAttribute("name", "theme-color");
+    metaDefault.setAttribute("content", "#000000");
+    document.head.appendChild(metaDefault);
+
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const prevViewport = viewport?.getAttribute("content") ?? null;
+    if (viewport) {
+      const base = prevViewport || "width=device-width, initial-scale=1";
+      viewport.setAttribute(
+        "content",
+        /viewport-fit\s*=/.test(base)
+          ? base.replace(/viewport-fit\s*=\s*\w+/i, "viewport-fit=cover")
+          : `${base}, viewport-fit=cover`,
+      );
     }
-    meta.setAttribute("content", "#000000");
 
     return () => {
       root.classList.remove("page-media-viewer");
-      if (!meta) return;
-      if (prev != null) meta.setAttribute("content", prev);
-      else if (created) meta.remove();
-      else meta.removeAttribute("content");
+      root.style.colorScheme = prevRootScheme;
+      body.style.backgroundColor = prevBodyBg;
+      for (const m of metas) m.remove();
+      metaDefault.remove();
+      if (viewport && prevViewport != null) {
+        viewport.setAttribute("content", prevViewport);
+      }
+      for (const snap of priorSnapshots) {
+        if (snap.content != null) snap.el.setAttribute("content", snap.content);
+        else snap.el.removeAttribute("content");
+        if (snap.media != null) snap.el.setAttribute("media", snap.media);
+        else snap.el.removeAttribute("media");
+        if (snap.parent) {
+          snap.parent.insertBefore(snap.el, snap.next);
+        }
+      }
     };
   }, []);
 
@@ -628,7 +679,7 @@ export function MediaViewer({
     >
       {/* Top chrome */}
       <div
-        className={`media-viewer__chrome absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 transition-opacity duration-200 sm:px-5 sm:pt-4 ${
+        className={`media-viewer__chrome absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 px-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-3 transition-opacity duration-200 sm:px-5 sm:pt-[max(1rem,env(safe-area-inset-top,0px))] ${
           uiVisible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
