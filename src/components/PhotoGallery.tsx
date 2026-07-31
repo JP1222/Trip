@@ -196,8 +196,6 @@ export function PhotoGallery({
   const [photos, setPhotos] = useState(() => initialPhotos);
   const [comments, setComments] = useState(initialComments);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [selectMode, setSelectMode] = useState(false);
   const [sortMode, setSortMode] = useState<GallerySortMode>("random");
   const [shuffleVersion, setShuffleVersion] = useState(0);
   const [visibleCount, setVisibleCount] = useState(GALLERY_BATCH_SIZE);
@@ -259,15 +257,6 @@ export function PhotoGallery({
     setActiveIndex(null);
   }, []);
 
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   async function downloadBlob(url: string, downloadName?: string) {
     const res = await fetch(url);
     if (!res.ok) throw new Error("Download failed");
@@ -311,17 +300,6 @@ export function PhotoGallery({
       await downloadBlob(
         photoDownloadUrl(photo.tripId || ownerId, photo.id, { part: "live" }),
       );
-    }
-  }
-
-  async function downloadSelected() {
-    const list =
-      selectMode && selected.size > 0
-        ? orderedPhotos.filter((p) => selected.has(p.id))
-        : orderedPhotos;
-    for (const photo of list) {
-      await downloadOne(photo);
-      await new Promise((r) => setTimeout(r, 200));
     }
   }
 
@@ -438,33 +416,6 @@ export function PhotoGallery({
           Share
         </button>
       ) : null}
-      {photos.length > 0 && (
-        <>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectMode((v) => !v);
-              setSelected(new Set());
-            }}
-            className={`inline-flex items-center rounded-full border px-4 py-2 text-sm transition ${
-              selectMode
-                ? "border-sea/40 bg-sea/10 text-sea"
-                : "border-sand-300 bg-white/80 text-ink-soft hover:border-sea/40 hover:text-sea"
-            }`}
-          >
-            {selectMode ? "Cancel" : "Select"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void downloadSelected()}
-            className="inline-flex items-center rounded-full border border-sand-300 bg-white/80 px-4 py-2 text-sm text-ink-soft transition hover:border-sea/40 hover:text-sea"
-          >
-            {selectMode && selected.size > 0
-              ? `Download (${selected.size})`
-              : "Download all"}
-          </button>
-        </>
-      )}
     </div>
   );
 
@@ -509,9 +460,6 @@ export function PhotoGallery({
           {featured.length > 0
             ? ` · ${featured.length} starred`
             : ""}
-          {selectMode && selected.size > 0
-            ? ` · ${selected.size} selected`
-            : ""}
         </p>
         {toolbar}
       </div>
@@ -521,14 +469,12 @@ export function PhotoGallery({
         {columns.map((col, colIndex) => (
           <div key={colIndex} className="photo-grid-xhs__col">
             {col.map((photo) => {
-              const isSelected = selected.has(photo.id);
               const n = commentCounts[photo.id] || 0;
               const isFeatured = Boolean(photo.featured);
               const isVid = isVideoMedia(photo);
-              const liveBadgeClassName =
-                selectMode || isFeatured
-                  ? "top-2 left-10 sm:top-2.5 sm:left-12"
-                  : undefined;
+              const liveBadgeClassName = isFeatured
+                ? "top-2 left-10 sm:top-2.5 sm:left-12"
+                : undefined;
               return (
                 <figure
                   key={photo.id}
@@ -536,22 +482,7 @@ export function PhotoGallery({
                     isFeatured ? "ring-amber-400/50" : "ring-black/5"
                   }`}
                 >
-                  {selectMode && (
-                    <button
-                      type="button"
-                      onClick={() => toggleSelect(photo.id)}
-                      className={`absolute left-2 top-2 z-20 flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs transition sm:left-3 sm:top-3 sm:h-7 sm:w-7 ${
-                        isSelected
-                          ? "border-sea bg-sea text-white"
-                          : "border-white/90 bg-black/25 text-transparent"
-                      }`}
-                      aria-label="Select media"
-                    >
-                      ✓
-                    </button>
-                  )}
-
-                  {isFeatured && !selectMode && (
+                  {isFeatured && (
                     <span
                       className="absolute left-2 top-2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400/95 text-[11px] text-ink shadow-sm sm:left-3 sm:top-3"
                       title="Highlight"
@@ -564,9 +495,7 @@ export function PhotoGallery({
                   <button
                     type="button"
                     className="relative block w-full text-left"
-                    onClick={() =>
-                      selectMode ? toggleSelect(photo.id) : openPhoto(photo)
-                    }
+                    onClick={() => openPhoto(photo)}
                   >
                     <MediaThumb
                       photo={photo}
