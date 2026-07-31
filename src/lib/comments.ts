@@ -1,11 +1,14 @@
 import { randomUUID } from "crypto";
 import type { QueryResultRow } from "pg";
 import { query, withTransaction } from "./db";
+import type { MediaOwner } from "./media/owner";
+import { ownerDbColumn } from "./media/owner";
 import type { Comment } from "./types";
 
 type CommentRow = QueryResultRow & {
   id: string;
-  trip_id: string;
+  trip_id: string | null;
+  article_id: string | null;
   media_id: string | null;
   author: string;
   body: string;
@@ -21,7 +24,8 @@ function isoTimestamp(value: Date | string): string {
 function rowToComment(row: CommentRow): Comment {
   return {
     id: row.id,
-    tripId: row.trip_id,
+    ...(row.trip_id ? { tripId: row.trip_id } : {}),
+    ...(row.article_id ? { articleId: row.article_id } : {}),
     ...(row.media_id ? { photoId: row.media_id } : {}),
     author: row.author,
     body: row.body,
@@ -30,7 +34,7 @@ function rowToComment(row: CommentRow): Comment {
 }
 
 const COMMENT_SELECT = `
-  SELECT id, trip_id, media_id, author, body, created_at
+  SELECT id, trip_id, article_id, media_id, author, body, created_at
   FROM comments
 `;
 
@@ -39,15 +43,42 @@ export type CommentScope =
   | { kind: "trip" }
   | { kind: "photo"; photoId: string };
 
-/** Trip-level notes only (no photoId). */
-export async function getTripComments(tripId: string): Promise<Comment[]> {
+export async function getCommentsForOwner(
+  owner: MediaOwner,
+  scope: CommentScope = { kind: "all" },
+): Promise<Comment[]> {
+  const col = ownerDbColumn(owner);
+  if (scope.kind === "photo") {
+    const result = await query<CommentRow>(
+      `${COMMENT_SELECT}
+       WHERE ${col} = $1 AND media_id = $2
+       ORDER BY created_at DESC, id DESC`,
+      [owner.id, scope.photoId],
+    );
+    return result.rows.map(rowToComment);
+  }
+  if (scope.kind === "trip") {
+    // Owner-level notes only (no media). Name kept for trip API compatibility.
+    const result = await query<CommentRow>(
+      `${COMMENT_SELECT}
+       WHERE ${col} = $1 AND media_id IS NULL
+       ORDER BY created_at DESC, id DESC`,
+      [owner.id],
+    );
+    return result.rows.map(rowToComment);
+  }
   const result = await query<CommentRow>(
     `${COMMENT_SELECT}
-    WHERE trip_id = $1 AND media_id IS NULL
-    ORDER BY created_at DESC, id DESC`,
-    [tripId],
+     WHERE ${col} = $1
+     ORDER BY created_at DESC, id DESC`,
+    [owner.id],
   );
   return result.rows.map(rowToComment);
+}
+
+/** Trip-level notes only (no photoId). */
+export async function getTripComments(tripId: string): Promise<Comment[]> {
+  return getCommentsForOwner({ kind: "trip", id: tripId }, { kind: "trip" });
 }
 
 /** Comments on one photo. */
@@ -55,55 +86,51 @@ export async function getPhotoComments(
   tripId: string,
   photoId: string,
 ): Promise<Comment[]> {
-  const result = await query<CommentRow>(
-    `${COMMENT_SELECT}
-    WHERE trip_id = $1 AND media_id = $2
-    ORDER BY created_at DESC, id DESC`,
-    [tripId, photoId],
+  return getCommentsForOwner(
+    { kind: "trip", id: tripId },
+    { kind: "photo", photoId },
   );
-  return result.rows.map(rowToComment);
 }
 
 /** Every comment on the trip (trip notes + photo comments). */
 export async function getComments(tripId: string): Promise<Comment[]> {
-  const result = await query<CommentRow>(
-    `${COMMENT_SELECT}
-    WHERE trip_id = $1
-    ORDER BY created_at DESC, id DESC`,
-    [tripId],
-  );
-  return result.rows.map(rowToComment);
+  return getCommentsForOwner({ kind: "trip", id: tripId }, { kind: "all" });
 }
 
 export async function getCommentsByScope(
   tripId: string,
   scope: CommentScope,
 ): Promise<Comment[]> {
-  if (scope.kind === "trip") return getTripComments(tripId);
-  if (scope.kind === "photo") return getPhotoComments(tripId, scope.photoId);
-  return getComments(tripId);
+  return getCommentsForOwner({ kind: "trip", id: tripId }, scope);
 }
 
-/** photoId → count (trip-level notes excluded). */
-export async function getPhotoCommentCounts(
-  tripId: string,
+/** photoId → count (owner-level notes excluded). */
+export async function getPhotoCommentCountsForOwner(
+  owner: MediaOwner,
 ): Promise<Record<string, number>> {
+  const col = ownerDbColumn(owner);
   const result = await query<{ media_id: string; comment_count: string }>(
     `
     SELECT media_id, count(*)::text AS comment_count
     FROM comments
-    WHERE trip_id = $1 AND media_id IS NOT NULL
+    WHERE ${col} = $1 AND media_id IS NOT NULL
     GROUP BY media_id
   `,
-    [tripId],
+    [owner.id],
   );
   return Object.fromEntries(
     result.rows.map((row) => [row.media_id, Number(row.comment_count)]),
   );
 }
 
-export async function addComment(
+export async function getPhotoCommentCounts(
   tripId: string,
+): Promise<Record<string, number>> {
+  return getPhotoCommentCountsForOwner({ kind: "trip", id: tripId });
+}
+
+export async function addCommentForOwner(
+  owner: MediaOwner,
   author: string,
   body: string,
   photoId?: string,
@@ -120,14 +147,35 @@ export async function addComment(
     const id = randomUUID();
     const result = await client.query<CommentRow>(
       `
-        INSERT INTO comments (id, trip_id, media_id, author, body)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, trip_id, media_id, author, body, created_at
+        INSERT INTO comments (id, trip_id, article_id, media_id, author, body)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, trip_id, article_id, media_id, author, body, created_at
       `,
-      [id, tripId, photoId || null, name, text],
+      [
+        id,
+        owner.kind === "trip" ? owner.id : null,
+        owner.kind === "article" ? owner.id : null,
+        photoId || null,
+        name,
+        text,
+      ],
     );
     return rowToComment(result.rows[0]);
   });
+}
+
+export async function addComment(
+  tripId: string,
+  author: string,
+  body: string,
+  photoId?: string,
+): Promise<Comment> {
+  return addCommentForOwner(
+    { kind: "trip", id: tripId },
+    author,
+    body,
+    photoId,
+  );
 }
 
 export async function deleteComment(

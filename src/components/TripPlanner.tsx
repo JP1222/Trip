@@ -56,14 +56,13 @@ function shortPlaceLabel(label?: string, max = 42): string | undefined {
 }
 
 /**
- * Full trip planner — day filter, list↔map sync, share.
+ * Full trip planner — day filter, list↔map sync.
  * Pattern language from Wanderlog / TripIt / Roadtrippers.
  */
 export function TripPlanner({ trip, planned, dayCount }: Props) {
   const allStops = useMemo(() => buildPlanStops(trip), [trip]);
   const [dayFilter, setDayFilter] = useState<DayFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   const filtered = useMemo(
     () => filterPlanStops(allStops, dayFilter),
@@ -190,29 +189,6 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
     }
   }
 
-  async function sharePlan() {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    const text = `${trip.title} — ${trip.destination}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: trip.title, text, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      setShareMsg("Link copied");
-      setTimeout(() => setShareMsg(null), 2000);
-    } catch {
-      try {
-        await navigator.clipboard.writeText(url);
-        setShareMsg("Link copied");
-        setTimeout(() => setShareMsg(null), 2000);
-      } catch {
-        setShareMsg("Could not share");
-        setTimeout(() => setShareMsg(null), 2000);
-      }
-    }
-  }
-
   // Group filtered stops by day for rendering
   const byDay = useMemo(() => {
     const map = new Map<number, PlanStop[]>();
@@ -238,37 +214,26 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
               : "Switch days to focus the map. Tap stops or pins."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <dl className="flex flex-wrap gap-2 text-xs sm:text-sm">
+        <dl className="flex flex-wrap gap-2 text-xs sm:text-sm">
+          <div className="rounded-full border border-sand-200/90 bg-white/80 px-3 py-1.5 text-ink-soft">
+            <dd>
+              {dayCount} {dayCount === 1 ? "day" : "days"}
+            </dd>
+          </div>
+          {allStops.length > 0 && (
             <div className="rounded-full border border-sand-200/90 bg-white/80 px-3 py-1.5 text-ink-soft">
               <dd>
-                {dayCount} {dayCount === 1 ? "day" : "days"}
+                {allStops.length}{" "}
+                {allStops.length === 1 ? "stop" : "stops"}
               </dd>
             </div>
-            {allStops.length > 0 && (
-              <div className="rounded-full border border-sand-200/90 bg-white/80 px-3 py-1.5 text-ink-soft">
-                <dd>
-                  {allStops.length}{" "}
-                  {allStops.length === 1 ? "stop" : "stops"}
-                </dd>
-              </div>
-            )}
-            {mapWaypoints.length > 0 && dayFilter !== "all" && (
-              <div className="rounded-full border border-sea/20 bg-sea/10 px-3 py-1.5 text-sea">
-                <dd>
-                  {mapWaypoints.length} on map
-                </dd>
-              </div>
-            )}
-          </dl>
-          <button
-            type="button"
-            onClick={() => void sharePlan()}
-            className="rounded-full border border-sand-200/90 bg-white px-3.5 py-1.5 text-xs font-medium text-ink-soft transition hover:border-sea/30 hover:text-sea sm:text-sm"
-          >
-            {shareMsg || "Share"}
-          </button>
-        </div>
+          )}
+          {mapWaypoints.length > 0 && dayFilter !== "all" && (
+            <div className="rounded-full border border-sea/20 bg-sea/10 px-3 py-1.5 text-sea">
+              <dd>{mapWaypoints.length} on map</dd>
+            </div>
+          )}
+        </dl>
       </div>
 
       {/* Day chips */}

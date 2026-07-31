@@ -2,6 +2,7 @@ import convert from "heic-convert";
 import sharp from "sharp";
 import { extractPhotoExif } from "@/lib/exif";
 import { localMediaStorage, mediaAssetKey, type LocalMediaStorage } from "./storage";
+import { ownerFromIds } from "./owner";
 import type {
   MediaAsset,
   MediaAssetRole,
@@ -141,7 +142,7 @@ export async function generateImageVariants(
     })
     .toBuffer({ resolveWithObject: true });
   const fullKey = mediaAssetKey(
-    media.tripId,
+    ownerFromIds(media),
     media.id,
     media.version,
     "full.jpg",
@@ -193,7 +194,7 @@ export async function generateImageVariants(
 
     const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
     const storageKey = mediaAssetKey(
-      media.tripId,
+    ownerFromIds(media),
       media.id,
       media.version,
       variant.filename,

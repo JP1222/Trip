@@ -1,7 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import type { Trip } from "@/lib/types";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AdminChromeActions,
+  adminChromePillClass,
+} from "@/components/admin/AdminChrome";
+import {
+  AdminAutosaveStatus,
+  type AutosavePhase,
+} from "@/components/admin/AdminSaveButton";
+import { AdminSegmentedControl } from "@/components/admin/AdminSegmentedControl";
+import type { Trip, TripVisibility } from "@/lib/types";
+
+const STATUS_OPTIONS = [
+  { value: "lived" as const, label: "Lived" },
+  { value: "planned" as const, label: "Planning" },
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: "public" as const, label: "Public" },
+  { value: "private" as const, label: "Private" },
+];
+
+const AUTOSAVE_MS = 1200;
+/** Only show Saving… if the request is still going after this. */
+const SAVING_HINT_MS = 450;
 
 export function TripAdminForm({ trip }: { trip: Trip }) {
   const [title, setTitle] = useState(trip.title);
@@ -14,150 +38,210 @@ export function TripAdminForm({ trip }: { trip: Trip }) {
   const [tripStatus, setTripStatus] = useState<"lived" | "planned">(
     trip.status === "planned" ? "planned" : "lived",
   );
-  const [status, setStatus] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<TripVisibility>(
+    trip.visibility === "private" ? "private" : "public",
+  );
+  const [phase, setPhase] = useState<AutosavePhase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  async function onSave(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+  const ready = useRef(false);
+  const lastSaved = useRef("");
+  const inFlight = useRef(false);
+  const serializedRef = useRef("");
+
+  const payload = useMemo(
+    () => ({
+      title,
+      subtitle,
+      destination,
+      startDate,
+      endDate,
+      summary,
+      status: tripStatus,
+      visibility,
+      members: members
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean),
+    }),
+    [
+      title,
+      subtitle,
+      destination,
+      startDate,
+      endDate,
+      summary,
+      tripStatus,
+      visibility,
+      members,
+    ],
+  );
+
+  const serialized = useMemo(() => JSON.stringify(payload), [payload]);
+  serializedRef.current = serialized;
+
+  async function persist() {
+    if (inFlight.current) return;
+    const body = serializedRef.current;
+    if (body === lastSaved.current) return;
+
+    inFlight.current = true;
     setError(null);
-    setStatus(null);
+    const hintTimer = window.setTimeout(() => setPhase("saving"), SAVING_HINT_MS);
     try {
       const res = await fetch(`/api/admin/trips/${trip.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          subtitle,
-          destination,
-          startDate,
-          endDate,
-          summary,
-          status: tripStatus,
-          members: members
-            .split(",")
-            .map((m) => m.trim())
-            .filter(Boolean),
-        }),
+        body,
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error || "Save failed");
-      setStatus("Saved");
+      lastSaved.current = body;
+      // Only celebrate if nothing newer was typed during the request.
+      if (serializedRef.current === body) {
+        setPhase("saved");
+        window.setTimeout(() => {
+          setPhase((p) => (p === "saved" ? "idle" : p));
+        }, 1600);
+      } else {
+        setPhase("idle");
+      }
     } catch (err) {
+      setPhase("error");
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
-      setBusy(false);
+      window.clearTimeout(hintTimer);
+      inFlight.current = false;
+      if (serializedRef.current !== lastSaved.current) {
+        void persist();
+      }
     }
   }
 
+  useEffect(() => {
+    if (!ready.current) {
+      ready.current = true;
+      lastSaved.current = serialized;
+      return;
+    }
+    if (serialized === lastSaved.current) return;
+
+    const timer = window.setTimeout(() => {
+      void persist();
+    }, AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serialized]);
+
   const field =
-    "w-full rounded-lg border border-sand-200 bg-white px-2.5 py-1.5 text-sm text-ink outline-none focus:border-sea/40 focus:ring-1 focus:ring-sea/15";
-  const label = "mb-0.5 block text-[11px] text-ink-muted";
+    "w-full rounded-xl border border-sand-200/80 bg-white/70 px-3.5 py-2.5 text-[15px] text-ink outline-none transition placeholder:text-ink-muted/45 hover:border-sand-300 focus:border-sea/35 focus:bg-white focus:ring-2 focus:ring-sea/10";
+  const label =
+    "mb-1.5 block text-[11px] font-medium tracking-[0.14em] text-ink-muted uppercase";
 
   return (
-    <form onSubmit={(e) => void onSave(e)} className="space-y-3">
-      <div className="grid gap-2.5 sm:grid-cols-6">
-        <label className="block sm:col-span-3">
-          <span className={label}>Title</span>
+    <>
+      <AdminChromeActions>
+        <AdminSegmentedControl
+          ariaLabel="Trip status"
+          value={tripStatus}
+          options={STATUS_OPTIONS}
+          onChange={setTripStatus}
+        />
+        <AdminSegmentedControl
+          ariaLabel="Visibility"
+          value={visibility}
+          options={VISIBILITY_OPTIONS}
+          onChange={setVisibility}
+        />
+        <Link
+          href={`/trips/${trip.id}`}
+          target="_blank"
+          className={adminChromePillClass}
+        >
+          View
+        </Link>
+      </AdminChromeActions>
+      <AdminAutosaveStatus phase={phase} />
+
+      <div className="space-y-8">
+        <header className="space-y-3 border-b border-sand-200/70 pb-8">
           <input
-            className={field}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            placeholder="Trip title"
+            aria-label="Title"
+            className="w-full border-0 bg-transparent font-serif text-3xl leading-tight text-ink outline-none placeholder:text-ink-muted/35 sm:text-4xl"
           />
-        </label>
-        <label className="block sm:col-span-3">
-          <span className={label}>Destination</span>
           <input
-            className={field}
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             placeholder="Place · Region · Country"
+            aria-label="Destination"
+            className="w-full border-0 bg-transparent text-base text-ink-soft outline-none placeholder:text-ink-muted/40 sm:text-lg"
           />
-        </label>
-
-        <label className="block sm:col-span-6">
-          <span className={label}>Subtitle</span>
           <input
-            className={field}
             value={subtitle}
             onChange={(e) => setSubtitle(e.target.value)}
+            placeholder="Subtitle — a short line under the title"
+            aria-label="Subtitle"
+            className="w-full border-0 bg-transparent text-sm text-ink-muted outline-none placeholder:text-ink-muted/40"
           />
-        </label>
+        </header>
 
-        <label className="block sm:col-span-2">
-          <span className={label}>Start</span>
-          <input
-            type="date"
-            className={field}
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </label>
-        <label className="block sm:col-span-2">
-          <span className={label}>End</span>
-          <input
-            type="date"
-            className={field}
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </label>
-        <label className="block sm:col-span-2">
-          <span className={label}>Members</span>
-          <input
-            className={field}
-            value={members}
-            onChange={(e) => setMembers(e.target.value)}
-            placeholder="Peng, Friends"
-          />
-        </label>
+        <section className="space-y-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-serif text-xl text-ink">Details</h2>
+            <p className="text-xs text-ink-muted">Autosaves as you edit</p>
+          </div>
 
-        <label className="block sm:col-span-6">
-          <span className={label}>Summary</span>
-          <textarea
-            className={`${field} resize-y`}
-            rows={2}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-          />
-        </label>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <label className="block">
+              <span className={label}>Start</span>
+              <input
+                type="date"
+                className={field}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className={label}>End</span>
+              <input
+                type="date"
+                className={field}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className={label}>Members</span>
+              <input
+                className={field}
+                value={members}
+                onChange={(e) => setMembers(e.target.value)}
+                placeholder="Peng, Friends"
+              />
+            </label>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:col-span-4">
-          <span className="text-[11px] text-ink-muted">Status</span>
-          {(
-            [
-              { id: "lived" as const, label: "Lived" },
-              { id: "planned" as const, label: "Planning" },
-            ] as const
-          ).map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setTripStatus(opt.id)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                tripStatus === opt.id
-                  ? "bg-ink text-white"
-                  : "border border-sand-200 bg-white text-ink-soft hover:border-sand-300"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+          <label className="block">
+            <span className={label}>Summary</span>
+            <textarea
+              className={`${field} min-h-[5.5rem] resize-y leading-relaxed`}
+              rows={3}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="What this trip is about — mood, who it’s for, what you’ll remember."
+            />
+          </label>
 
-        <div className="flex items-center justify-end gap-2 sm:col-span-2">
-          {error && <p className="text-xs text-coral">{error}</p>}
-          {status && <p className="text-xs text-sea">{status}</p>}
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-full bg-ink px-4 py-1.5 text-xs font-medium text-white hover:bg-ink-soft disabled:opacity-60"
-          >
-            {busy ? "Saving…" : "Save"}
-          </button>
-        </div>
+          {error ? (
+            <p className="text-sm text-coral" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </section>
       </div>
-    </form>
+    </>
   );
 }

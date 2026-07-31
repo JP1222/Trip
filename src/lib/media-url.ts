@@ -9,7 +9,7 @@ import { photoPublicUrl } from "./photos-client";
  */
 export function photoFullPublicUrl(photo: PhotoMeta): string {
   return photoPublicUrl(
-    photo.tripId,
+    photo.articleId || photo.tripId || "",
     photo.previewFilename || photo.filename,
   );
 }
@@ -20,7 +20,7 @@ export function photoFullPublicUrl(photo: PhotoMeta): string {
  */
 export function photoListPublicUrl(photo: PhotoMeta): string {
   return photoPublicUrl(
-    photo.tripId,
+    photo.articleId || photo.tripId || "",
     photo.thumbnailFilename || photo.previewFilename || photo.filename,
   );
 }
@@ -33,12 +33,12 @@ export function isLegacyUploadUrl(url: string | null | undefined): boolean {
 
 /**
  * Media id embedded in a cover ref, if any.
- * Supports `/media/trips/{trip}/{id}/...` and obsolete `/uploads/{trip}/{id}.ext`.
+ * Supports `/media/trips|articles/{owner}/{id}/...` and obsolete `/uploads/...`.
  */
 export function mediaIdFromCoverRef(ref: string | null | undefined): string | undefined {
   if (!ref) return undefined;
   const media = ref.match(
-    /\/media\/trips\/[^/]+\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\//i,
+    /\/media\/(?:trips|articles)\/[^/]+\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\//i,
   );
   if (media) return media[1];
   const legacy = ref.match(

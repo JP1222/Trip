@@ -4,20 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardWidgetLayer } from "@/components/board/BoardWidgetLayer";
 import { Pushpin } from "@/components/Pushpin";
+import { useWallSwayGuard } from "@/hooks/useWallSwayGuard";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
 import type { WallObject } from "@/lib/wall-objects";
-
-function hash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (s.charCodeAt(i) + ((h << 5) - h)) | 0;
-  return Math.abs(h);
-}
-
-function rotateFor(id: string, solo: boolean) {
-  if (solo) return -1;
-  const angles = [-3.2, 2.4, -1.7, 3.6, -2.6, 1.4, -0.9, 2.9];
-  return angles[hash(id) % angles.length];
-}
+import { randomSway } from "@/lib/wall-sway";
 
 function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
   const ratio = image.naturalWidth / image.naturalHeight;
@@ -47,15 +37,47 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
   >({});
   const tripCount = items.filter((i) => i.kind === "trip").length;
   const solo = tripCount === 1 && items.length <= 3;
+  /** Fresh angles each visit — not tied to item ids. */
+  const [swayById, setSwayById] = useState<Record<string, number>>({});
+  const itemIdsKey = items.map((i) => i.id).join("|");
+
+  // Roll new tilts on each visit (mount) and when the pinned set changes.
+  useEffect(() => {
+    const next: Record<string, number> = {};
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      next[item.id] = randomSway(index, {
+        solo: solo && item.kind === "trip",
+      });
+    }
+    setSwayById(next);
+    // itemIdsKey stands in for `items` so a new array ref alone won't re-roll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally visit-scoped
+  }, [itemIdsKey, solo]);
+
+  const layoutKey = useMemo(
+    () =>
+      [
+        itemIdsKey,
+        Object.entries(photoOrientations)
+          .map(([id, o]) => `${id}:${o}`)
+          .join(","),
+        Object.values(swayById).join(","),
+      ].join("::"),
+    [itemIdsKey, photoOrientations, swayById],
+  );
+  const { listRef, gutters } = useWallSwayGuard(layoutKey);
 
   const laidOut = useMemo(
     () =>
       items.map((item) => ({
         item,
-        rotate: rotateFor(item.id, solo && item.kind === "trip"),
+        rotate: swayById[item.id] ?? 0,
       })),
-    [items, solo],
+    [items, swayById],
   );
+
+  const dismissPreviewByPointerRef = useRef(false);
 
   useEffect(() => {
     const dialog = previewDialogRef.current;
@@ -72,9 +94,28 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
     );
   }
 
-  function closePreview() {
+  function closePreview(fromPointer = true) {
+    dismissPreviewByPointerRef.current = fromPointer;
     if (previewDialogRef.current?.open) previewDialogRef.current.close();
     setPreviewPhoto(null);
+  }
+
+  function onPreviewDialogClose() {
+    setPreviewPhoto(null);
+    // Native <dialog> restores focus to the opener; after a pointer dismiss that
+    // leaves a sticky :focus-visible ring + Enlarge hint. Blur for mouse/touch.
+    if (dismissPreviewByPointerRef.current) {
+      queueMicrotask(() => {
+        const el = document.activeElement;
+        if (
+          el instanceof HTMLElement &&
+          el.matches("button.instant--standalone")
+        ) {
+          el.blur();
+        }
+      });
+    }
+    dismissPreviewByPointerRef.current = false;
   }
 
   return (
@@ -99,35 +140,63 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
 
           <BoardWidgetLayer objects={widgets} />
 
-          <ul className="cork-board__photos">
+          <ul ref={listRef} className="cork-board__photos">
             {laidOut.map(({ item, rotate }, index) => {
               const active = hoverId === item.id;
               const delay = `${Math.min(index * 0.05, 0.55)}s`;
+              const sway = rotate;
+              const gutter = gutters[item.id] ?? 0;
+              const clearance =
+                item.kind === "article" ? 18 : item.kind === "note" ? 8 : 12;
+              const slotPad =
+                gutter > 0
+                  ? ({
+                      paddingLeft: gutter,
+                      paddingRight: gutter,
+                    } as const)
+                  : undefined;
 
               if (item.kind === "note") {
+                const noteBody = (
+                  <div
+                    className="wall-note"
+                    data-wall-card
+                    data-wall-id={item.id}
+                    data-wall-sway={rotate * 0.6}
+                    data-wall-clearance={clearance}
+                    style={{ transform: `rotate(${sway * 0.6}deg)` }}
+                  >
+                    <span className="wall-note__pin" aria-hidden />
+                    <p className="wall-note__title">{item.caption}</p>
+                    {item.noteLines?.map((line) => (
+                      <p key={line} className="wall-note__line">
+                        {line}
+                      </p>
+                    ))}
+                    {item.noteSignature && (
+                      <p className="wall-note__signature">
+                        {item.noteSignature}
+                      </p>
+                    )}
+                  </div>
+                );
                 return (
                   <li
                     key={item.id}
                     className="animate-fade-up wall-item wall-item--note wall-note-wrap"
-                    style={{ animationDelay: delay }}
+                    style={{ animationDelay: delay, ...slotPad }}
                   >
-                    <div
-                      className="wall-note"
-                      style={{ transform: `rotate(${rotate * 0.6}deg)` }}
-                    >
-                      <span className="wall-note__pin" aria-hidden />
-                      <p className="wall-note__title">{item.caption}</p>
-                      {item.noteLines?.map((line) => (
-                        <p key={line} className="wall-note__line">
-                          {line}
-                        </p>
-                      ))}
-                      {item.noteSignature && (
-                        <p className="wall-note__signature">
-                          {item.noteSignature}
-                        </p>
-                      )}
-                    </div>
+                    {item.href ? (
+                      <Link
+                        href={item.href}
+                        className="block rounded-sm outline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sea"
+                        aria-label={`Open article: ${item.caption}`}
+                      >
+                        {noteBody}
+                      </Link>
+                    ) : (
+                      noteBody
+                    )}
                   </li>
                 );
               }
@@ -137,11 +206,15 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
                   <li
                     key={item.id}
                     className="animate-fade-up wall-item wall-item--empty"
-                    style={{ animationDelay: delay }}
+                    style={{ animationDelay: delay, ...slotPad }}
                   >
                     <div
                       className="instant instant--empty"
-                      style={{ transform: `rotate(${rotate}deg)` }}
+                      data-wall-card
+                      data-wall-id={item.id}
+                      data-wall-sway={rotate}
+                      data-wall-clearance={clearance}
+                      style={{ transform: `rotate(${sway}deg)` }}
                       aria-label={`${item.caption}. ${item.meta || ""}`}
                     >
                       <Pushpin />
@@ -278,7 +351,8 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
                           className="instant__hint instant__hint--trip"
                           aria-hidden="true"
                         >
-                          Open trip <span>↗</span>
+                          {item.kind === "article" ? "Read" : "Open trip"}{" "}
+                          <span>↗</span>
                         </span>
                       )}
                       {item.kind === "photo" && (
@@ -306,18 +380,24 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
               const itemTypeClass =
                 item.kind === "photo"
                   ? "wall-item--photo"
-                  : item.planned
-                    ? "wall-item--planned"
-                    : "wall-item--trip";
+                  : item.kind === "article"
+                    ? "wall-item--article"
+                    : item.planned
+                      ? "wall-item--planned"
+                      : "wall-item--trip";
 
               return (
                 <li
                   key={item.id}
                   className={`animate-fade-up wall-item ${itemTypeClass} wall-item--${orientation}${active ? " wall-item--active" : ""}`}
-                  style={{ animationDelay: delay }}
+                  style={{ animationDelay: delay, ...slotPad }}
                 >
                   <div
                     className={`wall-stack${active ? " wall-stack--active" : ""}`}
+                    data-wall-card
+                    data-wall-id={item.id}
+                    data-wall-sway={rotate}
+                    data-wall-clearance={clearance}
                     style={{
                       transform: active
                         ? "translateY(-7px) scale(1.025)"
@@ -335,7 +415,7 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
                         style={{
                           transform: active
                             ? "rotate(0deg)"
-                            : `rotate(${rotate}deg)`,
+                            : `rotate(${sway}deg)`,
                         }}
                       >
                         {inner}
@@ -347,7 +427,7 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
                         style={{
                           transform: active
                             ? "rotate(0deg)"
-                            : `rotate(${rotate}deg)`,
+                            : `rotate(${sway}deg)`,
                         }}
                         aria-label={`Enlarge ${altText}`}
                         onClick={() => setPreviewPhoto(item)}
@@ -360,7 +440,7 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
                         style={{
                           transform: active
                             ? "rotate(0deg)"
-                            : `rotate(${rotate}deg)`,
+                            : `rotate(${sway}deg)`,
                         }}
                       >
                         {inner}
@@ -386,9 +466,13 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
         ref={previewDialogRef}
         className="wall-lightbox"
         aria-labelledby="wall-lightbox-title"
-        onClose={() => setPreviewPhoto(null)}
+        onClose={onPreviewDialogClose}
+        onCancel={() => {
+          // Escape — keep focus on the photo for keyboard users.
+          dismissPreviewByPointerRef.current = false;
+        }}
         onClick={(event) => {
-          if (event.target === event.currentTarget) closePreview();
+          if (event.target === event.currentTarget) closePreview(true);
         }}
       >
         {previewPhoto && (
@@ -398,7 +482,7 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
               className="wall-lightbox__close"
               aria-label="Close enlarged photo"
               autoFocus
-              onClick={closePreview}
+              onClick={() => closePreview(true)}
             >
               ×
             </button>

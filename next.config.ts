@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
   // Native image tooling — keep out of the server bundle
   serverExternalPackages: ["sharp", "heic-convert", "heic-decode", "pg"],
   // Mapbox ships modern ESM/CJS mix
-  transpilePackages: ["mapbox-gl"],
+  transpilePackages: ["mapbox-gl", "@mdxeditor/editor"],
   async headers() {
     return [
       {

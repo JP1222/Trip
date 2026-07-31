@@ -1,0 +1,3 @@
+#include "Shared.xcconfig"
+
+TRIP_API_BASE_URL = https:/$()/trip.jpzen.cn

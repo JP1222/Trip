@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getDecorById } from "@/lib/board-decor";
 import type { WallObject } from "@/lib/wall-objects";
 import { BoardDecorIcon } from "./BoardDecorIcon";
+import { WallStickyNote } from "./WallStickyNote";
 
 type Props = {
   objects: WallObject[];
-  /** Admin: drag / resize / rotate; double-click or Delete to remove */
+  /** Admin: drag / resize / rotate; click a sticky to edit text */
   editable?: boolean;
   onChange?: (objects: WallObject[]) => void;
 };
@@ -66,6 +67,7 @@ export function BoardWidgetLayer({
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   /** Public wall: CSS :hover can't fire (pointer-events:none for click-through) */
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const objectsRef = useRef(objects);
 
@@ -167,6 +169,7 @@ export function BoardWidgetLayer({
             y: patch.y,
             rotate: patch.rotate,
             scale: patch.scale,
+            label: patch.label,
             bringToFront: true,
           }),
         });
@@ -199,6 +202,7 @@ export function BoardWidgetLayer({
           return next;
         });
         setSelectedId(null);
+        setEditingNoteId(null);
       } catch {
         // ignore
       }
@@ -219,6 +223,7 @@ export function BoardWidgetLayer({
       }
       if (e.key === "Escape") {
         setSelectedId(null);
+        setEditingNoteId(null);
         return;
       }
       // Nudge rotation
@@ -250,6 +255,7 @@ export function BoardWidgetLayer({
       const t = e.target as HTMLElement | null;
       if (t?.closest?.(".board-widget")) return;
       setSelectedId(null);
+      setEditingNoteId(null);
     }
     document.addEventListener("pointerdown", onDocPointerDown);
     return () => document.removeEventListener("pointerdown", onDocPointerDown);
@@ -429,8 +435,9 @@ export function BoardWidgetLayer({
         const resizing = resizingId === obj.id;
         const rotating = rotatingId === obj.id;
         const hovered = !editable && hoveredId === obj.id;
-        const baseSize =
-          obj.kind === "widget" ? 88 : obj.kind === "note" ? 72 : 52;
+        const isNote = obj.kind === "note";
+        const editingNote = editingNoteId === obj.id;
+        const baseSize = obj.kind === "widget" ? 88 : 52;
         // Counter-scale chrome so handles stay finger-friendly
         const chromeScale = 1 / Math.max(obj.scale, 0.2);
 
@@ -441,6 +448,7 @@ export function BoardWidgetLayer({
             data-widget-z={obj.z}
             className={[
               "board-widget",
+              isNote ? "board-widget--note" : "",
               selected ? "board-widget--selected" : "",
               dragging ? "board-widget--dragging" : "",
               resizing ? "board-widget--resizing" : "",
@@ -456,35 +464,80 @@ export function BoardWidgetLayer({
               zIndex: 40 + obj.z,
               transform: `translate(-50%, -50%) rotate(${obj.rotate}deg) scale(${obj.scale})`,
             }}
-            onPointerDown={(e) => onMovePointerDown(obj, e)}
+            onPointerDown={(e) => {
+              if (editingNote) return;
+              // Stickies: click body to edit; drag from the pin (or Shift+drag).
+              if (isNote && editable) {
+                const t = e.target as HTMLElement;
+                const fromPin = Boolean(t.closest(".wall-note__pin"));
+                if (!fromPin && !e.shiftKey) return;
+              }
+              onMovePointerDown(obj, e);
+            }}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
             onClick={(e) => {
               e.stopPropagation();
-              if (editable) setSelectedId(obj.id);
+              if (!editable) return;
+              setSelectedId(obj.id);
             }}
             onDoubleClick={(e) => {
               e.stopPropagation();
-              if (editable) void removeObject(obj.id);
+              if (!editable) return;
+              if (isNote) {
+                setSelectedId(obj.id);
+                setEditingNoteId(obj.id);
+                return;
+              }
+              void removeObject(obj.id);
             }}
             role={editable ? "button" : "img"}
             aria-label={
               editable
-                ? `${decor.name}. Drag to move, corners to resize, top handle to rotate.`
+                ? isNote
+                  ? `${decor.name}. Click to edit text; drag the pin to move.`
+                  : `${decor.name}. Drag to move, corners to resize, top handle to rotate.`
                 : decor.name
             }
             tabIndex={editable ? 0 : undefined}
           >
-            <BoardDecorIcon
-              item={{
-                ...decor,
-                vinylLabel: obj.label || decor.vinylLabel,
-                defaultText: obj.label || decor.defaultText,
-              }}
-              size={baseSize}
-            />
-            {editable && selected && (
+            {isNote ? (
+              <WallStickyNote
+                label={obj.label || decor.defaultText || "Note"}
+                editing={editable && editingNote}
+                onEditStart={
+                  editable
+                    ? () => {
+                        setSelectedId(obj.id);
+                        setEditingNoteId(obj.id);
+                      }
+                    : undefined
+                }
+                onSave={(next) => {
+                  setObjects((list) => {
+                    const updated = list.map((o) =>
+                      o.id === obj.id ? { ...o, label: next } : o,
+                    );
+                    onChange?.(updated);
+                    return updated;
+                  });
+                  void persist(obj.id, { label: next });
+                  setEditingNoteId(null);
+                }}
+                onCancel={() => setEditingNoteId(null)}
+              />
+            ) : (
+              <BoardDecorIcon
+                item={{
+                  ...decor,
+                  vinylLabel: obj.label || decor.vinylLabel,
+                  defaultText: obj.label || decor.defaultText,
+                }}
+                size={baseSize}
+              />
+            )}
+            {editable && selected && !editingNote && (
               <>
                 <button
                   type="button"

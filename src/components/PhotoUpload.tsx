@@ -368,45 +368,7 @@ export function PhotoUpload({ tripId }: Props) {
 
   return (
     <>
-      {/* Floating action button */}
-      <button
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        aria-label={open ? "Close upload" : "Share photos & videos"}
-        aria-expanded={open}
-        className={`fixed right-5 bottom-5 z-50 flex h-14 items-center gap-2 rounded-full bg-sea px-5 text-white shadow-[0_10px_30px_rgba(61,102,100,0.35)] transition hover:bg-sea-soft hover:shadow-[0_12px_36px_rgba(61,102,100,0.45)] active:scale-[0.98] sm:right-8 sm:bottom-8 ${
-          open ? "bg-ink-soft hover:bg-ink" : ""
-        }`}
-      >
-        {open ? (
-          <>
-            <span className="text-lg leading-none" aria-hidden>
-              ×
-            </span>
-            <span className="text-sm font-medium">Close</span>
-          </>
-        ) : (
-          <>
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-            <span className="text-sm font-medium">Share media</span>
-          </>
-        )}
-      </button>
-
-      {/* Sheet / modal */}
+      {/* Sheet opened via gallery Share / #upload / openPhotoUpload() */}
       {open && (
         <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center sm:p-6">
           <button

@@ -1,11 +1,12 @@
 import { randomUUID } from "crypto";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { CollabPlanShell } from "@/components/CollabPlanShell";
-import { Comments } from "@/components/Comments";
+import { NotesSection } from "@/components/NotesSection";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { PhotoUpload } from "@/components/PhotoUpload";
+import { TripChromeTheme } from "@/components/TripChromeTheme";
 import { TripPlanner } from "@/components/TripPlanner";
 import { TripSectionNav } from "@/components/TripSectionNav";
 import { getComments, getTripComments } from "@/lib/comments";
@@ -22,9 +23,10 @@ import {
   formatDateRange,
   getTrip,
   isPlannedTrip,
+  isPublicTrip,
   tripDurationDays,
 } from "@/lib/trips";
-import { coverGradientToCss } from "@/lib/wall";
+import { coverChromeColor, coverGradientToCss } from "@/lib/wall";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -36,10 +38,20 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const trip = await getTrip(id);
-  if (!trip) return { title: "Trip not found" };
+  if (!trip || !isPublicTrip(trip)) return { title: "Trip not found" };
   return {
     title: trip.title,
     description: trip.summary,
+  };
+}
+
+export async function generateViewport({ params }: Props): Promise<Viewport> {
+  const { id } = await params;
+  const trip = await getTrip(id);
+  return {
+    themeColor: coverChromeColor(trip?.coverGradient),
+    /* Paint under the status bar so hero chrome meets the system UI. */
+    viewportFit: "cover",
   };
 }
 
@@ -47,7 +59,7 @@ export default async function TripPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
   const trip = await getTrip(id);
-  if (!trip) notFound();
+  if (!trip || !isPublicTrip(trip)) notFound();
 
   const [photos, allComments, tripNotes] = await Promise.all([
     getPhotos(trip.id),
@@ -86,17 +98,15 @@ export default async function TripPage({ params, searchParams }: Props) {
       ];
 
   const notesSection = (
-    <section id="notes" className="mt-14 scroll-mt-28 pb-2 sm:mt-16">
-      <div className="mb-5">
-        <h2 className="font-serif text-3xl text-ink">Notes</h2>
-        <p className="mt-1.5 text-sm text-ink-muted">
-          {planned
-            ? "Group chat for this trip — who’s in, ideas, reminders."
-            : "For the whole group. Photo comments live on each photo."}
-        </p>
-      </div>
-      <Comments tripId={trip.id} initialComments={tripNotes} />
-    </section>
+    <NotesSection
+      tripId={trip.id}
+      initialComments={tripNotes}
+      description={
+        planned
+          ? "Group chat for this trip — who’s in, ideas, reminders."
+          : "For the whole group. Photo comments live on each photo."
+      }
+    />
   );
 
   const photosSection = (
@@ -136,9 +146,11 @@ export default async function TripPage({ params, searchParams }: Props) {
   const heroGradient =
     coverGradientToCss(trip.coverGradient) ??
     "linear-gradient(145deg, #efeae2 0%, #e0d8cc 100%)";
+  const chromeColor = coverChromeColor(trip.coverGradient);
 
   return (
-    <div className="relative overflow-hidden pb-20">
+    <div className="relative overflow-hidden pb-24">
+      <TripChromeTheme color={chromeColor} />
       <div
         className="ambient -left-10 top-16 h-56 w-56 bg-sea/20 sm:-left-16 sm:top-20 sm:h-72 sm:w-72 sm:bg-sea/15"
         aria-hidden
@@ -155,7 +167,7 @@ export default async function TripPage({ params, searchParams }: Props) {
         {/* Light wash only — keep cover colors visible (esp. mobile) */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_0%,rgba(255,255,255,0.38),transparent_55%)]" />
         <div className="absolute inset-0 bg-gradient-to-b from-white/15 via-transparent to-black/[0.06]" />
-        <div className="relative mx-auto max-w-7xl px-5 pt-14 pb-8 sm:px-8 sm:pt-16 sm:pb-10 xl:px-10">
+        <div className="relative mx-auto max-w-7xl px-5 pt-[max(3.5rem,calc(env(safe-area-inset-top,0px)+2.75rem))] pb-8 sm:px-8 sm:pt-[max(4rem,calc(env(safe-area-inset-top,0px)+3rem))] sm:pb-10 xl:px-10">
           <div className="flex flex-wrap items-center gap-2">
             {planned && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-white/60 px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] text-ink-soft uppercase backdrop-blur-sm">
@@ -203,7 +215,7 @@ export default async function TripPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      <TripSectionNav tabs={navTabs} />
+      <TripSectionNav tabs={navTabs} variant="dock" />
 
       {/* Wide workspace on desktop — itinerary | map+budget */}
       <div className="relative mx-auto max-w-7xl px-5 sm:px-8 xl:px-10">

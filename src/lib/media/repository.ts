@@ -1,7 +1,12 @@
 import type { PhotoMeta } from "@/lib/types";
 import { query, withTransaction, type DbExecutor } from "@/lib/db";
 import {
-  filenameForTripStorageKey,
+  ownerDbColumn,
+  ownerFromIds,
+  type MediaOwner,
+} from "./owner";
+import {
+  filenameForOwnerStorageKey,
 } from "./storage";
 import type {
   MediaAsset,
@@ -15,7 +20,8 @@ import type {
 
 type MediaRow = {
   id: string;
-  trip_id: string;
+  trip_id: string | null;
+  article_id: string | null;
   kind: MediaKind;
   state: MediaRecord["state"];
   uploader: string;
@@ -60,6 +66,7 @@ const MEDIA_SELECT = `
   SELECT
     m.id,
     m.trip_id,
+    m.article_id,
     m.kind,
     m.state,
     m.uploader,
@@ -140,7 +147,8 @@ function mapMediaRow(row: MediaRow): MediaWithAssets {
   }
   return {
     id: row.id,
-    tripId: row.trip_id,
+    ...(row.trip_id ? { tripId: row.trip_id } : {}),
+    ...(row.article_id ? { articleId: row.article_id } : {}),
     kind: row.kind,
     state: row.state,
     uploader: row.uploader,
@@ -185,17 +193,19 @@ function preferredAsset(media: MediaWithAssets): MediaAsset | undefined {
 }
 
 export function mediaToPhotoMeta(media: MediaWithAssets): PhotoMeta {
+  const owner = ownerFromIds(media);
+  const root = owner.kind === "trip" ? "trips" : "articles";
   const primary = preferredAsset(media);
   const live = media.assets.live_playback || media.assets.legacy_live;
   const publicFilename = (asset: MediaAsset | undefined, fallback: string) => {
     if (!asset) return fallback;
     return asset.role.startsWith("legacy_")
-      ? filenameForTripStorageKey(media.tripId, asset.storageKey)
+      ? filenameForOwnerStorageKey(owner, asset.storageKey)
       : `/media/${asset.storageKey}`;
   };
   const filename = publicFilename(
     primary,
-    `/media/trips/${media.tripId}/${media.id}/v${media.version}/full.jpg`,
+    `/media/${root}/${owner.id}/${media.id}/v${media.version}/full.jpg`,
   );
   const result: PhotoMeta & {
     thumbnailFilename?: string;
@@ -203,7 +213,8 @@ export function mediaToPhotoMeta(media: MediaWithAssets): PhotoMeta {
     posterFilename?: string;
   } = {
     id: media.id,
-    tripId: media.tripId,
+    ...(media.tripId ? { tripId: media.tripId } : {}),
+    ...(media.articleId ? { articleId: media.articleId } : {}),
     filename,
     originalName: media.originalName,
     uploader: media.uploader,
@@ -282,29 +293,44 @@ async function selectMediaFromPool(
   return result.rows.map(mapMediaRow);
 }
 
-export async function listMediaForTrip(
-  tripId: string,
+export async function listMediaForOwner(
+  owner: MediaOwner,
   options: { includePending?: boolean } = {},
 ): Promise<MediaWithAssets[]> {
   const stateSql = options.includePending
     ? "m.state IN ('ready', 'pending', 'processing')"
     : "m.state = 'ready'";
+  const col = ownerDbColumn(owner);
   const result = await query<MediaRow>(
     `${MEDIA_SELECT}
-     WHERE m.trip_id = $1 AND ${stateSql}
+     WHERE m.${col} = $1 AND ${stateSql}
      GROUP BY m.id
      ORDER BY m.featured DESC, m.featured_at DESC NULLS LAST,
               m.uploaded_at DESC, m.id DESC`,
-    [tripId],
+    [owner.id],
   );
   return result.rows.map(mapMediaRow);
+}
+
+export async function listMediaForTrip(
+  tripId: string,
+  options: { includePending?: boolean } = {},
+): Promise<MediaWithAssets[]> {
+  return listMediaForOwner({ kind: "trip", id: tripId }, options);
+}
+
+export async function listPhotoMetaForOwner(
+  owner: MediaOwner,
+  options: { includePending?: boolean } = {},
+): Promise<PhotoMeta[]> {
+  return (await listMediaForOwner(owner, options)).map(mediaToPhotoMeta);
 }
 
 export async function listPhotoMetaForTrip(
   tripId: string,
   options: { includePending?: boolean } = {},
 ): Promise<PhotoMeta[]> {
-  return (await listMediaForTrip(tripId, options)).map(mediaToPhotoMeta);
+  return listPhotoMetaForOwner({ kind: "trip", id: tripId }, options);
 }
 
 type MediaCursor = {
@@ -419,37 +445,48 @@ export async function getMediaById(
   return rows[0] || null;
 }
 
-export async function getTripMediaById(
-  tripId: string,
+export async function getOwnedMediaById(
+  owner: MediaOwner,
   mediaId: string,
   options: { includeNonReady?: boolean } = {},
 ): Promise<MediaWithAssets | null> {
   const state = options.includeNonReady
     ? "m.state <> 'deleted'"
     : "m.state = 'ready'";
+  const col = ownerDbColumn(owner);
   const rows = await selectMediaFromPool(
-    `m.trip_id = $1 AND m.id = $2 AND ${state}`,
-    [tripId, mediaId],
+    `m.${col} = $1 AND m.id = $2 AND ${state}`,
+    [owner.id, mediaId],
   );
   return rows[0] || null;
+}
+
+export async function getTripMediaById(
+  tripId: string,
+  mediaId: string,
+  options: { includeNonReady?: boolean } = {},
+): Promise<MediaWithAssets | null> {
+  return getOwnedMediaById({ kind: "trip", id: tripId }, mediaId, options);
 }
 
 export async function createQueuedMedia(
   input: QueuedMediaInput,
 ): Promise<MediaWithAssets> {
+  const owner = ownerFromIds(input);
   await withTransaction(async (client) => {
     await client.query(
       `INSERT INTO media (
-         id, trip_id, kind, state, uploader, caption, original_name,
+         id, trip_id, article_id, kind, state, uploader, caption, original_name,
          source_mime_type, source_bytes, uploaded_at, featured, featured_at
        ) VALUES (
-         $1, $2, $3, 'pending', $4, $5, $6, $7, $8,
-         COALESCE($9::timestamptz, now()), $10,
-         CASE WHEN $10 THEN COALESCE($9::timestamptz, now()) ELSE NULL END
+         $1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9,
+         COALESCE($10::timestamptz, now()), $11,
+         CASE WHEN $11 THEN COALESCE($10::timestamptz, now()) ELSE NULL END
        )`,
       [
         input.id,
-        input.tripId,
+        owner.kind === "trip" ? owner.id : null,
+        owner.kind === "article" ? owner.id : null,
         input.kind,
         input.uploader,
         input.caption || null,
@@ -606,10 +643,11 @@ export async function markMediaFailed(
 }
 
 export async function updateMediaMetadata(
-  tripId: string,
+  owner: MediaOwner,
   mediaId: string,
   patch: { caption?: string; featured?: boolean },
 ): Promise<PhotoMeta | null> {
+  const col = ownerDbColumn(owner);
   const result = await query<{ id: string }>(
     `UPDATE media SET
        caption = CASE WHEN $3::boolean THEN NULLIF(btrim($4), '') ELSE caption END,
@@ -622,10 +660,10 @@ export async function updateMediaMetadata(
        END,
        version = version + 1,
        updated_at = now()
-     WHERE trip_id = $1 AND id = $2 AND state <> 'deleted'
+     WHERE ${col} = $1 AND id = $2 AND state <> 'deleted'
      RETURNING id`,
     [
-      tripId,
+      owner.id,
       mediaId,
       Object.prototype.hasOwnProperty.call(patch, "caption"),
       patch.caption || "",
@@ -633,20 +671,21 @@ export async function updateMediaMetadata(
     ],
   );
   if (!result.rowCount) return null;
-  const media = await getTripMediaById(tripId, mediaId, { includeNonReady: true });
+  const media = await getOwnedMediaById(owner, mediaId, { includeNonReady: true });
   return media ? mediaToPhotoMeta(media) : null;
 }
 
 export async function softDeleteMedia(
-  tripId: string,
+  owner: MediaOwner,
   mediaIds: string[],
 ): Promise<MediaWithAssets[]> {
   if (!mediaIds.length) return [];
+  const col = ownerDbColumn(owner);
   return withTransaction(async (client) => {
     const existing = await selectMedia(
       client,
-      "m.trip_id = $1 AND m.id = ANY($2::text[]) AND m.state <> 'deleted'",
-      [tripId, mediaIds],
+      `m.${col} = $1 AND m.id = ANY($2::text[]) AND m.state <> 'deleted'`,
+      [owner.id, mediaIds],
     );
     if (!existing.length) return [];
     const ids = existing.map((item) => item.id);
@@ -654,8 +693,8 @@ export async function softDeleteMedia(
       `UPDATE media SET
          state = 'deleted', deleted_at = now(), featured = false,
          featured_at = NULL, updated_at = now()
-       WHERE trip_id = $1 AND id = ANY($2::text[])`,
-      [tripId, ids],
+       WHERE ${col} = $1 AND id = ANY($2::text[])`,
+      [owner.id, ids],
     );
     await client.query(
       `UPDATE media_jobs SET

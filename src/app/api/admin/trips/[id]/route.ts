@@ -57,6 +57,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (body.status === "planned" || body.status === "lived") {
       patch.status = body.status;
     }
+    if (body.visibility === "public" || body.visibility === "private") {
+      patch.visibility = body.visibility;
+    }
     if (Array.isArray(body.days)) {
       patch.days = body.days as DayPlan[];
     }

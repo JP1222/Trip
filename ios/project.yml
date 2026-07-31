@@ -1,0 +1,47 @@
+name: Trip
+options:
+  bundleIdPrefix: cn.jpzen
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+configs:
+  Debug: debug
+  Release: release
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+targets:
+  Trip:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Trip
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cn.jpzen.trip
+        PRODUCT_NAME: Trip
+        INFOPLIST_FILE: Trip/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: false
+        SWIFT_STRICT_CONCURRENCY: complete
+schemes:
+  Trip:
+    build:
+      targets:
+        Trip: all
+    run:
+      config: Debug
+    archive:
+      config: Release

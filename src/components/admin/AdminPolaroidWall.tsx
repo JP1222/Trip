@@ -13,7 +13,9 @@ import {
   type EditableBoardPhoto,
 } from "@/components/admin/AdminWallPhotoEditor";
 import { BoardWidgetLayer } from "@/components/board/BoardWidgetLayer";
+import { WallStickyNote } from "@/components/board/WallStickyNote";
 import { Pushpin } from "@/components/Pushpin";
+import { parseStickyNoteLabel } from "@/lib/sticky-note";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
 import type { WallObject } from "@/lib/wall-objects";
 import type {
@@ -21,6 +23,7 @@ import type {
   WallDisplaySize,
   WallFrameStyle,
 } from "@/lib/wall-photos";
+import { swayForItem } from "@/lib/wall-sway";
 
 export type AdminTripCard = WallItem & {
   kind: "trip";
@@ -40,21 +43,29 @@ export type AdminPhotoCard = WallItem & {
   naturalOrientation?: WallPhotoOrientation | null;
 };
 
-export type AdminWallCard = AdminTripCard | AdminPhotoCard;
+export type AdminArticleCard = Omit<WallItem, "kind"> & {
+  kind: "article";
+  articleId: string;
+  /** `none` = hidden from public wall; still shown on the admin board for editing */
+  wallStyle: "polaroid" | "note" | "none";
+  draft?: boolean;
+};
+
+/** Grid sticky — one cell in the polaroid row (not a floating trinket). */
+export type AdminNoteCard = Omit<WallItem, "kind"> & {
+  kind: "note";
+  noteId: string;
+  label: string;
+};
+
+export type AdminWallCard =
+  | AdminTripCard
+  | AdminPhotoCard
+  | AdminArticleCard
+  | AdminNoteCard;
 
 /** @deprecated use AdminTripCard / AdminWallCard */
 export type AdminWallCardLegacy = AdminTripCard;
-
-function hash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function rotateFor(id: string) {
-  const angles = [-2.4, -1.2, -0.6, 0.5, 1.1, 2.0, -1.8, 0.9];
-  return angles[hash(id) % angles.length];
-}
 
 function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
   const ratio = image.naturalWidth / image.naturalHeight;
@@ -64,7 +75,10 @@ function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
 }
 
 function slotKey(item: AdminWallCard): string {
-  return item.kind === "trip" ? `trip:${item.tripId}` : `photo:${item.photoId}`;
+  if (item.kind === "trip") return `trip:${item.tripId}`;
+  if (item.kind === "photo") return `photo:${item.photoId}`;
+  if (item.kind === "note") return `note:${item.noteId}`;
+  return `article:${item.articleId}`;
 }
 
 const decorPins = [
@@ -74,12 +88,10 @@ const decorPins = [
   { top: "86%", left: "8%", tone: "blue" },
 ] as const;
 
-function moveTrip(list: AdminWallCard[], fromTripId: string, toTripId: string) {
-  if (fromTripId === toTripId) return list;
-  const from = list.findIndex(
-    (i) => i.kind === "trip" && i.tripId === fromTripId,
-  );
-  const to = list.findIndex((i) => i.kind === "trip" && i.tripId === toTripId);
+function moveSlot(list: AdminWallCard[], fromKey: string, toKey: string) {
+  if (fromKey === toKey) return list;
+  const from = list.findIndex((i) => slotKey(i) === fromKey);
+  const to = list.findIndex((i) => slotKey(i) === toKey);
   if (from < 0 || to < 0 || from === to) return list;
   const next = [...list];
   const [moved] = next.splice(from, 1);
@@ -112,6 +124,7 @@ export function AdminPolaroidWall({
   const [editingPhoto, setEditingPhoto] = useState<EditableBoardPhoto | null>(
     null,
   );
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 
   const itemsRef = useRef(items);
   const orderBeforeDrag = useRef<string[]>([]);
@@ -168,18 +181,16 @@ export function AdminPolaroidWall({
     return map;
   }, []);
 
-  const persistTripOrder = useCallback(
+  const persistWallOrder = useCallback(
     async (next: AdminWallCard[]) => {
-      const order = next
-        .filter((i): i is AdminTripCard => i.kind === "trip")
-        .map((i) => i.tripId);
+      const order = next.map(slotKey);
       const before = orderBeforeDrag.current.join(",");
       if (order.join(",") === before) return;
 
       setSaving(true);
       setStatus(null);
       try {
-        const res = await fetch("/api/admin/trips/reorder", {
+        const res = await fetch("/api/admin/wall/reorder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ order }),
@@ -197,36 +208,30 @@ export function AdminPolaroidWall({
     [router],
   );
 
-  function squeezeTo(toTripId: string) {
-    const fromId = dragFrom.current;
-    if (!fromId || fromId === toTripId) return;
-    if (lastHoverId.current === toTripId) return;
-    lastHoverId.current = toTripId;
+  function squeezeTo(toKey: string) {
+    const fromKey = dragFrom.current;
+    if (!fromKey || fromKey === toKey) return;
+    if (lastHoverId.current === toKey) return;
+    lastHoverId.current = toKey;
 
     const current = itemsRef.current;
-    const from = current.findIndex(
-      (i) => i.kind === "trip" && i.tripId === fromId,
-    );
-    const to = current.findIndex(
-      (i) => i.kind === "trip" && i.tripId === toTripId,
-    );
+    const from = current.findIndex((i) => slotKey(i) === fromKey);
+    const to = current.findIndex((i) => slotKey(i) === toKey);
     if (from < 0 || to < 0 || from === to) return;
 
     didDrag.current = true;
     pendingFlip.current = captureRects();
-    setItems(moveTrip(current, fromId, toTripId));
+    setItems(moveSlot(current, fromKey, toKey));
   }
 
-  function onDragStart(tripId: string, e: React.DragEvent) {
+  function onDragStart(key: string, e: React.DragEvent) {
     didDrag.current = false;
-    dragFrom.current = tripId;
-    lastHoverId.current = tripId;
-    orderBeforeDrag.current = itemsRef.current
-      .filter((i): i is AdminTripCard => i.kind === "trip")
-      .map((i) => i.tripId);
-    setDragId(tripId);
+    dragFrom.current = key;
+    lastHoverId.current = key;
+    orderBeforeDrag.current = itemsRef.current.map(slotKey);
+    setDragId(key);
     e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", tripId);
+    e.dataTransfer.setData("text/plain", key);
 
     if (e.currentTarget instanceof HTMLElement) {
       const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
@@ -251,15 +256,15 @@ export function AdminPolaroidWall({
     }
   }
 
-  function onDragOver(tripId: string, e: React.DragEvent) {
+  function onDragOver(key: string, e: React.DragEvent) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    squeezeTo(tripId);
+    squeezeTo(key);
   }
 
-  function onDragEnter(tripId: string, e: React.DragEvent) {
+  function onDragEnter(key: string, e: React.DragEvent) {
     e.preventDefault();
-    squeezeTo(tripId);
+    squeezeTo(key);
   }
 
   function onDrop(e: React.DragEvent) {
@@ -267,7 +272,7 @@ export function AdminPolaroidWall({
   }
 
   function onDragEnd() {
-    const fromId = dragFrom.current;
+    const fromKey = dragFrom.current;
     setDragId(null);
     dragFrom.current = null;
     lastHoverId.current = null;
@@ -277,8 +282,8 @@ export function AdminPolaroidWall({
       el.style.transform = "";
     });
 
-    if (fromId && didDrag.current) {
-      void persistTripOrder(itemsRef.current);
+    if (fromKey && didDrag.current) {
+      void persistWallOrder(itemsRef.current);
     }
   }
 
@@ -289,15 +294,19 @@ export function AdminPolaroidWall({
     );
   }
 
+  function suppressClickAfterDrag() {
+    if (!didDrag.current) return false;
+    didDrag.current = false;
+    return true;
+  }
+
   function onTripClick(tripId: string) {
-    if (didDrag.current) {
-      didDrag.current = false;
-      return;
-    }
+    if (suppressClickAfterDrag()) return;
     router.push(`/admin/trips/${tripId}`);
   }
 
   function onPhotoClick(item: AdminPhotoCard) {
+    if (suppressClickAfterDrag()) return;
     setEditingPhoto({
       id: item.photoId,
       src: item.src || "",
@@ -349,17 +358,11 @@ export function AdminPolaroidWall({
   function sortByDate() {
     const nextDir: "newest" | "oldest" =
       dateSort === "newest" ? "oldest" : "newest";
-    orderBeforeDrag.current = itemsRef.current
-      .filter((i): i is AdminTripCard => i.kind === "trip")
-      .map((i) => i.tripId);
+    orderBeforeDrag.current = itemsRef.current.map(slotKey);
     pendingFlip.current = captureRects();
 
-    const trips = itemsRef.current.filter(
-      (i): i is AdminTripCard => i.kind === "trip",
-    );
-    const photos = itemsRef.current.filter(
-      (i): i is AdminPhotoCard => i.kind === "photo",
-    );
+    const current = itemsRef.current;
+    const trips = current.filter((i): i is AdminTripCard => i.kind === "trip");
     const sortedTrips = [...trips].sort((a, b) => {
       const cmp =
         a.startDate.localeCompare(b.startDate) ||
@@ -367,14 +370,53 @@ export function AdminPolaroidWall({
         a.caption.localeCompare(b.caption);
       return nextDir === "newest" ? -cmp : cmp;
     });
-    // Keep board photos first (same as public wall), then sorted trips
-    const next: AdminWallCard[] = [...photos, ...sortedTrips];
+    let tripIdx = 0;
+    // Keep non-trip pins where they are; only reshuffle trip cards in place.
+    const next = current.map((item) =>
+      item.kind === "trip" ? sortedTrips[tripIdx++]! : item,
+    );
     setDateSort(nextDir);
     setItems(next);
-    void persistTripOrder(next);
+    void persistWallOrder(next);
   }
 
   const tripCount = items.filter((i) => i.kind === "trip").length;
+
+  function openArticle(articleId: string) {
+    if (suppressClickAfterDrag()) return;
+    router.push(`/admin/articles/${articleId}`);
+  }
+
+  async function saveBoardNote(noteId: string, label: string) {
+    try {
+      const res = await fetch(`/api/admin/wall/notes/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+      if (!res.ok) throw new Error("failed");
+      const { title, lines, signature } = parseStickyNoteLabel(label);
+      setItems((list) =>
+        list.map((item) =>
+          item.kind === "note" && item.noteId === noteId
+            ? {
+                ...item,
+                label,
+                caption: title,
+                noteLines: lines,
+                noteSignature: signature,
+              }
+            : item,
+        ),
+      );
+      setEditingNoteId(null);
+      setStatus("Note saved");
+      setTimeout(() => setStatus(null), 1800);
+      router.refresh();
+    } catch {
+      setStatus("Could not save note");
+    }
+  }
 
   return (
     <div className="gallery-wall gallery-wall--admin">
@@ -401,49 +443,160 @@ export function AdminPolaroidWall({
             onChange={setWidgets}
           />
 
+          <div className="admin-wall-toolbar">
+            <button
+              type="button"
+              className="admin-wall-sort"
+              onClick={sortByDate}
+              disabled={saving || tripCount < 2}
+            >
+              {dateSort === "newest"
+                ? "Date ↑ oldest first"
+                : dateSort === "oldest"
+                  ? "Date ↓ newest first"
+                  : "Sort trips by date"}
+            </button>
+            {(saving || status) && (
+              <p className="admin-wall-toolbar__status" role="status">
+                {saving ? "Saving order…" : status}
+              </p>
+            )}
+          </div>
+
           <ul
             className="cork-board__photos admin-wall-photos"
             onDragOver={(e) => e.preventDefault()}
           >
-            <li className="wall-item wall-item--note wall-note-wrap admin-wall-tools">
-              <section className="wall-note admin-wall-hint">
-                <span className="wall-note__pin" aria-hidden />
-                <p className="admin-wall-hint__title">Your board</p>
-                <p className="admin-wall-hint__text">
-                  Tap a trip or photo to edit
-                </p>
-                <p className="admin-wall-hint__text admin-wall-hint__text--soft">
-                  + trinkets &amp; photos · drag · corners resize · top rotate
-                </p>
-                <div className="admin-wall-actions">
-                  <button
-                    type="button"
-                    className="admin-wall-sort"
-                    onClick={sortByDate}
-                    disabled={saving || tripCount < 2}
-                  >
-                    {dateSort === "newest"
-                      ? "Date ↑ oldest first"
-                      : dateSort === "oldest"
-                        ? "Date ↓ newest first"
-                        : "Sort trips by date"}
-                  </button>
-                </div>
-                {(saving || status) && (
-                  <p className="admin-wall-hint__status" role="status">
-                    {saving ? "Saving order…" : status}
-                  </p>
-                )}
-              </section>
-            </li>
-
             {items.map((item, index) => {
               const key = slotKey(item);
-              const rotate = rotateFor(item.id);
+              const rotate = swayForItem(item.id, index);
+
+              if (item.kind === "note") {
+                const isDragging = dragId === key;
+                const editing = editingNoteId === item.noteId;
+                return (
+                  <li
+                    key={key}
+                    ref={(el) => {
+                      if (el) liRefs.current.set(key, el);
+                      else liRefs.current.delete(key);
+                    }}
+                    className={`admin-wall-slot wall-item wall-item--note wall-note-wrap ${
+                      ready ? "" : "animate-fade-up"
+                    } ${isDragging ? "admin-wall-slot--source" : ""}`}
+                    style={
+                      ready
+                        ? undefined
+                        : {
+                            animationDelay: `${Math.min(index * 0.05, 0.4)}s`,
+                          }
+                    }
+                    onDragEnter={(e) => onDragEnter(key, e)}
+                    onDragOver={(e) => onDragOver(key, e)}
+                    onDrop={onDrop}
+                  >
+                    <div
+                      className="admin-grid-note"
+                      draggable={!editing}
+                      onDragStart={(e) => {
+                        if (editing) {
+                          e.preventDefault();
+                          return;
+                        }
+                        onDragStart(key, e);
+                      }}
+                      onDragEnd={onDragEnd}
+                      style={{
+                        transform: isDragging
+                          ? "rotate(0deg) scale(0.96)"
+                          : `rotate(${rotate * 0.6}deg)`,
+                        cursor: editing
+                          ? "default"
+                          : isDragging
+                            ? "grabbing"
+                            : "grab",
+                      }}
+                    >
+                      <WallStickyNote
+                        label={item.label}
+                        editing={editing}
+                        onEditStart={() => {
+                          if (suppressClickAfterDrag()) return;
+                          setEditingNoteId(item.noteId);
+                        }}
+                        onSave={(next) => void saveBoardNote(item.noteId, next)}
+                        onCancel={() => setEditingNoteId(null)}
+                      />
+                    </div>
+                  </li>
+                );
+              }
+
+              if (item.kind === "article" && item.wallStyle === "note") {
+                const isDragging = dragId === key;
+                return (
+                  <li
+                    key={key}
+                    ref={(el) => {
+                      if (el) liRefs.current.set(key, el);
+                      else liRefs.current.delete(key);
+                    }}
+                    className={`admin-wall-slot wall-item wall-item--note wall-note-wrap ${
+                      ready ? "" : "animate-fade-up"
+                    } ${isDragging ? "admin-wall-slot--source" : ""}`}
+                    style={
+                      ready
+                        ? undefined
+                        : {
+                            animationDelay: `${Math.min(index * 0.05, 0.4)}s`,
+                          }
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="block w-full cursor-grab text-left active:cursor-grabbing"
+                      draggable
+                      onDragStart={(e) => onDragStart(key, e)}
+                      onDragEnter={(e) => onDragEnter(key, e)}
+                      onDragOver={(e) => onDragOver(key, e)}
+                      onDrop={onDrop}
+                      onDragEnd={onDragEnd}
+                      onClick={() => openArticle(item.articleId)}
+                      aria-label={`Edit article ${item.caption}. Drag to reorder.`}
+                    >
+                      <div
+                        className="wall-note"
+                        style={{
+                          transform: isDragging
+                            ? "rotate(0deg) scale(0.96)"
+                            : `rotate(${rotate * 0.6}deg)`,
+                        }}
+                      >
+                        <span className="wall-note__pin" aria-hidden />
+                        {item.draft ? (
+                          <p className="wall-note__line">Draft</p>
+                        ) : null}
+                        <p className="wall-note__title">{item.caption}</p>
+                        {item.noteLines?.map((line) => (
+                          <p key={line} className="wall-note__line">
+                            {line}
+                          </p>
+                        ))}
+                        {item.noteSignature ? (
+                          <p className="wall-note__signature">
+                            {item.noteSignature}
+                          </p>
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                );
+              }
+
               const line2 = item.meta || item.dateLabel;
               const isTrip = item.kind === "trip";
-              const isDragging =
-                isTrip && dragId === item.tripId;
+              const isArticle = item.kind === "article";
+              const isDragging = dragId === key;
               const active = hoverId === item.id && !isDragging;
               const orientation =
                 item.orientation ||
@@ -451,13 +604,16 @@ export function AdminPolaroidWall({
                   ? photoOrientations[item.id] || "landscape"
                   : item.planned
                     ? "portrait"
-                    : "square");
+                    : isArticle
+                      ? "square"
+                      : "square");
               const frameStyle =
                 item.kind === "photo" ? item.frameStyle || "polaroid" : undefined;
               const displaySize =
                 item.kind === "photo" ? item.displaySize || "md" : undefined;
               const showLabels =
                 isTrip ||
+                isArticle ||
                 (frameStyle !== "borderless" &&
                   !item.hideLabels &&
                   Boolean(item.caption?.trim() || line2?.trim()));
@@ -478,9 +634,11 @@ export function AdminPolaroidWall({
               const itemTypeClass =
                 item.kind === "photo"
                   ? "wall-item--photo"
-                  : item.planned
-                    ? "wall-item--planned"
-                    : "wall-item--trip";
+                  : item.kind === "article"
+                    ? "wall-item--article"
+                    : item.planned
+                      ? "wall-item--planned"
+                      : "wall-item--trip";
 
               return (
                 <li
@@ -510,33 +668,21 @@ export function AdminPolaroidWall({
                   >
                     <button
                       type="button"
-                      draggable={isTrip}
-                      onDragStart={
-                        isTrip
-                          ? (e) => onDragStart(item.tripId, e)
-                          : undefined
-                      }
-                      onDragEnter={
-                        isTrip
-                          ? (e) => onDragEnter(item.tripId, e)
-                          : undefined
-                      }
-                      onDragOver={
-                        isTrip
-                          ? (e) => onDragOver(item.tripId, e)
-                          : undefined
-                      }
-                      onDrop={isTrip ? onDrop : undefined}
-                      onDragEnd={isTrip ? onDragEnd : undefined}
+                      draggable
+                      onDragStart={(e) => onDragStart(key, e)}
+                      onDragEnter={(e) => onDragEnter(key, e)}
+                      onDragOver={(e) => onDragOver(key, e)}
+                      onDrop={onDrop}
+                      onDragEnd={onDragEnd}
                       onMouseEnter={() => setHoverId(item.id)}
                       onMouseLeave={() => setHoverId(null)}
                       onFocus={() => setHoverId(item.id)}
                       onBlur={() => setHoverId(null)}
-                      onClick={() =>
-                        isTrip
-                          ? onTripClick(item.tripId)
-                          : onPhotoClick(item)
-                      }
+                      onClick={() => {
+                        if (isTrip) onTripClick(item.tripId);
+                        else if (isArticle) openArticle(item.articleId);
+                        else onPhotoClick(item);
+                      }}
                       className={`instant group admin-instant ${printClasses}`}
                       style={{
                         transform: isDragging
@@ -544,16 +690,14 @@ export function AdminPolaroidWall({
                           : active
                             ? "rotate(0deg)"
                             : `rotate(${rotate}deg)`,
-                        cursor: isDragging
-                          ? "grabbing"
-                          : isTrip
-                            ? "grab"
-                            : "pointer",
+                        cursor: isDragging ? "grabbing" : "grab",
                       }}
                       aria-label={
                         isTrip
                           ? `Edit trip ${item.caption}. Drag to reorder.`
-                          : `Edit board photo ${altText}`
+                          : isArticle
+                            ? `Edit article ${item.caption}. Drag to reorder.`
+                            : `Edit board photo ${altText}. Drag to reorder.`
                       }
                     >
                       <Pushpin />
@@ -563,6 +707,15 @@ export function AdminPolaroidWall({
                       {item.kind === "photo" && (
                         <span className="instant__badge instant__badge--photo">
                           Photo
+                        </span>
+                      )}
+                      {isArticle && (
+                        <span className="instant__badge instant__badge--photo">
+                          {item.wallStyle === "none"
+                            ? "Hidden"
+                            : item.draft
+                              ? "Draft"
+                              : "Article"}
                         </span>
                       )}
 
@@ -600,7 +753,8 @@ export function AdminPolaroidWall({
                                     : undefined
                                   : {
                                       background:
-                                        "linear-gradient(155deg, #6b5c4a 0%, #2e2820 100%)",
+                                        item.coverGradient ||
+                                        "linear-gradient(155deg, #5a8582 0%, #2a4543 100%)",
                                     }
                               }
                             >
@@ -631,7 +785,7 @@ export function AdminPolaroidWall({
                               <span className="instant__cover-label">
                                 {item.planned
                                   ? "Up next"
-                                  : item.sub || "Journey"}
+                                  : item.sub || (isArticle ? "Essay" : "Journey")}
                               </span>
                               <span className="instant__cover-name">
                                 {item.caption}

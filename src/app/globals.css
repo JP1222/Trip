@@ -72,6 +72,20 @@ html.page-home body {
   overscroll-behavior-y: none;
 }
 
+/*
+ * Trip detail: status bar / top overscroll use the cover chrome color
+ * (set via --trip-chrome). Keep body sand so the rest of the page stays cream.
+ */
+html.page-trip {
+  background-color: var(--trip-chrome, var(--sand-100));
+}
+
+/* Full-screen media viewer: match iOS status bar to the black stage. */
+html.page-media-viewer {
+  background-color: #000;
+  color-scheme: dark;
+}
+
 /* Fixed cork underlay so overscroll always has cork behind content */
 html.page-home body::before {
   content: "";
@@ -95,60 +109,155 @@ html.page-home body::before {
   display: none;
 }
 
-/* On wide screens, the sticky row becomes a quiet trip index in the unused
+/* Article: keep title → prose uninterrupted; jump links live in a bottom dock. */
+.trip-section-nav--dock {
+  position: fixed;
+  z-index: 30;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  animation: trip-section-nav-dock-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.trip-section-nav--dock .trip-section-nav__inner {
+  pointer-events: auto;
+  display: grid;
+  width: min(100%, 21.5rem);
+  max-width: none;
+  grid-template-columns: repeat(var(--trip-nav-cols, 3), minmax(0, 1fr));
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.3rem;
+  overflow: visible;
+  border: 1px solid rgba(82, 70, 57, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 252, 248, 0.9);
+  box-shadow:
+    0 1px 2px rgba(48, 38, 28, 0.05),
+    0 14px 36px rgba(48, 38, 28, 0.14);
+  backdrop-filter: blur(22px) saturate(150%);
+}
+
+.trip-section-nav--dock .trip-section-nav__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.55rem;
+  padding: 0.55rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.trip-section-nav--dock .trip-section-nav__link--active {
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(28, 26, 23, 0.2);
+}
+
+.trip-section-nav--dock .trip-section-nav__link:not(.trip-section-nav__link--active):active {
+  transform: scale(0.97);
+}
+
+@keyframes trip-section-nav-dock-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-section-nav--dock {
+    animation: none;
+  }
+}
+
+/* On wide screens, the sticky/dock row becomes a quiet index in the unused
  * margin. Keeping it outside the 80rem workspace prevents map/photo overlap. */
 @media (min-width: 1536px) {
-  .trip-section-nav {
+  .trip-section-nav,
+  .trip-section-nav--dock {
     position: fixed;
     z-index: 35;
     top: 50%;
-    right: max(1rem, calc((100vw - 80rem) / 2 - 7rem));
-    width: 7rem;
+    right: max(1rem, calc((100vw - 80rem) / 2 - 8.25rem));
+    bottom: auto;
+    left: auto;
+    display: block;
+    width: 8.1rem;
     margin: 0;
     padding: 0;
     transform: translateY(-50%);
     border: 0;
     background: transparent;
     backdrop-filter: none;
+    pointer-events: auto;
+    animation: none;
   }
 
-  .trip-section-nav__inner {
+  .trip-section-nav__inner,
+  .trip-section-nav--dock .trip-section-nav__inner {
     display: flex;
-    width: 7rem;
+    width: 8.1rem;
     max-width: none;
+    grid-template-columns: none;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.15rem;
     margin: 0;
-    padding: 0.6rem;
+    padding: 0.7rem 0.55rem;
     overflow: visible;
-    border: 1px solid rgba(82, 70, 57, 0.13);
-    border-radius: 1rem;
-    background: rgba(255, 252, 247, 0.88);
+    border: 1px solid rgba(82, 70, 57, 0.1);
+    border-radius: 1.35rem;
+    background: rgba(255, 252, 248, 0.94);
     box-shadow:
-      0 1px 2px rgba(48, 38, 28, 0.06),
-      0 14px 38px rgba(48, 38, 28, 0.1);
-    backdrop-filter: blur(18px) saturate(130%);
+      0 1px 2px rgba(48, 38, 28, 0.05),
+      0 10px 28px rgba(48, 38, 28, 0.09);
+    backdrop-filter: blur(20px) saturate(140%);
   }
 
   .trip-section-nav__eyebrow {
     display: block;
-    padding: 0.15rem 0.45rem 0.35rem;
-    font-size: 0.62rem;
+    padding: 0.2rem 0.55rem 0.45rem;
+    font-size: 0.6rem;
     font-weight: 600;
     color: var(--ink-muted);
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
   }
 
-  .trip-section-nav__link {
+  .trip-section-nav__link,
+  .trip-section-nav--dock .trip-section-nav__link {
     display: grid;
     width: 100%;
-    grid-template-columns: 1.3rem 1fr;
+    min-height: 0;
+    grid-template-columns: 1.35rem 1fr;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.5rem 0.45rem;
-    border-radius: 0.7rem;
-    font-size: 0.78rem;
+    justify-content: stretch;
+    gap: 0.2rem;
+    padding: 0.55rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .trip-section-nav__link--active,
+  .trip-section-nav--dock .trip-section-nav__link--active {
+    box-shadow: 0 1px 2px rgba(28, 26, 23, 0.18);
   }
 
   .trip-section-nav__index {
@@ -157,11 +266,11 @@ html.page-home body::before {
     font-variant-numeric: tabular-nums;
     color: currentColor;
     letter-spacing: 0.04em;
-    opacity: 0.5;
+    opacity: 0.42;
   }
 
   .trip-section-nav__link--active .trip-section-nav__index {
-    opacity: 0.72;
+    opacity: 0.55;
   }
 }
 
@@ -177,6 +286,17 @@ html.page-home body::before {
   from {
     opacity: 0;
     transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-saved-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -732,7 +852,8 @@ html.page-home body::before {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem 1.25rem;
+  /* Gutter sized for tilt + underlay peek — sway guard may grow it further */
+  gap: 1.75rem 1.75rem;
   min-height: 100vh;
   min-height: 100dvh;
   /* room for pins that stick above polaroids */
@@ -862,7 +983,7 @@ html.page-home body::before {
 
   .cork-board__photos {
     min-height: inherit;
-    gap: 2.25rem 2rem;
+    gap: 2.5rem 2.5rem;
     padding: 2.75rem 2rem 2.75rem;
     overflow: visible;
   }
@@ -893,7 +1014,7 @@ html.page-home body::before {
   }
 
   .cork-board__photos {
-    gap: 2.75rem 2.5rem;
+    gap: 3rem 2.75rem;
     padding: 3rem 2.75rem 3.25rem;
   }
 
@@ -924,7 +1045,7 @@ html.page-home body::before {
   }
 
   .cork-board__photos {
-    gap: 2.75rem 2rem;
+    gap: 3rem 2.5rem;
     padding: 3rem 2.25rem 3.5rem;
   }
 
@@ -956,12 +1077,17 @@ html.page-home body::before {
 
 .wall-item {
   list-style: none;
-  min-width: 0;
+  /* Never let flex shrink collapse the slot while the print stays wide —
+   * that was overlapping neighbors when two cards barely fit a row. */
+  flex: 0 0 auto;
+  min-width: min-content;
+  box-sizing: content-box;
 }
 
 .wall-item--trip,
 .wall-item--planned,
-.wall-item--photo {
+.wall-item--photo,
+.wall-item--article {
   position: relative;
 }
 
@@ -977,10 +1103,13 @@ html.page-home body::before {
   transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* A second instant photo sits behind the main one. Its tinted image well is
- * visible at the exposed edges, so it reads as another print—not note paper. */
+/* Trips: a second instant photo sits behind the main one. Its tinted image
+ * well is visible at the exposed edges, so it reads as another print. */
 .gallery-wall
-  .wall-item:not(.wall-item--photo)
+  .wall-item--trip
+  .wall-stack::before,
+.gallery-wall
+  .wall-item--planned
   .wall-stack::before {
   content: "";
   position: absolute;
@@ -1001,14 +1130,56 @@ html.page-home body::before {
   pointer-events: none;
 }
 
-.gallery-wall .wall-item--landscape .wall-stack::before {
+.gallery-wall .wall-item--trip.wall-item--landscape .wall-stack::before,
+.gallery-wall .wall-item--planned.wall-item--landscape .wall-stack::before {
   background-position: center 7%, center;
   background-size: 96% 82%, auto;
 }
 
-.gallery-wall .wall-item--portrait .wall-stack::before {
+.gallery-wall .wall-item--trip.wall-item--portrait .wall-stack::before,
+.gallery-wall .wall-item--planned.wall-item--portrait .wall-stack::before {
   background-position: center 5%, center;
   background-size: 96% 84%, auto;
+}
+
+/* Articles: polaroid on top, a ruled paper sheet peeking out behind.
+ * Keep the peek modest so the sway guard's clearance can absorb it. */
+.gallery-wall .wall-item--article .wall-stack::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -1% -2% -3% 0;
+  width: auto;
+  height: auto;
+  border: 1px solid rgba(120, 98, 70, 0.14);
+  border-radius: 1px;
+  background-color: #f7f1e4;
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 11%,
+      rgba(196, 92, 92, 0.22) 11%,
+      rgba(196, 92, 92, 0.22) calc(11% + 1px),
+      transparent calc(11% + 1px)
+    ),
+    repeating-linear-gradient(
+      transparent 0,
+      transparent 13px,
+      rgba(110, 140, 175, 0.18) 13px,
+      rgba(110, 140, 175, 0.18) 14px
+    ),
+    linear-gradient(
+      165deg,
+      #fffef9 0%,
+      #f6efe3 48%,
+      #ebe1d0 100%
+    );
+  box-shadow:
+    0 1px 0 rgba(232, 220, 200, 0.95),
+    2px 4px 8px rgba(63, 43, 23, 0.1);
+  transform: translate(6px, 5px) rotate(-2.6deg);
+  pointer-events: none;
 }
 
 @media (min-width: 768px) {
@@ -1020,6 +1191,7 @@ html.page-home body::before {
   .gallery-wall .wall-item {
     display: flex;
     flex: 0 0 auto;
+    min-width: min-content;
     align-items: center;
     justify-content: center;
   }
@@ -1173,9 +1345,10 @@ html.page-home body::before {
     0 32px 56px rgba(28, 26, 23, 0.12);
 }
 
+/* Keyboard focus uses the elevated shadow / hint above — no outline ring
+ * (a green frame looked like a bug after enlarge closed and restored focus). */
 .instant:focus-visible {
-  outline: 1.5px solid rgba(61, 102, 100, 0.45);
-  outline-offset: 5px;
+  outline: none;
 }
 
 /* Top + side borders; the orientation modifiers set the photo well ratio. */
@@ -1970,6 +2143,27 @@ html.page-home body::before {
   );
   box-shadow: 0 2px 4px rgba(60, 40, 20, 0.35);
 }
+.board-widget--editable .wall-note__pin {
+  top: -12px;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  cursor: grab;
+  touch-action: none;
+}
+.board-widget--editable .wall-note__pin::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    #ffe8c8 0%,
+    #e8a050 55%,
+    #9a5820 100%
+  );
+  box-shadow: 0 2px 4px rgba(60, 40, 20, 0.35);
+}
 .wall-note__title {
   font-family: var(--font-hand), "Segoe Print", cursive;
   font-size: 1.5rem;
@@ -1996,6 +2190,113 @@ html.page-home body::before {
   line-height: 1.2;
   color: #3f5f5c;
   transform: rotate(-0.8deg);
+}
+
+/* Grid sticky cell (same row as polaroids) */
+.admin-grid-note {
+  width: fit-content;
+  max-width: 100%;
+}
+.admin-grid-note .wall-note--board {
+  cursor: inherit;
+}
+
+/* Free-placed board sticky (same paper as grid notes) */
+.board-widget--note {
+  width: auto;
+  height: auto;
+}
+.board-widget--note .wall-note--board {
+  width: min(68vw, 230px);
+  min-height: 210px;
+  cursor: inherit;
+}
+@media (min-width: 768px) {
+  .board-widget--note .wall-note--board {
+    width: 248px;
+    min-height: 236px;
+  }
+}
+.wall-note__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 10rem;
+}
+.wall-note__textarea {
+  width: 100%;
+  min-height: 9.5rem;
+  resize: vertical;
+  border: 1px dashed rgba(92, 74, 50, 0.28);
+  border-radius: 4px;
+  background: rgba(255, 252, 240, 0.75);
+  padding: 0.45rem 0.5rem;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.02rem;
+  line-height: 1.35;
+  color: #4a3c28;
+  outline: none;
+}
+.wall-note__textarea:focus {
+  border-color: rgba(61, 102, 100, 0.45);
+  background: rgba(255, 253, 245, 0.95);
+}
+.wall-note__editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.wall-note__editor-btn {
+  border: 1px solid rgba(92, 74, 50, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.9);
+  padding: 0.22rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5c4a32;
+  cursor: pointer;
+}
+.wall-note__editor-btn--save {
+  border-color: rgba(61, 102, 100, 0.35);
+  background: rgba(61, 102, 100, 0.12);
+  color: #2f4f4d;
+}
+.wall-note__editor-hint {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: rgba(92, 74, 50, 0.62);
+}
+.wall-note__editor-hint code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.65rem;
+}
+
+/* Admin tools — not a fake sticky */
+.admin-wall-toolbar {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  max-width: min(92%, 280px);
+  pointer-events: auto;
+}
+.admin-wall-toolbar__status {
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.88);
+  box-shadow: 0 1px 4px rgba(40, 30, 15, 0.12);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #5c4a32;
 }
 
 /* Decorative washi strips on board (desktop) */
@@ -2557,4 +2858,204 @@ button.admin-instant {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* MDXEditor (admin article body) */
+.article-mdx-editor {
+  --basePageBg: #fff;
+  min-height: 32rem;
+}
+.article-mdx-editor .mdxeditor-toolbar {
+  background: #fffcf8;
+  border-bottom: 1px solid var(--sand-200);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.article-mdx-editor__content {
+  padding: 1.25rem 1.35rem 2rem;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  min-height: 28rem;
+}
+.article-mdx-editor__content h1,
+.article-mdx-editor__content h2,
+.article-mdx-editor__content h3 {
+  font-family: var(--font-serif), Georgia, serif;
+  color: var(--ink);
+}
+
+/* ─── Public article reading surface ─── */
+.article-page {
+  background:
+    radial-gradient(ellipse 80% 45% at 50% -10%, rgba(61, 102, 100, 0.07), transparent 55%),
+    radial-gradient(ellipse 50% 35% at 100% 20%, rgba(196, 112, 90, 0.05), transparent 50%),
+    var(--sand-50);
+}
+
+.article-page__header {
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--sand-300) 55%, transparent);
+}
+
+.article-page__dek {
+  font-style: italic;
+  font-weight: 400;
+}
+
+.article-page__cover {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--sand-300) 70%, transparent);
+  background: var(--sand-100);
+  box-shadow:
+    0 1px 2px rgba(28, 26, 23, 0.04),
+    0 18px 40px rgba(48, 38, 28, 0.08);
+}
+
+.article-page__cover img {
+  display: block;
+  width: 100%;
+}
+
+.article-page__section {
+  border-top: 1px solid color-mix(in srgb, var(--sand-300) 50%, transparent);
+  padding-top: 2.75rem;
+}
+
+.article-prose {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+  letter-spacing: 0.005em;
+}
+
+.article-prose > * + * {
+  margin-top: 1.35em;
+}
+
+.article-prose > p:first-of-type::first-letter {
+  float: left;
+  margin: 0.08em 0.12em 0 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 3.35em;
+  font-weight: 500;
+  line-height: 0.78;
+  color: var(--ink);
+}
+
+.article-prose a {
+  color: var(--sea);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--sea) 35%, transparent);
+  transition: text-decoration-color 0.15s ease;
+}
+
+.article-prose a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--sea);
+}
+
+.article-prose h1,
+.article-prose h2,
+.article-prose h3 {
+  margin-top: 1.75em;
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.article-prose h1 {
+  font-size: 1.85em;
+}
+
+.article-prose h2 {
+  font-size: 1.45em;
+}
+
+.article-prose h3 {
+  font-size: 1.2em;
+}
+
+.article-prose blockquote {
+  margin-left: 0;
+  padding: 0.15em 0 0.15em 1.15em;
+  border-left: 2px solid color-mix(in srgb, var(--sea) 45%, var(--sand-300));
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.12em;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.article-prose ul,
+.article-prose ol {
+  padding-left: 0.15em;
+}
+
+.article-prose li {
+  margin-left: 1.35em;
+  padding-left: 0.15em;
+}
+
+.article-prose li + li {
+  margin-top: 0.4em;
+}
+
+.article-prose ul {
+  list-style: disc;
+}
+
+.article-prose ol {
+  list-style: decimal;
+}
+
+.article-prose code {
+  border-radius: 0.3em;
+  background: color-mix(in srgb, var(--sand-100) 85%, white);
+  padding: 0.12em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  color: var(--ink);
+}
+
+.article-prose pre {
+  overflow-x: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--sand-200);
+  background: color-mix(in srgb, var(--sand-100) 80%, white);
+  padding: 1rem 1.15rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  line-height: 1.55;
+}
+
+.article-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.article-prose strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.article-prose__img {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--sand-300) 65%, transparent);
+  object-fit: cover;
+  box-shadow: 0 10px 28px rgba(48, 38, 28, 0.07);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-page__header.animate-fade-up {
+    animation: none;
+  }
 }

@@ -9,18 +9,25 @@ import {
   photoDownloadUrl,
   photoPublicUrl,
 } from "@/lib/photos-client";
-import { photoListPublicUrl } from "@/lib/media-url";
+import { photoFullPublicUrl, photoListPublicUrl } from "@/lib/media-url";
 import { openPhotoUpload } from "@/components/PhotoUpload";
 import { LivePhotoThumb } from "@/components/LivePhoto";
 import { MediaViewer } from "@/components/MediaViewer";
 
 type Props = {
-  tripId: string;
+  /** Trip id. Prefer ownerKind + ownerId for new call sites. */
+  tripId?: string;
+  ownerKind?: "trip" | "article";
+  ownerId?: string;
   /** Server-generated so each page load shuffles without a hydration jump. */
   randomSeed: string;
   initialPhotos: PhotoMeta[];
   /** All comments (trip + photo); used for counts and lightbox */
   initialComments?: Comment[];
+  /** Trip pages: Share upload. Articles: off. */
+  allowShare?: boolean;
+  /** Trip pages: photo comments. Articles: off. */
+  allowComments?: boolean;
 };
 
 const GALLERY_BATCH_SIZE = 48;
@@ -126,6 +133,7 @@ function MediaThumb({
 }) {
   // Masonry / waterfall: grid-1080 only (not full original).
   const url = photoListPublicUrl(photo);
+  const ownerKey = photo.articleId || photo.tripId || "";
   const alt = photo.caption || photo.originalName;
   if (isVideoMedia(photo)) {
     if (photo.posterFilename || photo.thumbnailFilename) {
@@ -133,7 +141,7 @@ function MediaThumb({
       return (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={photoPublicUrl(photo.tripId, poster)}
+          src={photoPublicUrl(ownerKey, poster)}
           alt={alt}
           className={className}
           loading={loading}
@@ -156,7 +164,7 @@ function MediaThumb({
     return (
       <LivePhotoThumb
         stillSrc={url}
-        videoSrc={liveVideoPublicUrl(photo.tripId, photo.liveVideoFilename)}
+        videoSrc={liveVideoPublicUrl(ownerKey, photo.liveVideoFilename)}
         alt={alt}
         className={className}
         badgeClassName={liveBadgeClassName}
@@ -171,10 +179,20 @@ function MediaThumb({
 
 export function PhotoGallery({
   tripId,
+  ownerKind: ownerKindProp,
+  ownerId: ownerIdProp,
   randomSeed,
   initialPhotos,
   initialComments = [],
+  allowShare = true,
+  allowComments = true,
 }: Props) {
+  const ownerKind = ownerKindProp || "trip";
+  const ownerId = ownerIdProp || tripId || "";
+  const commentsUrl =
+    ownerKind === "article"
+      ? `/api/articles/${ownerId}/comments`
+      : `/api/trips/${ownerId}/comments`;
   const [photos, setPhotos] = useState(() => initialPhotos);
   const [comments, setComments] = useState(initialComments);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -194,9 +212,9 @@ export function PhotoGallery({
         ? sortGalleryPhotosByTime(photos)
         : randomizeGalleryPhotos(
             photos,
-            `${tripId}:${randomSeed}:${shuffleVersion}`,
+            `${ownerId}:${randomSeed}:${shuffleVersion}`,
           ),
-    [photos, randomSeed, shuffleVersion, sortMode, tripId],
+    [photos, randomSeed, shuffleVersion, sortMode, ownerId],
   );
   const visiblePhotos = useMemo(
     () => orderedPhotos.slice(0, visibleCount),
@@ -216,18 +234,20 @@ export function PhotoGallery({
   const commentCounts = useMemo(() => countsFrom(comments), [comments]);
 
   const refreshPhotos = useCallback(async () => {
-    const res = await fetch(`/api/trips/${tripId}/photos`);
+    if (ownerKind !== "trip" || !ownerId) return;
+    const res = await fetch(`/api/trips/${ownerId}/photos`);
     if (res.ok) {
       setPhotos((await res.json()) as PhotoMeta[]);
     }
-  }, [tripId]);
+  }, [ownerId, ownerKind]);
 
   const refreshComments = useCallback(async () => {
-    const res = await fetch(`/api/trips/${tripId}/comments`);
+    if (!allowComments || !ownerId) return;
+    const res = await fetch(commentsUrl);
     if (res.ok) {
       setComments((await res.json()) as Comment[]);
     }
-  }, [tripId]);
+  }, [allowComments, commentsUrl, ownerId]);
 
   useEffect(() => {
     const onUploaded = () => void refreshPhotos();
@@ -276,13 +296,20 @@ export function PhotoGallery({
   }
 
   async function downloadOne(photo: PhotoMeta) {
+    if (ownerKind === "article" || photo.articleId) {
+      await downloadBlob(
+        photoFullPublicUrl(photo) || photoPublicUrl(ownerId, photo.filename),
+        photo.originalName,
+      );
+      return;
+    }
     // Privacy: stills go through strip-metadata API (no EXIF/GPS)
-    await downloadBlob(photoDownloadUrl(photo.tripId, photo.id));
+    await downloadBlob(photoDownloadUrl(photo.tripId || ownerId, photo.id));
     // Live companion video (metadata not stripped — container format)
     if (photo.liveVideoFilename) {
       await new Promise((r) => setTimeout(r, 150));
       await downloadBlob(
-        photoDownloadUrl(photo.tripId, photo.id, { part: "live" }),
+        photoDownloadUrl(photo.tripId || ownerId, photo.id, { part: "live" }),
       );
     }
   }
@@ -300,13 +327,14 @@ export function PhotoGallery({
 
   async function postPhotoComment(e: React.FormEvent) {
     e.preventDefault();
+    if (!allowComments) return;
     const photo =
       activeIndex !== null ? orderedPhotos[activeIndex] : undefined;
     if (!photo) return;
     setPostBusy(true);
     setPostError(null);
     try {
-      const res = await fetch(`/api/trips/${tripId}/comments`, {
+      const res = await fetch(commentsUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -389,25 +417,27 @@ export function PhotoGallery({
           </button>
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => openPhotoUpload()}
-        className="inline-flex items-center gap-1.5 rounded-full bg-sea px-4 py-2 text-sm font-medium text-white transition hover:bg-sea-soft"
-      >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden
+      {allowShare ? (
+        <button
+          type="button"
+          onClick={() => openPhotoUpload()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-sea px-4 py-2 text-sm font-medium text-white transition hover:bg-sea-soft"
         >
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-          <circle cx="12" cy="13" r="4" />
-        </svg>
-        Share
-      </button>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          Share
+        </button>
+      ) : null}
       {photos.length > 0 && (
         <>
           <button
@@ -661,7 +691,8 @@ export function PhotoGallery({
         <MediaViewer
           photos={orderedPhotos}
           index={activeIndex}
-          comments={comments}
+          comments={allowComments ? comments : []}
+          enableComments={allowComments}
           onClose={closeViewer}
           onIndexChange={(next) => {
             setActiveIndex(next);

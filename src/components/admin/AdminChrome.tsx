@@ -2,39 +2,56 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AdminLogoutButton } from "@/components/admin/AdminLogoutButton";
 
+/** Frosted glass pill — Wall / Edit / action clusters / Log out. */
+export const adminChromePillClass =
+  "inline-flex h-9 items-center gap-1.5 rounded-full bg-white/60 px-3.5 text-[13px] font-medium tracking-tight text-ink/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 transition hover:bg-white/75 active:scale-[0.96] sm:h-10 sm:px-4 sm:text-[14px]";
+
+export const adminChromeClusterClass =
+  "flex items-center gap-0.5 rounded-full bg-white/60 p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 empty:hidden";
+
 type ChromeCtx = {
-  setRightExtra: (node: ReactNode | null) => void;
+  actionsEl: HTMLElement | null;
+  shareEl: HTMLElement | null;
 };
 
-const AdminChromeContext = createContext<ChromeCtx | null>(null);
+const AdminChromeContext = createContext<ChromeCtx>({
+  actionsEl: null,
+  shareEl: null,
+});
 
-/** Register content next to Log out (e.g. Share edit on trip pages). */
-export function useAdminChromeRight(node: ReactNode | null) {
-  const ctx = useContext(AdminChromeContext);
-  const setRightExtra = ctx?.setRightExtra;
-  useEffect(() => {
-    if (!setRightExtra) return;
-    setRightExtra(node);
-    return () => setRightExtra(null);
-  }, [setRightExtra, node]);
+/** Page actions (status / visibility / Save) — portals into the top bar. */
+export function AdminChromeActions({ children }: { children: ReactNode }) {
+  const { actionsEl } = useContext(AdminChromeContext);
+  if (!actionsEl) return null;
+  return createPortal(children, actionsEl);
+}
+
+/** Share control — portals into the top bar (trips). */
+export function AdminChromeShare({ children }: { children: ReactNode }) {
+  const { shareEl } = useContext(AdminChromeContext);
+  if (!shareEl) return null;
+  return createPortal(children, shareEl);
 }
 
 export function AdminChrome({ children }: { children: ReactNode }) {
-  const [rightExtra, setRightExtraState] = useState<ReactNode | null>(null);
-  const setRightExtra = useCallback((node: ReactNode | null) => {
-    setRightExtraState(node);
-  }, []);
-  const value = useMemo(() => ({ setRightExtra }), [setRightExtra]);
+  const pathname = usePathname();
+  const onEditHome = pathname === "/admin";
+  const [actionsEl, setActionsEl] = useState<HTMLElement | null>(null);
+  const [shareEl, setShareEl] = useState<HTMLElement | null>(null);
+  const value = useMemo(
+    () => ({ actionsEl, shareEl }),
+    [actionsEl, shareEl],
+  );
 
   return (
     <AdminChromeContext.Provider value={value}>
@@ -44,33 +61,30 @@ export function AdminChrome({ children }: { children: ReactNode }) {
           paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
         }}
       >
-        <Link
-          href="/"
-          aria-label="Back to wall"
-          className="pointer-events-auto inline-flex h-9 items-center gap-0.5 rounded-full bg-white/60 pl-2 pr-3.5 text-[13px] font-medium tracking-tight text-ink/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 transition hover:bg-white/75 active:scale-[0.96] sm:h-10 sm:pl-2.5 sm:pr-4 sm:text-[15px]"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="-ml-0.5 text-ink/80"
-            aria-hidden
-          >
-            <path
-              d="M14.5 6.5L9 12l5.5 5.5"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Wall
-        </Link>
-
+        {/* Places: leave to public wall ↔ edit home */}
         <div className="pointer-events-auto flex items-center gap-1.5">
-          {rightExtra}
-          <div className="rounded-full bg-white/60 p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150">
+          <Link href="/" className={adminChromePillClass}>
+            Wall
+          </Link>
+          <Link
+            href="/admin"
+            aria-current={onEditHome ? "page" : undefined}
+            className={`${adminChromePillClass} ${
+              onEditHome ? "bg-white/85 text-ink ring-black/[0.1]" : ""
+            }`}
+          >
+            Edit
+          </Link>
+        </div>
+
+        <div className="pointer-events-auto flex max-w-[min(100%,48rem)] flex-wrap items-center justify-end gap-1.5">
+          {/* Page actions supply their own pill groups (status ≠ visibility ≠ save). */}
+          <div
+            ref={setActionsEl}
+            className="flex flex-wrap items-center justify-end gap-1.5 empty:hidden"
+          />
+          <div ref={setShareEl} className="contents" />
+          <div className={adminChromeClusterClass}>
             <AdminLogoutButton />
           </div>
         </div>

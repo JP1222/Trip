@@ -8,10 +8,9 @@ import {
   type PlaceSuggestion,
 } from "@/lib/geocode";
 import { newItemId } from "@/lib/plan";
-import { categoryPinColor } from "@/lib/map-pins";
 import {
-  StopCategoryBadge,
   StopCategoryIcon,
+  StopListMarker,
 } from "@/components/StopCategoryIcon";
 import {
   STOP_CATEGORIES,
@@ -482,17 +481,6 @@ export function AdminPlanEditor({
     );
   }
 
-  const saveLabel =
-    saveState === "saving"
-      ? "Saving…"
-      : saveState === "pending"
-        ? "Saving…"
-        : saveState === "saved"
-          ? "Saved"
-          : saveState === "error"
-            ? "Save failed"
-            : "Auto-save on";
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -502,29 +490,6 @@ export function AdminPlanEditor({
         <div className="flex items-center gap-2">
           {hint && <p className="text-xs text-ink-muted">{hint}</p>}
           {error && <p className="text-xs text-coral">{error}</p>}
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium ${
-              saveState === "error"
-                ? "bg-coral/10 text-coral"
-                : saveState === "saved"
-                  ? "bg-sea/10 text-sea"
-                  : saveState === "saving" || saveState === "pending"
-                    ? "bg-sand-100 text-ink-muted"
-                    : "bg-sand-100 text-ink-muted"
-            }`}
-            title="Changes save automatically"
-          >
-            {(saveState === "saving" || saveState === "pending") && (
-              <span
-                className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-muted"
-                aria-hidden
-              />
-            )}
-            {saveState === "saved" && (
-              <span className="h-1.5 w-1.5 rounded-full bg-sea" aria-hidden />
-            )}
-            {saveLabel}
-          </span>
           {saveState === "error" && (
             <button
               type="button"
@@ -616,13 +581,12 @@ export function AdminPlanEditor({
               </header>
 
               <ol className="divide-y divide-sand-100">
-                {day.items.map((item) => {
+                {day.items.map((item, itemIndex) => {
                   const row = listRows.find((r) => r.item.id === item.id);
                   const pin = row?.pin ?? null;
                   const active = selectedId === item.id;
                   const isDragOver =
                     dragOverId === item.id && dragId !== item.id;
-                  const pinColor = categoryPinColor(item.category);
                   return (
                     <li
                       key={item.id}
@@ -682,32 +646,21 @@ export function AdminPlanEditor({
                             : "cursor-pointer hover:bg-sand-50/80"
                         }`}
                       >
-                        <div className="flex w-[4.25rem] shrink-0 flex-col items-center gap-1 pt-0.5 sm:w-[4.75rem]">
-                          {pin != null ? (
-                            <span
-                              className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm"
-                              style={{
-                                background: active ? "#b56a4e" : pinColor,
-                              }}
-                            >
-                              {pin}
-                            </span>
-                          ) : (
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-sand-300 bg-white text-[11px] text-ink-muted">
-                              ?
-                            </span>
-                          )}
-                          {item.category ? (
-                            <StopCategoryBadge
-                              category={item.category}
-                              className="max-w-full justify-center px-1.5 py-px text-[8px] leading-none tracking-wide sm:text-[9px]"
-                            />
-                          ) : null}
+                        <div className="flex w-11 shrink-0 flex-col items-center gap-1.5 pt-0.5 sm:w-12">
+                          <StopListMarker
+                            order={itemIndex + 1}
+                            category={item.category}
+                            active={active}
+                          />
                           {item.time ? (
-                            <span className="text-[11px] tabular-nums text-coral">
+                            <span className="text-[11px] tabular-nums leading-tight text-coral">
                               {item.time}
                             </span>
-                          ) : null}
+                          ) : (
+                            <span className="text-[10px] text-ink-muted/60">
+                              —
+                            </span>
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-ink">

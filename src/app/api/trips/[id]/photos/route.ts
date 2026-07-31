@@ -11,7 +11,7 @@ import {
   rateLimitHeaders,
 } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isPublicTrip } from "@/lib/trips";
 import {
   parseMediaUpload,
   removeStagedUploads,
@@ -28,7 +28,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const trip = await getTrip(id);
-  if (!trip) {
+  if (!trip || !isPublicTrip(trip)) {
     return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   }
   const photos = await getPhotos(id);
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const trip = await getTrip(id);
-  if (!trip) {
+  if (!trip || !isPublicTrip(trip)) {
     return attachRequestId(
       NextResponse.json({ error: "Trip not found" }, { status: 404 }),
       requestId,

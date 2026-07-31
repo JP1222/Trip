@@ -206,6 +206,51 @@ export function AdminAddFab() {
               type="button"
               role="menuitem"
               className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-sand-50"
+              onClick={() => {
+                close();
+                router.push("/admin/articles/new");
+              }}
+            >
+              <span
+                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-coral/12 text-coral"
+                aria-hidden
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M6.5 4.5h8.2L17.5 7.3V19.5a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M14.5 4.6V7.5H17"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M8.5 11h7M8.5 14.5h7M8.5 18h4.5"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <span>
+                <span className="block text-sm font-medium text-ink">
+                  Article
+                </span>
+                <span className="mt-0.5 block text-xs text-ink-muted">
+                  Writing — pin as polaroid or sticky note
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-sand-50"
               onClick={() => setPanel("pin")}
             >
               <span

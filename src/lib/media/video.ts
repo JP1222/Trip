@@ -10,6 +10,7 @@ import {
   type AtomicTarget,
   type LocalMediaStorage,
 } from "./storage";
+import { ownerFromIds } from "./owner";
 import type { MediaAsset, MediaWithAssets } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -345,7 +346,7 @@ export async function generateVideoPoster(
   const sourcePath = storage.absolutePathForAsset(source);
   const sourceProbe = await probeVideo(sourcePath, { signal: options.signal });
   const posterKey = mediaAssetKey(
-    media.tripId,
+    ownerFromIds(media),
     media.id,
     media.version,
     "poster-960.webp",
@@ -377,7 +378,7 @@ export async function generateVideoAssets(
   const sourceProbe = await probeVideo(sourcePath, { signal: options.signal });
   const playbackFilename = live ? "live-playback.mp4" : "playback.mp4";
   const playbackKey = mediaAssetKey(
-    media.tripId,
+    ownerFromIds(media),
     media.id,
     media.version,
     playbackFilename,
@@ -408,7 +409,7 @@ export async function generateVideoAssets(
 
   if (!live && !options.skipPoster) {
     const posterKey = mediaAssetKey(
-      media.tripId,
+    ownerFromIds(media),
       media.id,
       media.version,
       "poster-960.webp",

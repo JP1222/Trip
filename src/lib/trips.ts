@@ -3,7 +3,7 @@ import { sanitizeBudget } from "./budget";
 import { type DbExecutor, getPool, withTransaction } from "./db";
 import { locationFromDays } from "./plan";
 import { normalizeStopCategory } from "./stop-categories";
-import type { DayPlan, Trip, TripBudget, TripLocation } from "./types";
+import type { DayPlan, Trip, TripBudget, TripLocation, TripVisibility } from "./types";
 
 type TripRow = QueryResultRow & {
   id: string;
@@ -13,6 +13,7 @@ type TripRow = QueryResultRow & {
   start_date: string;
   end_date: string;
   status: "lived" | "planned";
+  visibility: TripVisibility;
   cover_gradient: string;
   cover_emoji: string;
   cover_image: string | null;
@@ -34,6 +35,7 @@ const TRIP_SELECT = `
     t.start_date::text AS start_date,
     t.end_date::text AS end_date,
     t.status,
+    t.visibility,
     t.cover_gradient,
     t.cover_emoji,
     t.cover_image,
@@ -135,6 +137,10 @@ function objectValue<T>(value: unknown): T | undefined {
     : undefined;
 }
 
+function parseVisibility(value: unknown): TripVisibility {
+  return value === "private" ? "private" : "public";
+}
+
 function rowToTrip(row: TripRow): Trip {
   return {
     id: row.id,
@@ -144,6 +150,7 @@ function rowToTrip(row: TripRow): Trip {
     startDate: row.start_date,
     endDate: row.end_date,
     status: row.status,
+    visibility: parseVisibility(row.visibility),
     coverGradient: row.cover_gradient,
     coverEmoji: row.cover_emoji,
     coverImage: row.cover_image || undefined,
@@ -157,7 +164,17 @@ function rowToTrip(row: TripRow): Trip {
   };
 }
 
-async function getTripsFrom(executor: DbExecutor): Promise<Trip[]> {
+async function getTripsFrom(
+  executor: DbExecutor,
+  options?: { visibility?: TripVisibility },
+): Promise<Trip[]> {
+  if (options?.visibility) {
+    const result = await executor.query<TripRow>(`${TRIP_SELECT}
+      WHERE t.visibility = $1
+      ORDER BY t.position, t.id
+    `, [options.visibility]);
+    return result.rows.map(rowToTrip);
+  }
   const result = await executor.query<TripRow>(`${TRIP_SELECT}
     ORDER BY t.position, t.id
   `);
@@ -178,8 +195,17 @@ export async function getTrips(): Promise<Trip[]> {
   return getTripsFrom(getPool());
 }
 
+/** Trips visible on the public wall and public APIs. */
+export async function getPublicTrips(): Promise<Trip[]> {
+  return getTripsFrom(getPool(), { visibility: "public" });
+}
+
 export async function getTrip(id: string): Promise<Trip | null> {
   return getTripFrom(getPool(), id);
+}
+
+export function isPublicTrip(trip: Trip): boolean {
+  return trip.visibility !== "private";
 }
 
 export type TripEditable = Pick<
@@ -195,6 +221,7 @@ export type TripEditable = Pick<
   | "coverImage"
   | "coverEmoji"
   | "status"
+  | "visibility"
   | "days"
   | "location"
   | "budget"
@@ -420,6 +447,10 @@ export async function updateTrip(
     if (patch.status !== undefined) {
       next.status = patch.status === "planned" ? "planned" : "lived";
     }
+    if (patch.visibility !== undefined) {
+      next.visibility =
+        patch.visibility === "private" ? "private" : "public";
+    }
     if (patch.location !== undefined) {
       next.location = sanitizeLocation(patch.location);
     }
@@ -451,10 +482,11 @@ export async function updateTrip(
           start_date = $5,
           end_date = $6,
           status = $7,
-          cover_emoji = $8,
-          cover_image = $9,
-          location = $10::jsonb,
-          summary = $11,
+          visibility = $8,
+          cover_emoji = $9,
+          cover_image = $10,
+          location = $11::jsonb,
+          summary = $12,
           version = version + 1,
           updated_at = now()
         WHERE id = $1
@@ -467,6 +499,7 @@ export async function updateTrip(
         next.startDate,
         next.endDate,
         tripStatus(next),
+        next.visibility === "private" ? "private" : "public",
         next.coverEmoji,
         next.coverImage || null,
         next.location ? JSON.stringify(next.location) : null,
