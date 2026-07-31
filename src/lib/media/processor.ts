@@ -5,6 +5,7 @@ import {
   markMediaProcessing,
   publishProcessedMedia,
 } from "./repository";
+import { ownerFromIds } from "./owner";
 import { localMediaStorage, type LocalMediaStorage } from "./storage";
 import type { MediaAsset, MediaJob, MediaWithAssets } from "./types";
 import { generateVideoAssets, generateVideoPoster } from "./video";
@@ -61,7 +62,8 @@ async function purgeMedia(
   for (const asset of Object.values(media.assets)) {
     if (!asset || asset.role.startsWith("legacy_")) continue;
     const basename = path.posix.basename(asset.storageKey);
-    const trashKey = `${media.tripId}/${media.id}/v${media.version}/${asset.role}-${basename}`;
+    const owner = ownerFromIds(media);
+    const trashKey = `${owner.id}/${media.id}/v${media.version}/${asset.role}-${basename}`;
     await storage.moveToTrash(
       asset.isPublic ? "public" : "private",
       asset.storageKey,

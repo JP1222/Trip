@@ -1,0 +1,11 @@
+// Shared build settings for Trip (Phase 0).
+IPHONEOS_DEPLOYMENT_TARGET = 26.0
+SWIFT_VERSION = 6.0
+PRODUCT_BUNDLE_IDENTIFIER = cn.jpzen.trip
+PRODUCT_NAME = Trip
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Injected into Info.plist as TRIP_API_BASE_URL.
+// Override per-config in Debug.xcconfig / Release.xcconfig.
+TRIP_API_BASE_URL = https:/$()/trip.jpzen.cn

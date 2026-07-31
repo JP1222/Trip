@@ -7,15 +7,15 @@ import type { PhotoMeta } from "./types";
  * Prefer absolute `/media/...` keys from the media pipeline.
  * Bare names are treated as storage keys under /media (never /uploads).
  */
-export function photoPublicUrl(tripId: string, filename: string) {
+export function photoPublicUrl(ownerId: string | undefined, filename: string) {
   if (!filename) return "";
   if (/^https?:\/\//i.test(filename) || filename.startsWith("/")) {
     return filename;
   }
-  if (filename.startsWith("trips/")) {
+  if (filename.startsWith("trips/") || filename.startsWith("articles/")) {
     return `/media/${filename}`;
   }
-  return `/media/trips/${tripId}/${filename}`;
+  return `/media/trips/${ownerId || "_"}/${filename}`;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -91,10 +91,10 @@ export function isLivePhoto(
 }
 
 export function liveVideoPublicUrl(
-  tripId: string,
+  ownerId: string | undefined,
   liveVideoFilename: string,
 ): string {
-  return photoPublicUrl(tripId, liveVideoFilename);
+  return photoPublicUrl(ownerId, liveVideoFilename);
 }
 
 /**
@@ -102,12 +102,12 @@ export function liveVideoPublicUrl(
  * Use for visitor downloads — not for <img src> display.
  */
 export function photoDownloadUrl(
-  tripId: string,
+  tripId: string | undefined,
   photoId: string,
   opts?: { part?: "live" },
 ): string {
   const q = opts?.part === "live" ? "?part=live" : "";
-  return `/api/trips/${tripId}/photos/${photoId}/download${q}`;
+  return `/api/trips/${tripId || "_"}/photos/${photoId}/download${q}`;
 }
 
 export function isImageFile(file: File): boolean {

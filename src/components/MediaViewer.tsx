@@ -26,6 +26,8 @@ type Props = {
   photos: PhotoMeta[];
   index: number;
   comments: Comment[];
+  /** When false, hide the comments form/list (article albums). Default true. */
+  enableComments?: boolean;
   onClose: () => void;
   onIndexChange: (index: number) => void;
   onDownload: (photo: PhotoMeta) => void | Promise<void>;
@@ -126,6 +128,7 @@ export function MediaViewer({
   photos,
   index,
   comments,
+  enableComments = true,
   onClose,
   onIndexChange,
   onDownload,
@@ -643,7 +646,7 @@ export function MediaViewer({
           {activeIsLive && active.liveVideoFilename ? (
             <button
               type="button"
-              className="flex min-h-10 min-w-10 shrink-0 touch-manipulation items-center justify-center rounded-full p-0.5"
+              className="flex h-7 shrink-0 touch-manipulation items-center justify-center"
               aria-label={livePlaying ? "Stop Live Photo" : "Play Live Photo"}
               aria-pressed={livePlaying}
               aria-busy={liveBuffering}
@@ -887,13 +890,21 @@ export function MediaViewer({
             </div>
 
             <div className="mt-3 mb-2 flex items-baseline justify-between gap-2 sm:mt-4 sm:mb-3">
-              <h3 className="text-sm font-medium text-white/90">Comments</h3>
-              <span className="text-xs text-white/40">
-                {activeComments.length}{" "}
-                {activeComments.length === 1 ? "note" : "notes"}
-              </span>
+              {enableComments ? (
+                <>
+                  <h3 className="text-sm font-medium text-white/90">Comments</h3>
+                  <span className="text-xs text-white/40">
+                    {activeComments.length}{" "}
+                    {activeComments.length === 1 ? "note" : "notes"}
+                  </span>
+                </>
+              ) : (
+                <h3 className="text-sm font-medium text-white/90">Details</h3>
+              )}
             </div>
 
+            {enableComments ? (
+            <>
             <form
               onSubmit={(e) => void onPostComment(e)}
               className="mb-3 space-y-2 sm:mb-4"
@@ -952,6 +963,8 @@ export function MediaViewer({
                 ))
               )}
             </div>
+            </>
+            ) : null}
           </div>
         </aside>
       </div>

@@ -65,7 +65,7 @@ const VARIANT: Record<
 export function VinylRecord({
   id,
   variant = "classic",
-  label = "Our trips",
+  label = "Trips",
   className = "",
   size = 96,
 }: Props) {

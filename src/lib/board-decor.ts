@@ -203,7 +203,7 @@ export const BOARD_WIDGETS: BoardDecorItem[] = [
     label: "Black",
     description: "Standard LP — grooves, cream label, soft cork shadow",
     accent: "#1a1816",
-    vinylLabel: "Our trips",
+    vinylLabel: "Trips",
     defaultScale: 1.6,
   },
   {

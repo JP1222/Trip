@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PhotoMeta } from "@/lib/types";
 import {
-  formatCameraSettings,
   formatFileSize,
   isLivePhoto,
   isVideoMedia,
@@ -17,13 +16,28 @@ import {
   photoFullPublicUrl,
   photoListPublicUrl,
 } from "@/lib/media-url";
-import { LiveBadge, LivePhotoStage, LivePhotoThumb } from "@/components/LivePhoto";
+import {
+  LiveBadge,
+  LivePhotoStage,
+  LivePhotoThumb,
+} from "@/components/LivePhoto";
+import { AdminCoverEditor } from "@/components/admin/AdminCoverEditor";
+
+type MediaOwnerKind = "trip" | "article";
 
 type Props = {
-  tripId: string;
-  tripTitle: string;
+  /** @deprecated Prefer ownerKind + ownerId */
+  tripId?: string;
+  tripTitle?: string;
+  ownerKind?: MediaOwnerKind;
+  ownerId?: string;
+  title?: string;
   photos: PhotoMeta[];
   coverImage?: string;
+  /** Keep parent form cover state in sync (articles editor). */
+  onCoverChange?: (coverImage: string) => void;
+  /** Notify parent when a new photo lands in the library (editor sync). */
+  onPhotoUploaded?: (photo: PhotoMeta) => void;
 };
 
 const MAX_BATCH = 50;
@@ -48,9 +62,25 @@ function sortAdminPhotos(list: PhotoMeta[]): PhotoMeta[] {
 export function AdminPhotos({
   tripId,
   tripTitle,
+  ownerKind: ownerKindProp,
+  ownerId: ownerIdProp,
+  title: titleProp,
   photos: initial,
   coverImage: initialCover,
+  onCoverChange,
+  onPhotoUploaded,
 }: Props) {
+  const ownerKind: MediaOwnerKind = ownerKindProp || "trip";
+  const ownerId = ownerIdProp || tripId || "";
+  const title = titleProp || tripTitle || "";
+  const coverPatchUrl =
+    ownerKind === "trip"
+      ? `/api/admin/trips/${ownerId}`
+      : `/api/admin/articles/${ownerId}`;
+  const mediaCollectionUrl = `${coverPatchUrl}/photos`;
+  const mediaItemUrl = (mediaId: string) =>
+    `${mediaCollectionUrl}/${mediaId}`;
+
   const fileRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState(() => sortAdminPhotos(initial));
   const [cover, setCover] = useState(initialCover || "");
@@ -64,6 +94,7 @@ export function AdminPhotos({
   const [visibleCount, setVisibleCount] = useState(ADMIN_MEDIA_BATCH_SIZE);
   /** Index into visiblePhotos for full-screen preview */
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [editingCover, setEditingCover] = useState(false);
 
   const featuredCount = useMemo(
     () => photos.filter((p) => p.featured).length,
@@ -136,13 +167,16 @@ export function AdminPhotos({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/trips/${tripId}`, {
+      const res = await fetch(coverPatchUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coverImage: url }),
+        body: JSON.stringify({
+          coverImage: url,
+        }),
       });
       if (!res.ok) throw new Error("Could not set polaroid");
       setCover(url);
+      onCoverChange?.(url);
       setStatus("Polaroid cover updated");
       setTimeout(() => setStatus(null), 2000);
     } catch (err) {
@@ -157,14 +191,11 @@ export function AdminPhotos({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/admin/trips/${tripId}/photos/${photo.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ featured: nextFeatured }),
-        },
-      );
+      const res = await fetch(mediaItemUrl(photo.id), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ featured: nextFeatured }),
+      });
       const data = (await res.json()) as PhotoMeta & { error?: string };
       if (!res.ok) throw new Error(data.error || "Could not update featured");
       // Explicit featured flag — JSON responses may omit false/undefined keys,
@@ -200,13 +231,16 @@ export function AdminPhotos({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/trips/${tripId}`, {
+      const res = await fetch(coverPatchUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coverImage: "" }),
+        body: JSON.stringify({
+          coverImage: ownerKind === "article" ? null : "",
+        }),
       });
       if (!res.ok) throw new Error("Could not clear cover");
       setCover("");
+      onCoverChange?.("");
       setStatus("Polaroid cover cleared");
       setTimeout(() => setStatus(null), 2000);
     } catch (err) {
@@ -227,7 +261,7 @@ export function AdminPhotos({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/trips/${tripId}/photos`, {
+      const res = await fetch(mediaCollectionUrl, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
@@ -247,7 +281,10 @@ export function AdminPhotos({
         gone.forEach((id) => next.delete(id));
         return next;
       });
-      if (data.coverCleared) setCover("");
+      if (data.coverCleared) {
+        setCover("");
+        onCoverChange?.("");
+      }
       setStatus(
         `Deleted ${gone.size} photo${gone.size === 1 ? "" : "s"}`,
       );
@@ -285,7 +322,7 @@ export function AdminPhotos({
       for (const file of files) form.append("files", file);
       form.append("uploader", "Admin");
 
-      const res = await fetch(`/api/admin/trips/${tripId}/photos`, {
+      const res = await fetch(mediaCollectionUrl, {
         method: "POST",
         body: form,
       });
@@ -302,17 +339,19 @@ export function AdminPhotos({
       const saved = data.photos || [];
       if (saved.length) {
         setPhotos((prev) => sortAdminPhotos([...saved, ...prev]));
+        for (const photo of saved) onPhotoUploaded?.(photo);
         // Auto-set first cover if none (images only — not video)
         if (!cover || isLegacyUploadUrl(cover)) {
           const firstImage = saved.find((p) => !isVideoMedia(p));
           if (firstImage) {
             const url = photoFullPublicUrl(firstImage);
-            await fetch(`/api/admin/trips/${tripId}`, {
+            await fetch(coverPatchUrl, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ coverImage: url }),
             });
             setCover(url);
+            onCoverChange?.(url);
           }
         }
       }
@@ -373,25 +412,7 @@ export function AdminPhotos({
               if (e.target.files?.length) void uploadFiles(e.target.files);
             }}
           />
-          {selected.size > 0 ? (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void deleteIds([...selected])}
-                className="rounded-full border border-coral/50 bg-coral/10 px-4 py-2 text-sm text-coral transition hover:bg-coral/15 disabled:opacity-50"
-              >
-                Delete selected ({selected.size})
-              </button>
-              <button
-                type="button"
-                onClick={clearSelection}
-                className="rounded-full border border-sand-300 px-3 py-2 text-sm text-ink-muted hover:text-ink"
-              >
-                Clear
-              </button>
-            </>
-          ) : photos.length > 0 ? (
+          {selected.size === 0 && photos.length > 0 ? (
             <button
               type="button"
               onClick={selectAll}
@@ -421,22 +442,33 @@ export function AdminPhotos({
           </p>
           {coverUrl ? (
             <div className="relative inline-block">
-              <div
-                className="instant pointer-events-none shadow-md"
-                style={{ ["--w" as string]: "180px" }}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setEditingCover(true)}
+                className="group text-left"
+                title="Edit cover (rotate / crop)"
               >
-                <div className="instant__pad">
-                  <div className="instant__image">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={coverUrl} alt="Polaroid cover" />
+                <div
+                  className="instant shadow-md transition group-hover:ring-2 group-hover:ring-sea/35"
+                  style={{ ["--w" as string]: "180px" }}
+                >
+                  <div className="instant__pad">
+                    <div className="instant__image relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={coverUrl} alt="Polaroid cover" />
+                      <span className="absolute inset-0 flex items-center justify-center bg-ink/0 text-[11px] font-medium tracking-wide text-white uppercase opacity-0 transition group-hover:bg-ink/45 group-hover:opacity-100">
+                        Edit
+                      </span>
+                    </div>
+                  </div>
+                  <div className="instant__foot">
+                    <span className="instant__caption">
+                      {title || (ownerKind === "article" ? "Article" : "Trip")}
+                    </span>
                   </div>
                 </div>
-                <div className="instant__foot">
-                  <span className="instant__caption">
-                    {tripTitle || "Trip"}
-                  </span>
-                </div>
-              </div>
+              </button>
               <button
                 type="button"
                 disabled={busy}
@@ -542,9 +574,10 @@ export function AdminPhotos({
             {renderedPhotos.map((p, index) => {
             // Cover / lightbox: full original. Grid chips: 1080 list thumb (or video poster).
             const url = photoFullPublicUrl(p);
+            const ownerKey = p.articleId || p.tripId || ownerId;
             const gridUrl = isVideoMedia(p)
               ? photoPublicUrl(
-                  p.tripId,
+                  ownerKey,
                   p.posterFilename || p.thumbnailFilename || p.filename,
                 )
               : photoListPublicUrl(p);
@@ -586,12 +619,12 @@ export function AdminPhotos({
                       <LivePhotoThumb
                         stillSrc={gridUrl}
                         videoSrc={liveVideoPublicUrl(
-                          p.tripId,
+                          ownerKey,
                           p.liveVideoFilename,
                         )}
                         alt={p.caption || p.originalName}
                         className="h-full w-full object-cover"
-                        badgeClassName="top-1.5 left-1.5"
+                        showBadge={false}
                       />
                     ) : (
                       <Image
@@ -625,20 +658,23 @@ export function AdminPhotos({
                     </span>
                   )}
 
-                  {/* Select checkbox */}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => toggle(p.id)}
-                    className={`absolute top-1.5 left-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs transition ${
-                      isSelected
-                        ? "border-coral bg-coral text-white"
-                        : "border-white/90 bg-black/25 text-transparent hover:bg-black/40"
-                    }`}
-                    aria-label={isSelected ? "Deselect" : "Select"}
-                  >
-                    ✓
-                  </button>
+                  {/* Select + LIVE — one row so heights stay aligned */}
+                  <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => toggle(p.id)}
+                      className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs transition ${
+                        isSelected
+                          ? "border-coral bg-coral text-white"
+                          : "border-white/90 bg-black/25 text-transparent hover:bg-black/40"
+                      }`}
+                      aria-label={isSelected ? "Deselect" : "Select"}
+                    >
+                      ✓
+                    </button>
+                    {isLive ? <LiveBadge size="sm" /> : null}
+                  </div>
 
                   {/* Feature star */}
                   <button
@@ -696,23 +732,7 @@ export function AdminPhotos({
                       Video
                     </span>
                   )}
-                  {isLive && !isVid && (
-                    <span className="pointer-events-none absolute top-1.5 left-8 z-10">
-                      <LiveBadge size="sm" />
-                    </span>
-                  )}
                 </div>
-                <p className="mt-1 truncate px-0.5 text-[10px] text-ink-muted">
-                  {isFeatured ? "★ " : ""}
-                  {isVid ? "▶ " : isLive ? "◎ " : ""}
-                  {p.uploader}
-                  {p.device ? ` · ${p.device}` : ""}
-                  {p.aperture != null
-                    ? ` · f/${p.aperture}`
-                    : p.iso != null
-                      ? ` · ISO ${p.iso}`
-                      : ""}
-                </p>
               </li>
             );
             })}
@@ -833,15 +853,6 @@ export function AdminPhotos({
                   {formatFileSize(
                     previewPhoto.size + (previewPhoto.liveVideoSize || 0),
                   )}
-                  {(() => {
-                    const s = formatCameraSettings(previewPhoto);
-                    return s ? (
-                      <span className="hidden text-white/50 sm:inline">
-                        {" · "}
-                        {s}
-                      </span>
-                    ) : null;
-                  })()}
                 </p>
               </div>
             </div>
@@ -906,7 +917,7 @@ export function AdminPhotos({
               <video
                 key={previewPhoto.id}
                 src={photoPublicUrl(
-                  previewPhoto.tripId,
+                  previewPhoto.articleId || previewPhoto.tripId || ownerId,
                   previewPhoto.filename,
                 )}
                 className="max-h-[min(78vh,900px)] max-w-full rounded-lg bg-black object-contain shadow-2xl"
@@ -921,7 +932,7 @@ export function AdminPhotos({
                 resetKey={previewPhoto.id}
                 stillSrc={photoFullPublicUrl(previewPhoto)}
                 videoSrc={liveVideoPublicUrl(
-                  previewPhoto.tripId,
+                  previewPhoto.articleId || previewPhoto.tripId || ownerId,
                   previewPhoto.liveVideoFilename,
                 )}
                 alt={previewPhoto.caption || previewPhoto.originalName}
@@ -955,6 +966,21 @@ export function AdminPhotos({
           )}
         </div>
       )}
+
+      {editingCover && coverUrl ? (
+        <AdminCoverEditor
+          src={coverUrl}
+          title={title || (ownerKind === "article" ? "Article" : "Trip")}
+          uploadUrl={`${coverPatchUrl}/cover`}
+          onClose={() => setEditingCover(false)}
+          onSaved={(next) => {
+            setCover(next);
+            onCoverChange?.(next);
+            setStatus("Polaroid cover updated");
+            setTimeout(() => setStatus(null), 2000);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

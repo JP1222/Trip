@@ -1,4 +1,4 @@
-import type { PhotoMeta, Trip } from "./types";
+import type { Article, PhotoMeta, Trip } from "./types";
 import { resolveTripCoverUrl } from "./media-url";
 import type {
   WallDisplaySize,
@@ -14,13 +14,13 @@ function isPlannedTrip(t: Trip): boolean {
   return t.status === "planned";
 }
 
-export type WallItemKind = "trip" | "photo" | "empty" | "note";
+export type WallItemKind = "trip" | "photo" | "empty" | "note" | "article";
 export type WallPhotoOrientation = "landscape" | "portrait" | "square";
 
 export type WallItem = {
   kind: WallItemKind;
   id: string;
-  /** Trip link; standalone photos, empty slots, and notes omit it. */
+  /** Trip / article link; standalone photos, empty slots omit it. */
   href?: string;
   src?: string;
   /** Optional fixed print direction; otherwise inferred from the loaded image. */
@@ -318,14 +318,66 @@ function wallPhotoToItem(photo: WallPhoto): WallItem {
   };
 }
 
+function formatArticleWallDate(iso?: string): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function articleToWallItem(article: Article): WallItem | null {
+  if (article.status !== "published") return null;
+  if (article.wallStyle === "none") return null;
+
+  const href = `/blog/${article.slug}`;
+  const dateLine = formatArticleWallDate(article.publishedAt);
+
+  if (article.wallStyle === "note") {
+    const noteLines = article.excerpt
+      ? article.excerpt
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .slice(0, 4)
+      : dateLine
+        ? [dateLine, "Tap to read →"]
+        : ["Tap to read →"];
+    return {
+      kind: "note",
+      id: `article-note-${article.id}`,
+      href,
+      caption: article.title,
+      noteLines,
+      noteSignature: "Writing",
+    };
+  }
+
+  // polaroid
+  return {
+    kind: "article",
+    id: `article-polaroid-${article.id}`,
+    href,
+    src: article.coverImage,
+    caption: article.title,
+    sub: "Essay",
+    meta: dateLine || "Writing",
+    dateLabel: dateLine || "Writing",
+    coverGradient: "linear-gradient(145deg, #5a8582 0%, #3d6664 52%, #2a4543 100%)",
+    coverEmoji: "✎",
+  };
+}
+
 /**
- * Home wall: trip polaroids + board photos + a sticky note + open slots
+ * Cork wall: trip polaroids + board photos + article pins + a sticky note
  * so the board feels alive when you’re still planning.
  */
 export function buildWallItems(
   trips: Trip[],
   photosByTrip?: Map<string, PhotoMeta[]>,
   boardPhotos: WallPhoto[] = [],
+  articles: Article[] = [],
 ): WallItem[] {
   const tripItems = trips.map((t) => tripToWallItem(t, photosByTrip));
   const plannedCount = tripItems.filter((i) => i.planned).length;
@@ -348,12 +400,15 @@ export function buildWallItems(
   const items: WallItem[] = [];
   const planned = tripItems.filter((i) => i.planned);
   const lived = tripItems.filter((i) => !i.planned);
+  const articleItems = articles
+    .map(articleToWallItem)
+    .filter((item): item is WallItem => item != null);
 
   // A small board label: human context rather than implementation details.
   items.push({
     kind: "note",
     id: "wall-note-stats",
-    caption: "Our trips",
+    caption: "Trips",
     noteLines: [
       yearLine,
       `${memoryCount} ${memoryCount === 1 ? "memory" : "memories"} pinned`,
@@ -368,6 +423,9 @@ export function buildWallItems(
 
   // Standalone board prints (group shots, mementos) — not trip cards.
   items.push(...boardPhotos.map(wallPhotoToItem));
+
+  // Writing pinned as polaroids or sticky notes.
+  items.push(...articleItems);
 
   // Planned first so “coming up” is visible, then lived memories
   items.push(...planned, ...lived);

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminComments } from "@/components/admin/AdminComments";
 import { AdminPhotos } from "@/components/admin/AdminPhotos";
@@ -28,35 +27,7 @@ export default async function AdminTripPage({ params }: Props) {
       <div className="mx-auto max-w-6xl space-y-8 px-5 pt-20 pb-16 sm:px-8 xl:max-w-7xl">
         <AdminTripShare tripId={trip.id} />
 
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <Link
-              href="/admin"
-              className="text-sm text-ink-muted transition hover:text-sea"
-            >
-              ← Admin wall
-            </Link>
-            <h1 className="mt-2 font-serif text-2xl text-ink sm:text-3xl">
-              {trip.title}
-            </h1>
-          </div>
-          <Link
-            href={`/trips/${trip.id}`}
-            className="text-sm text-sea hover:underline"
-          >
-            Open public page →
-          </Link>
-        </div>
-
-        {/* Compact meta — collapsed visual weight so Plan stays primary */}
-        <section className="rounded-2xl border border-sand-200 bg-white/80 px-4 py-3 sm:px-5 sm:py-4">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
-            <h2 className="text-xs font-medium tracking-[0.12em] text-ink-muted uppercase">
-              Trip details
-            </h2>
-          </div>
-          <TripAdminForm trip={trip} />
-        </section>
+        <TripAdminForm trip={trip} />
 
         <section>
           <h2 className="font-serif text-xl text-ink">Plan</h2>

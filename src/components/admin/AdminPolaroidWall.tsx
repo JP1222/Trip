@@ -21,6 +21,7 @@ import type {
   WallDisplaySize,
   WallFrameStyle,
 } from "@/lib/wall-photos";
+import { swayForItem } from "@/lib/wall-sway";
 
 export type AdminTripCard = WallItem & {
   kind: "trip";
@@ -40,21 +41,18 @@ export type AdminPhotoCard = WallItem & {
   naturalOrientation?: WallPhotoOrientation | null;
 };
 
-export type AdminWallCard = AdminTripCard | AdminPhotoCard;
+export type AdminArticleCard = Omit<WallItem, "kind"> & {
+  kind: "article";
+  articleId: string;
+  /** `none` = hidden from public wall; still shown on the admin board for editing */
+  wallStyle: "polaroid" | "note" | "none";
+  draft?: boolean;
+};
+
+export type AdminWallCard = AdminTripCard | AdminPhotoCard | AdminArticleCard;
 
 /** @deprecated use AdminTripCard / AdminWallCard */
 export type AdminWallCardLegacy = AdminTripCard;
-
-function hash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function rotateFor(id: string) {
-  const angles = [-2.4, -1.2, -0.6, 0.5, 1.1, 2.0, -1.8, 0.9];
-  return angles[hash(id) % angles.length];
-}
 
 function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
   const ratio = image.naturalWidth / image.naturalHeight;
@@ -64,7 +62,9 @@ function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
 }
 
 function slotKey(item: AdminWallCard): string {
-  return item.kind === "trip" ? `trip:${item.tripId}` : `photo:${item.photoId}`;
+  if (item.kind === "trip") return `trip:${item.tripId}`;
+  if (item.kind === "photo") return `photo:${item.photoId}`;
+  return `article:${item.articleId}`;
 }
 
 const decorPins = [
@@ -360,6 +360,9 @@ export function AdminPolaroidWall({
     const photos = itemsRef.current.filter(
       (i): i is AdminPhotoCard => i.kind === "photo",
     );
+    const articles = itemsRef.current.filter(
+      (i): i is AdminArticleCard => i.kind === "article",
+    );
     const sortedTrips = [...trips].sort((a, b) => {
       const cmp =
         a.startDate.localeCompare(b.startDate) ||
@@ -367,14 +370,18 @@ export function AdminPolaroidWall({
         a.caption.localeCompare(b.caption);
       return nextDir === "newest" ? -cmp : cmp;
     });
-    // Keep board photos first (same as public wall), then sorted trips
-    const next: AdminWallCard[] = [...photos, ...sortedTrips];
+    // Keep board photos first, then articles, then sorted trips
+    const next: AdminWallCard[] = [...photos, ...articles, ...sortedTrips];
     setDateSort(nextDir);
     setItems(next);
     void persistTripOrder(next);
   }
 
   const tripCount = items.filter((i) => i.kind === "trip").length;
+
+  function openArticle(articleId: string) {
+    router.push(`/admin/articles/${articleId}`);
+  }
 
   return (
     <div className="gallery-wall gallery-wall--admin">
@@ -439,11 +446,62 @@ export function AdminPolaroidWall({
 
             {items.map((item, index) => {
               const key = slotKey(item);
-              const rotate = rotateFor(item.id);
+              const rotate = swayForItem(item.id, index);
+
+              if (item.kind === "article" && item.wallStyle === "note") {
+                return (
+                  <li
+                    key={key}
+                    ref={(el) => {
+                      if (el) liRefs.current.set(key, el);
+                      else liRefs.current.delete(key);
+                    }}
+                    className={`admin-wall-slot wall-item wall-item--note wall-note-wrap ${
+                      ready ? "" : "animate-fade-up"
+                    }`}
+                    style={
+                      ready
+                        ? undefined
+                        : {
+                            animationDelay: `${Math.min(index * 0.05, 0.4)}s`,
+                          }
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="block w-full text-left"
+                      onClick={() => openArticle(item.articleId)}
+                      aria-label={`Edit article ${item.caption}`}
+                    >
+                      <div
+                        className="wall-note"
+                        style={{ transform: `rotate(${rotate * 0.6}deg)` }}
+                      >
+                        <span className="wall-note__pin" aria-hidden />
+                        {item.draft ? (
+                          <p className="wall-note__line">Draft</p>
+                        ) : null}
+                        <p className="wall-note__title">{item.caption}</p>
+                        {item.noteLines?.map((line) => (
+                          <p key={line} className="wall-note__line">
+                            {line}
+                          </p>
+                        ))}
+                        {item.noteSignature ? (
+                          <p className="wall-note__signature">
+                            {item.noteSignature}
+                          </p>
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                );
+              }
+
               const line2 = item.meta || item.dateLabel;
               const isTrip = item.kind === "trip";
-              const isDragging =
-                isTrip && dragId === item.tripId;
+              const isArticle = item.kind === "article";
+              const isDragging = isTrip && dragId === item.tripId;
               const active = hoverId === item.id && !isDragging;
               const orientation =
                 item.orientation ||
@@ -451,13 +509,16 @@ export function AdminPolaroidWall({
                   ? photoOrientations[item.id] || "landscape"
                   : item.planned
                     ? "portrait"
-                    : "square");
+                    : isArticle
+                      ? "square"
+                      : "square");
               const frameStyle =
                 item.kind === "photo" ? item.frameStyle || "polaroid" : undefined;
               const displaySize =
                 item.kind === "photo" ? item.displaySize || "md" : undefined;
               const showLabels =
                 isTrip ||
+                isArticle ||
                 (frameStyle !== "borderless" &&
                   !item.hideLabels &&
                   Boolean(item.caption?.trim() || line2?.trim()));
@@ -478,9 +539,11 @@ export function AdminPolaroidWall({
               const itemTypeClass =
                 item.kind === "photo"
                   ? "wall-item--photo"
-                  : item.planned
-                    ? "wall-item--planned"
-                    : "wall-item--trip";
+                  : item.kind === "article"
+                    ? "wall-item--article"
+                    : item.planned
+                      ? "wall-item--planned"
+                      : "wall-item--trip";
 
               return (
                 <li
@@ -532,11 +595,11 @@ export function AdminPolaroidWall({
                       onMouseLeave={() => setHoverId(null)}
                       onFocus={() => setHoverId(item.id)}
                       onBlur={() => setHoverId(null)}
-                      onClick={() =>
-                        isTrip
-                          ? onTripClick(item.tripId)
-                          : onPhotoClick(item)
-                      }
+                      onClick={() => {
+                        if (isTrip) onTripClick(item.tripId);
+                        else if (isArticle) openArticle(item.articleId);
+                        else onPhotoClick(item);
+                      }}
                       className={`instant group admin-instant ${printClasses}`}
                       style={{
                         transform: isDragging
@@ -553,7 +616,9 @@ export function AdminPolaroidWall({
                       aria-label={
                         isTrip
                           ? `Edit trip ${item.caption}. Drag to reorder.`
-                          : `Edit board photo ${altText}`
+                          : isArticle
+                            ? `Edit article ${item.caption}`
+                            : `Edit board photo ${altText}`
                       }
                     >
                       <Pushpin />
@@ -563,6 +628,15 @@ export function AdminPolaroidWall({
                       {item.kind === "photo" && (
                         <span className="instant__badge instant__badge--photo">
                           Photo
+                        </span>
+                      )}
+                      {isArticle && (
+                        <span className="instant__badge instant__badge--photo">
+                          {item.wallStyle === "none"
+                            ? "Hidden"
+                            : item.draft
+                              ? "Draft"
+                              : "Article"}
                         </span>
                       )}
 
@@ -600,7 +674,8 @@ export function AdminPolaroidWall({
                                     : undefined
                                   : {
                                       background:
-                                        "linear-gradient(155deg, #6b5c4a 0%, #2e2820 100%)",
+                                        item.coverGradient ||
+                                        "linear-gradient(155deg, #5a8582 0%, #2a4543 100%)",
                                     }
                               }
                             >
@@ -631,7 +706,7 @@ export function AdminPolaroidWall({
                               <span className="instant__cover-label">
                                 {item.planned
                                   ? "Up next"
-                                  : item.sub || "Journey"}
+                                  : item.sub || (isArticle ? "Essay" : "Journey")}
                               </span>
                               <span className="instant__cover-name">
                                 {item.caption}

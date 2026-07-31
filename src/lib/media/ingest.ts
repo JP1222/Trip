@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import path from "path";
 import { mediaMetaAfterQueue } from "./inline";
+import type { MediaOwner } from "./owner";
+import { ownerFromIds } from "./owner";
 import { createQueuedMedia, mediaToPhotoMeta } from "./repository";
 import {
   localMediaStorage,
@@ -18,7 +20,10 @@ export type StagedMediaSource = {
 };
 
 export type QueueStagedMediaInput = {
-  tripId: string;
+  /** Prefer `owner`. `tripId` kept for existing trip upload call sites. */
+  owner?: MediaOwner;
+  tripId?: string;
+  articleId?: string;
   uploader: string;
   caption?: string;
   primary: StagedMediaSource;
@@ -79,11 +84,17 @@ function validateSource(source: StagedMediaSource): void {
   }
 }
 
+function resolveOwner(input: QueueStagedMediaInput): MediaOwner {
+  if (input.owner) return input.owner;
+  return ownerFromIds({ tripId: input.tripId, articleId: input.articleId });
+}
+
 export async function queueStagedMedia(
   input: QueueStagedMediaInput,
   options: { storage?: LocalMediaStorage } = {},
 ) {
   const storage = options.storage || localMediaStorage;
+  const owner = resolveOwner(input);
   validateSource(input.primary);
   if (input.liveVideo) validateSource(input.liveVideo);
   const kind = mediaKind(input.primary, Boolean(input.liveVideo));
@@ -110,7 +121,7 @@ export async function queueStagedMedia(
   );
   const originalExtension = extensionForSource(input.primary, kind === "video");
   const originalKey = mediaAssetKey(
-    input.tripId,
+    owner,
     id,
     version,
     `original${originalExtension}`,
@@ -135,7 +146,7 @@ export async function queueStagedMedia(
     if (input.liveVideo) {
       const liveExtension = extensionForSource(input.liveVideo, true);
       const liveKey = mediaAssetKey(
-        input.tripId,
+        owner,
         id,
         version,
         `live-original${liveExtension}`,
@@ -160,7 +171,9 @@ export async function queueStagedMedia(
           : "process_image";
     const queued = await createQueuedMedia({
       id,
-      tripId: input.tripId,
+      ...(owner.kind === "trip"
+        ? { tripId: owner.id }
+        : { articleId: owner.id }),
       kind,
       uploader,
       caption,
@@ -179,11 +192,10 @@ export async function queueStagedMedia(
         storage.moveToTrash(
           "private",
           key,
-          `${input.tripId}/${id}/failed-ingest/${role}-${path.posix.basename(key)}`,
+          `${owner.id}/${id}/failed-ingest/${role}-${path.posix.basename(key)}`,
         ),
       ),
     );
     throw error;
   }
 }
-

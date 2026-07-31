@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { CollabPlanShell } from "@/components/CollabPlanShell";
-import { Comments } from "@/components/Comments";
+import { NotesSection } from "@/components/NotesSection";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { TripPlanner } from "@/components/TripPlanner";
@@ -22,6 +22,7 @@ import {
   formatDateRange,
   getTrip,
   isPlannedTrip,
+  isPublicTrip,
   tripDurationDays,
 } from "@/lib/trips";
 import { coverGradientToCss } from "@/lib/wall";
@@ -36,7 +37,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const trip = await getTrip(id);
-  if (!trip) return { title: "Trip not found" };
+  if (!trip || !isPublicTrip(trip)) return { title: "Trip not found" };
   return {
     title: trip.title,
     description: trip.summary,
@@ -47,7 +48,7 @@ export default async function TripPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
   const trip = await getTrip(id);
-  if (!trip) notFound();
+  if (!trip || !isPublicTrip(trip)) notFound();
 
   const [photos, allComments, tripNotes] = await Promise.all([
     getPhotos(trip.id),
@@ -86,17 +87,15 @@ export default async function TripPage({ params, searchParams }: Props) {
       ];
 
   const notesSection = (
-    <section id="notes" className="mt-14 scroll-mt-28 pb-2 sm:mt-16">
-      <div className="mb-5">
-        <h2 className="font-serif text-3xl text-ink">Notes</h2>
-        <p className="mt-1.5 text-sm text-ink-muted">
-          {planned
-            ? "Group chat for this trip — who’s in, ideas, reminders."
-            : "For the whole group. Photo comments live on each photo."}
-        </p>
-      </div>
-      <Comments tripId={trip.id} initialComments={tripNotes} />
-    </section>
+    <NotesSection
+      tripId={trip.id}
+      initialComments={tripNotes}
+      description={
+        planned
+          ? "Group chat for this trip — who’s in, ideas, reminders."
+          : "For the whole group. Photo comments live on each photo."
+      }
+    />
   );
 
   const photosSection = (
@@ -138,7 +137,7 @@ export default async function TripPage({ params, searchParams }: Props) {
     "linear-gradient(145deg, #efeae2 0%, #e0d8cc 100%)";
 
   return (
-    <div className="relative overflow-hidden pb-20">
+    <div className="relative overflow-hidden pb-24">
       <div
         className="ambient -left-10 top-16 h-56 w-56 bg-sea/20 sm:-left-16 sm:top-20 sm:h-72 sm:w-72 sm:bg-sea/15"
         aria-hidden
@@ -203,7 +202,7 @@ export default async function TripPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      <TripSectionNav tabs={navTabs} />
+      <TripSectionNav tabs={navTabs} variant="dock" />
 
       {/* Wide workspace on desktop — itinerary | map+budget */}
       <div className="relative mx-auto max-w-7xl px-5 sm:px-8 xl:px-10">

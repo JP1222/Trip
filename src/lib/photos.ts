@@ -3,10 +3,15 @@ import path from "path";
 import type { PhotoMeta } from "./types";
 import { mediaMetaAfterQueue } from "./media/inline";
 import {
+  articleOwner,
+  tripOwner,
+  type MediaOwner,
+} from "./media/owner";
+import {
   createQueuedMedia,
+  getOwnedMediaById,
   getPhotoMetaPage,
-  getTripMediaById,
-  listPhotoMetaForTrip,
+  listPhotoMetaForOwner,
   mediaToPhotoMeta,
   softDeleteMedia,
   updateMediaMetadata,
@@ -40,21 +45,42 @@ export function sortPhotos(photos: PhotoMeta[]): PhotoMeta[] {
   });
 }
 
+export async function getPhotosForOwner(
+  owner: MediaOwner,
+  options: { includePending?: boolean } = {},
+): Promise<PhotoMeta[]> {
+  return listPhotoMetaForOwner(owner, options);
+}
+
 export async function getPhotos(
   tripId: string,
   options: { includePending?: boolean } = {},
 ): Promise<PhotoMeta[]> {
-  return listPhotoMetaForTrip(tripId, options);
+  return getPhotosForOwner(tripOwner(tripId), options);
+}
+
+export async function getArticlePhotos(
+  articleId: string,
+  options: { includePending?: boolean } = {},
+): Promise<PhotoMeta[]> {
+  return getPhotosForOwner(articleOwner(articleId), options);
+}
+
+export async function getPhotoForOwner(
+  owner: MediaOwner,
+  photoId: string,
+): Promise<PhotoMeta | null> {
+  const media = await getOwnedMediaById(owner, photoId, {
+    includeNonReady: true,
+  });
+  return media ? mediaToPhotoMeta(media) : null;
 }
 
 export async function getPhoto(
   tripId: string,
   photoId: string,
 ): Promise<PhotoMeta | null> {
-  const media = await getTripMediaById(tripId, photoId, {
-    includeNonReady: true,
-  });
-  return media ? mediaToPhotoMeta(media) : null;
+  return getPhotoForOwner(tripOwner(tripId), photoId);
 }
 
 /**
@@ -132,8 +158,8 @@ function sourceExtension(name: string, isVideo: boolean): string {
 /**
  * Buffer-based ingest for tooling (HTTP uploads use stream staging instead).
  */
-export async function savePhotoBuffer(
-  tripId: string,
+export async function savePhotoBufferForOwner(
+  owner: MediaOwner,
   raw: Buffer,
   originalFileName: string,
   mimeHint: string,
@@ -182,7 +208,7 @@ export async function savePhotoBuffer(
     );
     staged.push(originalStage.key);
     const originalKey = mediaAssetKey(
-      tripId,
+      owner,
       id,
       version,
       `original${originalExtension}`,
@@ -215,7 +241,7 @@ export async function savePhotoBuffer(
       );
       staged.push(liveStage.key);
       const liveKey = mediaAssetKey(
-        tripId,
+        owner,
         id,
         version,
         `live-original${liveExtension}`,
@@ -242,7 +268,9 @@ export async function savePhotoBuffer(
           : "process_image";
     const queued = await createQueuedMedia({
       id,
-      tripId,
+      ...(owner.kind === "trip"
+        ? { tripId: owner.id }
+        : { articleId: owner.id }),
       kind,
       uploader,
       caption,
@@ -261,12 +289,28 @@ export async function savePhotoBuffer(
         localMediaStorage.moveToTrash(
           "private",
           key,
-          `${tripId}/${id}/failed-ingest/${role}-${path.posix.basename(key)}`,
+          `${owner.id}/${id}/failed-ingest/${role}-${path.posix.basename(key)}`,
         ),
       ),
     );
     throw error;
   }
+}
+
+export async function savePhotoBuffer(
+  tripId: string,
+  raw: Buffer,
+  originalFileName: string,
+  mimeHint: string,
+  options: SavePhotoOptions = {},
+): Promise<PhotoMeta> {
+  return savePhotoBufferForOwner(
+    tripOwner(tripId),
+    raw,
+    originalFileName,
+    mimeHint,
+    options,
+  );
 }
 
 export async function deletePhoto(
@@ -277,20 +321,27 @@ export async function deletePhoto(
   return result.deleted.includes(photoId);
 }
 
+export async function deletePhotosForOwner(
+  owner: MediaOwner,
+  photoIds: string[],
+): Promise<{ deleted: string[]; removedUrls: string[] }> {
+  const removed = await softDeleteMedia(owner, photoIds.filter(Boolean));
+  const removedUrls: string[] = [];
+  for (const media of removed) {
+    const meta = mediaToPhotoMeta(media);
+    removedUrls.push(photoPublicUrl(owner.id, meta.filename));
+    if (meta.liveVideoFilename) {
+      removedUrls.push(photoPublicUrl(owner.id, meta.liveVideoFilename));
+    }
+  }
+  return { deleted: removed.map((media) => media.id), removedUrls };
+}
+
 export async function deletePhotos(
   tripId: string,
   photoIds: string[],
 ): Promise<{ deleted: string[]; removedUrls: string[] }> {
-  const removed = await softDeleteMedia(tripId, photoIds.filter(Boolean));
-  const removedUrls: string[] = [];
-  for (const media of removed) {
-    const meta = mediaToPhotoMeta(media);
-    removedUrls.push(photoPublicUrl(tripId, meta.filename));
-    if (meta.liveVideoFilename) {
-      removedUrls.push(photoPublicUrl(tripId, meta.liveVideoFilename));
-    }
-  }
-  return { deleted: removed.map((media) => media.id), removedUrls };
+  return deletePhotosForOwner(tripOwner(tripId), photoIds);
 }
 
 export type PhotoPatch = {
@@ -298,10 +349,18 @@ export type PhotoPatch = {
   featured?: boolean;
 };
 
+export async function updatePhotoForOwner(
+  owner: MediaOwner,
+  photoId: string,
+  patch: PhotoPatch,
+): Promise<PhotoMeta | null> {
+  return updateMediaMetadata(owner, photoId, patch);
+}
+
 export async function updatePhoto(
   tripId: string,
   photoId: string,
   patch: PhotoPatch,
 ): Promise<PhotoMeta | null> {
-  return updateMediaMetadata(tripId, photoId, patch);
+  return updatePhotoForOwner(tripOwner(tripId), photoId, patch);
 }

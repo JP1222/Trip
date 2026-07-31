@@ -8,6 +8,8 @@ import {
 import { promises as fs } from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
+import type { MediaOwner } from "./owner";
+import { ownerStorageRoot } from "./owner";
 
 export type StorageArea = "private" | "public";
 
@@ -362,27 +364,37 @@ export class LocalMediaStorage {
 export const localMediaStorage = new LocalMediaStorage();
 
 export function mediaVersionPrefix(
-  tripId: string,
+  owner: MediaOwner,
   mediaId: string,
   version: number,
 ): string {
-  return assertStorageKey(`trips/${tripId}/${mediaId}/v${version}`);
+  return assertStorageKey(
+    `${ownerStorageRoot(owner)}/${owner.id}/${mediaId}/v${version}`,
+  );
 }
 
 export function mediaAssetKey(
-  tripId: string,
+  owner: MediaOwner,
   mediaId: string,
   version: number,
   filename: string,
 ): string {
   return assertStorageKey(
-    `${mediaVersionPrefix(tripId, mediaId, version)}/${filename}`,
+    `${mediaVersionPrefix(owner, mediaId, version)}/${filename}`,
   );
 }
 
-export function filenameForTripStorageKey(tripId: string, key: string): string {
+export function filenameForOwnerStorageKey(
+  owner: MediaOwner,
+  key: string,
+): string {
   const safeKey = assertStorageKey(key);
-  const prefix = `trips/${tripId}/`;
+  const prefix = `${ownerStorageRoot(owner)}/${owner.id}/`;
   if (safeKey.startsWith(prefix)) return safeKey.slice(prefix.length);
   return path.posix.basename(safeKey);
+}
+
+/** Trip-only alias kept for older call sites. */
+export function filenameForTripStorageKey(tripId: string, key: string): string {
+  return filenameForOwnerStorageKey({ kind: "trip", id: tripId }, key);
 }

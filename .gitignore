@@ -62,3 +62,15 @@ data/comments/*
 *.swp
 .idea/
 .vscode/
+
+# Xcode / iOS
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/**/DerivedData/
+ios/.derivedData/
+ios/.xcode-cache/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM

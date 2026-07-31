@@ -4,7 +4,10 @@ import { useState } from "react";
 import type { Comment } from "@/lib/types";
 
 type Props = {
-  tripId: string;
+  /** Trip-level notes (media_id null). */
+  tripId?: string;
+  /** Article-level notes (media_id null). */
+  articleId?: string;
   initialComments: Comment[];
 };
 
@@ -22,7 +25,7 @@ function formatWhen(iso: string) {
   }
 }
 
-export function Comments({ tripId, initialComments }: Props) {
+export function Comments({ tripId, articleId, initialComments }: Props) {
   const [comments, setComments] = useState(initialComments);
   const [author, setAuthor] = useState("");
   const [body, setBody] = useState("");
@@ -30,13 +33,23 @@ export function Comments({ tripId, initialComments }: Props) {
   const [busy, setBusy] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
+  const commentsUrl = articleId
+    ? `/api/articles/${articleId}/comments`
+    : tripId
+      ? `/api/trips/${tripId}/comments`
+      : null;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!commentsUrl) {
+      setError("Comments are not configured");
+      return;
+    }
     setBusy(true);
     setError(null);
     setOkMsg(null);
     try {
-      const res = await fetch(`/api/trips/${tripId}/comments`, {
+      const res = await fetch(commentsUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ author, body }),
@@ -68,7 +81,6 @@ export function Comments({ tripId, initialComments }: Props) {
           <p className="text-xs text-ink-muted">No account needed</p>
         </div>
 
-        {/* Stacked full-width fields — same width / radius so the form feels even */}
         <div className="mt-4 space-y-4">
           <label className="block">
             <span className="mb-1.5 block text-xs text-ink-soft">Name *</span>
@@ -106,7 +118,7 @@ export function Comments({ tripId, initialComments }: Props) {
         <div className="mt-4 flex justify-end">
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !commentsUrl}
             className="rounded-full bg-ink px-5 py-2.5 text-sm text-white transition hover:bg-ink-soft disabled:opacity-60"
           >
             {busy ? "Posting…" : "Post note"}

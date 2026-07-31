@@ -23,27 +23,33 @@ type LiveBadgeProps = {
   buffering?: boolean;
 };
 
-/** Apple-style LIVE pill */
+/**
+ * Apple-style LIVE pill — keep compact; sm sits beside h-6 grid chrome.
+ */
 export function LiveBadge({
   className = "",
   size = "md",
   active = false,
   buffering = false,
 }: LiveBadgeProps) {
-  const pad =
-    size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2.5 py-1 text-[11px]";
+  const dim =
+    size === "sm"
+      ? "h-[18px] gap-0.5 px-1.5 text-[8px]"
+      : "h-7 gap-1 px-2 text-[10px]";
+  // Grid thumbs stay dark glass — white fill reads huge on photos.
+  const filled = active && size !== "sm";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-semibold tracking-wide uppercase backdrop-blur-[2px] ring-1 ${pad} ${
-        active
+      className={`inline-flex items-center justify-center rounded-full font-semibold leading-none tracking-wide uppercase backdrop-blur-[2px] ring-1 ${dim} ${
+        filled
           ? "bg-white text-ink ring-white/40"
           : "bg-black/55 text-white ring-white/25"
       } ${className}`}
       aria-hidden
     >
       <span
-        className={`inline-block rounded-full ${
-          size === "sm" ? "h-1.5 w-1.5" : "h-1.5 w-1.5"
+        className={`inline-block shrink-0 rounded-full ${
+          size === "sm" ? "h-1 w-1" : "h-1.5 w-1.5"
         } ${
           buffering
             ? "animate-pulse bg-white/80"
@@ -63,6 +69,8 @@ type LivePhotoThumbProps = {
   alt: string;
   className?: string;
   badgeClassName?: string;
+  /** Show the LIVE pill (default true). Admin grids often hide it. */
+  showBadge?: boolean;
   /**
    * Interactive play (default true):
    * desktop = hover; phone = finger press-and-hold.
@@ -82,6 +90,7 @@ export function LivePhotoThumb({
   alt,
   className = "",
   badgeClassName = "top-2 left-2 sm:top-2.5 sm:left-2.5",
+  showBadge = true,
   interactive = true,
 }: LivePhotoThumbProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -312,9 +321,11 @@ export function LivePhotoThumb({
           aria-hidden
         />
       )}
-      <span className={`pointer-events-none absolute z-10 ${badgeClassName}`}>
-        <LiveBadge size="sm" active={playing} />
-      </span>
+      {showBadge ? (
+        <span className={`pointer-events-none absolute z-10 ${badgeClassName}`}>
+          <LiveBadge size="sm" active={playing} />
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -487,7 +498,7 @@ export function LivePhotoStage({
       {/* Large hit target — primary mobile control */}
       <button
         type="button"
-        className="absolute top-3 left-3 z-20 flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-full p-1 sm:top-4 sm:left-4"
+        className="absolute top-3 left-3 z-20 flex h-7 touch-manipulation items-center justify-center sm:top-4 sm:left-4"
         aria-label={playing ? "Stop Live Photo" : "Play Live Photo"}
         aria-pressed={playing}
         aria-busy={buffering}

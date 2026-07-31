@@ -63,6 +63,9 @@ export type TripLocation = {
 /** lived = memories on the wall; planned = upcoming trip you’re planning together */
 export type TripStatus = "lived" | "planned";
 
+/** Who can see the trip page / wall pin. Admin always sees every trip. */
+export type TripVisibility = "public" | "private";
+
 /** Expense line for the trip budget */
 export type BudgetItem = {
   id: string;
@@ -94,6 +97,8 @@ export type Trip = {
    * "planned" = upcoming plan (dashed polaroid, plan-first page).
    */
   status?: TripStatus;
+  /** Public wall + /trips/[id]; private is admin-only. Default public. */
+  visibility?: TripVisibility;
   coverGradient: string;
   coverEmoji: string;
   /** Optional cover photo URL for the wall */
@@ -117,7 +122,10 @@ export type Trip = {
  */
 export type PhotoMeta = {
   id: string;
-  tripId: string;
+  /** Trip owner when this media belongs to a trip. */
+  tripId?: string;
+  /** Article owner when this media belongs to an article. */
+  articleId?: string;
   /** Durable processing state. Gallery reads normally include ready media only. */
   state?: "pending" | "processing" | "ready" | "failed";
   filename: string;
@@ -184,10 +192,34 @@ export type PhotoMeta = {
 
 export type Comment = {
   id: string;
-  tripId: string;
-  /** When set, comment is on a single photo; when omitted, trip-level note */
+  tripId?: string;
+  articleId?: string;
+  /** When set, comment is on a single photo; when omitted, owner-level note */
   photoId?: string;
   author: string;
   body: string;
   createdAt: string;
 };
+
+export type ArticleStatus = "draft" | "published";
+
+/** How a published article appears on the cork wall. */
+export type ArticleWallStyle = "none" | "polaroid" | "note";
+
+/** Site-level writing (blog). Not nested under a trip. */
+export type Article = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  bodyMd: string;
+  coverImage?: string;
+  status: ArticleStatus;
+  /** Pin on the public cork wall as a polaroid or sticky note. */
+  wallStyle: ArticleWallStyle;
+  publishedAt?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+

@@ -45,7 +45,10 @@ export type MediaJobState =
 
 export type MediaRecord = {
   id: string;
-  tripId: string;
+  /** Set when this media belongs to a trip. XOR with articleId. */
+  tripId?: string;
+  /** Set when this media belongs to an article. XOR with tripId. */
+  articleId?: string;
   kind: MediaKind;
   state: MediaState;
   uploader: string;
@@ -92,7 +95,8 @@ export type MediaWithAssets = MediaRecord & {
 
 export type QueuedMediaInput = {
   id: string;
-  tripId: string;
+  tripId?: string;
+  articleId?: string;
   kind: MediaKind;
   uploader: string;
   caption?: string;

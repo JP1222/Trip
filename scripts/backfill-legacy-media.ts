@@ -257,7 +257,7 @@ async function promoteRow(row: NeedRow): Promise<void> {
       row.kind === "video" ? ".mp4" : ".jpg",
     );
     const privateKey = mediaAssetKey(
-      row.trip_id,
+      { kind: "trip", id: row.trip_id },
       row.id,
       row.version,
       `original${ext}`,
@@ -289,7 +289,7 @@ async function promoteRow(row: NeedRow): Promise<void> {
       ".mov",
     );
     const privateKey = mediaAssetKey(
-      row.trip_id,
+      { kind: "trip", id: row.trip_id },
       row.id,
       row.version,
       `live-original${ext}`,

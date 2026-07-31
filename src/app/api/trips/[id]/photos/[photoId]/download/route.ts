@@ -17,6 +17,7 @@ import {
   rateLimitHeaders,
 } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
+import { getTrip, isPublicTrip } from "@/lib/trips";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         { error: "Too many downloads. Try again later." },
         { status: 429, headers: rateLimitHeaders(rateLimit) },
       ),
+      requestId,
+    );
+  }
+
+  const trip = await getTrip(tripId);
+  if (!trip || !isPublicTrip(trip)) {
+    return attachRequestId(
+      NextResponse.json({ error: "Not found" }, { status: 404 }),
       requestId,
     );
   }
