@@ -1,13 +1,9 @@
-/** Deterministic hash for stable per-item sway. */
-export function wallHash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (s.charCodeAt(i) + ((h << 5) - h)) | 0;
-  return Math.abs(h);
-}
-
 export type SwayOptions = {
   solo?: boolean;
 };
+
+/** Sticky / note cards use a slightly quieter tilt than polaroids. */
+export const NOTE_SWAY_SCALE = 0.85;
 
 function normalizeOpts(
   soloOrOpts: boolean | SwayOptions = false,
@@ -15,14 +11,14 @@ function normalizeOpts(
   return typeof soloOrOpts === "boolean" ? { solo: soloOrOpts } : soloOrOpts;
 }
 
-/** Shared amplitude band for phone and desktop: ~1.6° … 4.2°. */
+/** Amplitude band: ~1.4° … 3.8°. */
 function swayAmplitude(roll: number): number {
-  return 1.6 + roll * 2.6;
+  return 1.4 + roll * 2.4;
 }
 
 /**
- * Fresh random tilt for a visit. Lean-away bias keeps neighbors from
- * swinging into the shared gap; amplitude is rolled each call.
+ * Fresh random tilt for a visit. Mild lean-away bias (~62%) keeps neighbors
+ * from closing the gap; sign + amplitude still change each load.
  */
 export function randomSway(
   index: number,
@@ -31,26 +27,29 @@ export function randomSway(
   const opts = normalizeOpts(soloOrOpts);
   if (opts.solo) return -1;
   const amplitude = swayAmplitude(Math.random());
-  const alternate = index % 2 === 0 ? -1 : 1;
-  const flip = Math.random() < 0.125 ? -1 : 1;
-  return Math.round(alternate * flip * amplitude * 10) / 10;
+  const prefer = index % 2 === 0 ? -1 : 1;
+  const sign = Math.random() < 0.38 ? -prefer : prefer;
+  return Math.round(sign * amplitude * 10) / 10;
 }
 
-/**
- * Stable per-id tilt (admin board). Prefer `randomSway` on the public wall.
- */
-export function swayForItem(
-  id: string,
-  index: number,
-  soloOrOpts: boolean | SwayOptions = false,
-): number {
-  const opts = normalizeOpts(soloOrOpts);
-  if (opts.solo) return -1;
-  const h = wallHash(id);
-  const amplitude = swayAmplitude((h % 27) / 26);
-  const alternate = index % 2 === 0 ? -1 : 1;
-  const flip = h % 8 === 0 ? -1 : 1;
-  return Math.round(alternate * flip * amplitude * 10) / 10;
+export type WallSwayItem = {
+  id: string;
+  kind?: string;
+};
+
+/** Roll a visit-scoped tilt map for public + admin boards. */
+export function rollWallSway(
+  items: WallSwayItem[],
+  soloTrip = false,
+): Record<string, number> {
+  const next: Record<string, number> = {};
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    next[item.id] = randomSway(index, {
+      solo: soloTrip && item.kind === "trip",
+    });
+  }
+  return next;
 }
 
 export type WallSwayRect = {

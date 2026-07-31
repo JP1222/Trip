@@ -19,6 +19,7 @@ import {
 import { BoardWidgetLayer } from "@/components/board/BoardWidgetLayer";
 import { WallStickyNote } from "@/components/board/WallStickyNote";
 import { Pushpin } from "@/components/Pushpin";
+import { useWallVisitSway } from "@/hooks/useWallVisitSway";
 import { parseStickyNoteLabel } from "@/lib/sticky-note";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
 import type { WallObject } from "@/lib/wall-object-layout";
@@ -27,7 +28,7 @@ import type {
   WallDisplaySize,
   WallFrameStyle,
 } from "@/lib/wall-photos";
-import { swayForItem } from "@/lib/wall-sway";
+import { NOTE_SWAY_SCALE } from "@/lib/wall-sway";
 
 export type AdminTripCard = WallItem & {
   kind: "trip";
@@ -143,6 +144,10 @@ export function AdminPolaroidWall({
     null,
   );
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
+  const tripCount = items.filter((i) => i.kind === "trip").length;
+  const solo = tripCount === 1 && items.length <= 3;
+  const swayById = useWallVisitSway(items, solo);
 
   const itemsRef = useRef(items);
   const orderBeforeDrag = useRef<string[]>([]);
@@ -500,7 +505,7 @@ export function AdminPolaroidWall({
           >
             {items.map((item, index) => {
               const key = slotKey(item);
-              const rotate = swayForItem(item.id, index);
+              const rotate = swayById[item.id] ?? 0;
 
               if (item.kind === "note") {
                 const isDragging = dragId === key;
@@ -540,7 +545,7 @@ export function AdminPolaroidWall({
                       style={{
                         transform: isDragging
                           ? "rotate(0deg) scale(0.96)"
-                          : `rotate(${rotate * 0.6}deg)`,
+                          : `rotate(${rotate * NOTE_SWAY_SCALE}deg)`,
                         cursor: editing
                           ? "default"
                           : isDragging
@@ -600,7 +605,7 @@ export function AdminPolaroidWall({
                         style={{
                           transform: isDragging
                             ? "rotate(0deg) scale(0.96)"
-                            : `rotate(${rotate * 0.6}deg)`,
+                            : `rotate(${rotate * NOTE_SWAY_SCALE}deg)`,
                         }}
                       >
                         <span className="wall-note__pin" aria-hidden />

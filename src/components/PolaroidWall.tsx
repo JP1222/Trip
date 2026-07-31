@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardWidgetLayer } from "@/components/board/BoardWidgetLayer";
 import { Pushpin } from "@/components/Pushpin";
 import { useWallSwayGuard } from "@/hooks/useWallSwayGuard";
+import { useWallVisitSway } from "@/hooks/useWallVisitSway";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
 import type { WallObject } from "@/lib/wall-object-layout";
-import { randomSway } from "@/lib/wall-sway";
+import { NOTE_SWAY_SCALE } from "@/lib/wall-sway";
 
 function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
   const ratio = image.naturalWidth / image.naturalHeight;
@@ -37,24 +38,8 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
   >({});
   const tripCount = items.filter((i) => i.kind === "trip").length;
   const solo = tripCount === 1 && items.length <= 3;
-  /** Fresh angles each visit — not tied to item ids. */
-  const [swayById, setSwayById] = useState<Record<string, number>>({});
+  const swayById = useWallVisitSway(items, solo);
   const itemIdsKey = items.map((i) => i.id).join("|");
-
-  // Roll new tilts on each visit (mount) and when the pinned set changes.
-  useEffect(() => {
-    const next: Record<string, number> = {};
-    for (let index = 0; index < items.length; index++) {
-      const item = items[index];
-      next[item.id] = randomSway(index, {
-        solo: solo && item.kind === "trip",
-      });
-    }
-    setSwayById(next);
-    // itemIdsKey stands in for `items` so a new array ref alone won't re-roll.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally visit-scoped
-  }, [itemIdsKey, solo]);
-
   const layoutKey = useMemo(
     () =>
       [
@@ -162,9 +147,9 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
                     className="wall-note"
                     data-wall-card
                     data-wall-id={item.id}
-                    data-wall-sway={rotate * 0.6}
+                    data-wall-sway={rotate * NOTE_SWAY_SCALE}
                     data-wall-clearance={clearance}
-                    style={{ transform: `rotate(${sway * 0.6}deg)` }}
+                    style={{ transform: `rotate(${sway * NOTE_SWAY_SCALE}deg)` }}
                   >
                     <span className="wall-note__pin" aria-hidden />
                     <p className="wall-note__title">{item.caption}</p>
