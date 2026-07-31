@@ -7,12 +7,19 @@ import { listArticles } from "@/lib/articles";
 import { getComments } from "@/lib/comments";
 import { getPhotos } from "@/lib/photos";
 import { resolveTripCoverUrl } from "@/lib/media-url";
+import { parseStickyNoteLabel } from "@/lib/sticky-note";
 import { getTrips } from "@/lib/trips";
 import {
   coverGradientToCss,
   formatPolaroidMeta,
   formatPolaroidPlace,
 } from "@/lib/wall";
+import {
+  applyWallOrder,
+  getWallOrder,
+  wallSlotKey,
+} from "@/lib/wall-order";
+import { ensureDefaultWallNotes } from "@/lib/wall-notes";
 import { listWallObjects } from "@/lib/wall-objects";
 import { ensureDefaultWallPhotos } from "@/lib/wall-photos";
 
@@ -28,12 +35,17 @@ function formatArticleDate(iso?: string): string {
 }
 
 export default async function AdminHomePage() {
-  const [trips, boardPhotos, widgets, articles] = await Promise.all([
+  const [trips, boardPhotos, widgets, articles, wallOrder] = await Promise.all([
     getTrips(),
     ensureDefaultWallPhotos(),
     listWallObjects(),
     listArticles({ status: "all" }),
+    getWallOrder(),
   ]);
+  const boardNotes = await ensureDefaultWallNotes({
+    trips,
+    boardPhotoCount: boardPhotos.length,
+  });
 
   const tripCards: AdminWallCard[] = await Promise.all(
     trips.map(async (t) => {
@@ -85,6 +97,19 @@ export default async function AdminHomePage() {
     naturalOrientation: p.orientation,
   }));
 
+  const noteCards: AdminWallCard[] = boardNotes.map((note) => {
+    const { title, lines, signature } = parseStickyNoteLabel(note.label);
+    return {
+      kind: "note" as const,
+      id: `admin-note-${note.id}`,
+      noteId: note.id,
+      label: note.label,
+      caption: title,
+      noteLines: lines,
+      noteSignature: signature,
+    };
+  });
+
   // Admin board keeps Hidden (wallStyle none) so drafts stay editable;
   // public /wall only pins polaroid + note (see listWallArticles).
   const articleCards: AdminWallCard[] = articles.map((article) => {
@@ -130,12 +155,17 @@ export default async function AdminHomePage() {
     };
   });
 
-  // Match public wall: board photos, articles, then trips
-  const items: AdminWallCard[] = [
-    ...photoCards,
-    ...articleCards,
-    ...tripCards,
-  ];
+  // Default notes → photos → articles → trips; wall_order can interleave.
+  const items: AdminWallCard[] = applyWallOrder(
+    [...noteCards, ...photoCards, ...articleCards, ...tripCards],
+    wallOrder,
+    (item) => {
+      if (item.kind === "trip") return wallSlotKey("trip", item.tripId);
+      if (item.kind === "photo") return wallSlotKey("photo", item.photoId);
+      if (item.kind === "note") return wallSlotKey("note", item.noteId);
+      return wallSlotKey("article", item.articleId);
+    },
+  );
 
   return (
     <>

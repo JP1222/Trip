@@ -1,5 +1,8 @@
 import type { Article, PhotoMeta, Trip } from "./types";
 import { resolveTripCoverUrl } from "./media-url";
+import { parseStickyNoteLabel } from "./sticky-note";
+import { applyWallOrder } from "./wall-order";
+import type { WallNote } from "./wall-notes";
 import type {
   WallDisplaySize,
   WallFrameStyle,
@@ -64,6 +67,15 @@ export function coverGradientToCss(value?: string): string | undefined {
   }
 
   return `linear-gradient(145deg, ${colors[0]} 0%, ${colors[1]} 52%, ${colors[colors.length - 1]} 100%)`;
+}
+
+/** First stop of a trip cover — used for status-bar / overscroll chrome. */
+export function coverChromeColor(
+  value?: string,
+  fallback = "#efeae2",
+): string {
+  const colors = value?.match(/#[0-9a-fA-F]{6}/g);
+  return colors?.[0] ?? fallback;
 }
 
 const US_STATE_ABBR: Record<string, string> = {
@@ -369,66 +381,67 @@ function articleToWallItem(article: Article): WallItem | null {
   };
 }
 
+function wallNoteToItem(note: WallNote): WallItem {
+  const { title, lines, signature } = parseStickyNoteLabel(note.label);
+  return {
+    kind: "note",
+    id: `board-note-${note.id}`,
+    caption: title,
+    noteLines: lines,
+    noteSignature: signature,
+  };
+}
+
 /**
- * Cork wall: trip polaroids + board photos + article pins + a sticky note
- * so the board feels alive when you’re still planning.
+ * Cork wall: grid pins (photos, notes, articles, trips).
+ *
+ * `wallOrder` is interleaved slot keys (`trip:` / `photo:` / `article:` / `note:`).
+ * Default with no saved order: notes → photos → articles → planned → lived.
  */
 export function buildWallItems(
   trips: Trip[],
   photosByTrip?: Map<string, PhotoMeta[]>,
   boardPhotos: WallPhoto[] = [],
   articles: Article[] = [],
+  wallOrder: string[] = [],
+  boardNotes: WallNote[] = [],
 ): WallItem[] {
   const tripItems = trips.map((t) => tripToWallItem(t, photosByTrip));
   const plannedCount = tripItems.filter((i) => i.planned).length;
-  const livedCount = tripItems.length - plannedCount;
-  const boardCount = boardPhotos.length;
-  const memoryCount = livedCount + boardCount;
-
-  const years = trips
-    .map((t) => new Date(`${t.startDate}T12:00:00`).getFullYear())
-    .filter((y) => !Number.isNaN(y));
-  const yMin = years.length ? Math.min(...years) : null;
-  const yMax = years.length ? Math.max(...years) : null;
-  const yearLine =
-    yMin && yMax
-      ? yMin === yMax
-        ? `${yMin}`
-        : `${yMin}–${yMax}`
-      : "Our board";
-
   const items: WallItem[] = [];
   const planned = tripItems.filter((i) => i.planned);
   const lived = tripItems.filter((i) => !i.planned);
-  const articleItems = articles
-    .map(articleToWallItem)
-    .filter((item): item is WallItem => item != null);
 
-  // A small board label: human context rather than implementation details.
-  items.push({
-    kind: "note",
-    id: "wall-note-stats",
-    caption: "Trips",
-    noteLines: [
-      yearLine,
-      `${memoryCount} ${memoryCount === 1 ? "memory" : "memories"} pinned`,
-      plannedCount > 0
-        ? plannedCount === 1
-          ? `Next: ${planned[0].caption}`
-          : `${plannedCount} trips in the works`
-        : "Where to next?",
-    ],
-    noteSignature: "Peng · Carlie · Joel · Michelle · Beau · Shreya",
-  });
+  type Pin = { key: string; item: WallItem };
+  const pins: Pin[] = [];
+  for (const note of boardNotes) {
+    pins.push({
+      key: `note:${note.id}`,
+      item: wallNoteToItem(note),
+    });
+  }
+  for (const photo of boardPhotos) {
+    pins.push({
+      key: `photo:${photo.id}`,
+      item: wallPhotoToItem(photo),
+    });
+  }
+  for (const article of articles) {
+    const item = articleToWallItem(article);
+    if (item) pins.push({ key: `article:${article.id}`, item });
+  }
+  for (const trip of [...planned, ...lived]) {
+    const tripId = trip.id.startsWith("trip-")
+      ? trip.id.slice("trip-".length)
+      : trip.id;
+    pins.push({ key: `trip:${tripId}`, item: trip });
+  }
 
-  // Standalone board prints (group shots, mementos) — not trip cards.
-  items.push(...boardPhotos.map(wallPhotoToItem));
-
-  // Writing pinned as polaroids or sticky notes.
-  items.push(...articleItems);
-
-  // Planned first so “coming up” is visible, then lived memories
-  items.push(...planned, ...lived);
+  const orderedPins =
+    wallOrder.length > 0
+      ? applyWallOrder(pins, wallOrder, (pin) => pin.key)
+      : pins;
+  items.push(...orderedPins.map((pin) => pin.item));
 
   // Empty cards are useful on a sparse wall, but compete with real memories on
   // a full one. Once four trips are pinned, let the photographs own the space.

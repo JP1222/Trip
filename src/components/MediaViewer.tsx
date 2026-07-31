@@ -166,6 +166,30 @@ export function MediaViewer({
     onCloseRef.current = onClose;
   }, [onClose]);
 
+  // Black status bar / overscroll while the viewer is open (iOS Safari).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("page-media-viewer");
+
+    let meta = document.querySelector('meta[name="theme-color"]');
+    const created = !meta;
+    const prev = meta?.getAttribute("content") ?? null;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "theme-color");
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", "#000000");
+
+    return () => {
+      root.classList.remove("page-media-viewer");
+      if (!meta) return;
+      if (prev != null) meta.setAttribute("content", prev);
+      else if (created) meta.remove();
+      else meta.removeAttribute("content");
+    };
+  }, []);
+
   const active = photos[currIndex] ?? photos[index] ?? null;
   const activeIsVideo = active ? isVideoMedia(active) : false;
   const activeIsLive = active ? isLivePhoto(active) : false;

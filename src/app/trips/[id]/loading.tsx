@@ -6,7 +6,7 @@ export default function TripLoading() {
       aria-label="Loading trip"
     >
       <section className="border-b border-sand-200/60 bg-sand-100/70">
-        <div className="mx-auto max-w-7xl px-5 pt-14 pb-9 sm:px-8 sm:pt-16 xl:px-10">
+        <div className="mx-auto max-w-7xl px-5 pt-[max(3.5rem,calc(env(safe-area-inset-top,0px)+2.75rem))] pb-9 sm:px-8 sm:pt-[max(4rem,calc(env(safe-area-inset-top,0px)+3rem))] xl:px-10">
           <div className="h-3 w-36 rounded-full bg-sand-200" />
           <div className="mt-4 h-11 w-full max-w-md rounded-2xl bg-sand-200/90 sm:h-14" />
           <div className="mt-3 h-5 w-full max-w-xl rounded-full bg-sand-200/70" />

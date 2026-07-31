@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Caveat, Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { isAdmin } from "@/lib/auth";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  themeColor: "#f7f4ef",
+};
 
 const sans = Source_Sans_3({
   variable: "--font-sans",

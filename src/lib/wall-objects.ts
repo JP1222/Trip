@@ -6,6 +6,8 @@ import {
   type DecorCategory,
 } from "./board-decor";
 
+const LABEL_MAX = 2000;
+
 export type WallObjectKind = DecorCategory;
 
 export type WallObject = {
@@ -117,7 +119,7 @@ export async function createWallObject(
   const scale = clamp(input.scale ?? decor.defaultScale, 0.25, 4);
   const label = (input.label ?? decor.vinylLabel ?? decor.defaultText ?? "")
     .trim()
-    .slice(0, 80);
+    .slice(0, LABEL_MAX);
 
   const { rows: zRows } = await getPool().query<{ next: number }>(
     `SELECT COALESCE(MAX(z), 0) + 1 AS next FROM wall_objects`,
@@ -172,7 +174,7 @@ export async function updateWallObject(
       : current.scale;
   const label =
     input.label !== undefined
-      ? input.label.trim().slice(0, 80)
+      ? input.label.trim().slice(0, LABEL_MAX)
       : current.label;
 
   const { rows } = await getPool().query<WallObjectRow>(
