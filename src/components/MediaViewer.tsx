@@ -155,6 +155,8 @@ export function MediaViewer({
 
   const liveVideoRef = useRef<HTMLVideoElement | null>(null);
   const livePlayGen = useRef(0);
+  /** True only while user-initiated Live playback is active (guards autoplay). */
+  const liveIntentRef = useRef(false);
 
   useEffect(() => {
     indexRef.current = index;
@@ -257,9 +259,11 @@ export function MediaViewer({
 
   const stopLive = useCallback(() => {
     livePlayGen.current += 1;
+    liveIntentRef.current = false;
     const v = liveVideoRef.current;
     if (v) {
       v.pause();
+      v.muted = true;
       try {
         v.currentTime = 0;
       } catch {
@@ -282,6 +286,7 @@ export function MediaViewer({
     const v = liveVideoRef.current;
     if (!v) return;
     const gen = ++livePlayGen.current;
+    liveIntentRef.current = true;
 
     // Reveal layer immediately so PS still is covered.
     setLiveBuffering(true);
@@ -370,6 +375,13 @@ export function MediaViewer({
       });
     } catch {
       if (gen === livePlayGen.current) {
+        liveIntentRef.current = false;
+        try {
+          v.pause();
+        } catch {
+          /* ignore */
+        }
+        v.muted = true;
         setLivePlaying(false);
       }
     } finally {
@@ -629,18 +641,29 @@ export function MediaViewer({
     return () => window.removeEventListener("keydown", onKey);
   }, [activeIsVideo, activeIsLive, toggleLive]);
 
-  // Warm Live companion when landing on a Live slide (faster first tap)
+  // Never autoplay Live on open — silence grid thumbs + keep companion paused
+  // until the user taps LIVE (mobile was hearing audio with a frozen still).
   useEffect(() => {
-    if (!activeIsLive || !active?.liveVideoFilename) return;
+    stopLive();
+    for (const el of document.querySelectorAll("video")) {
+      if (el === liveVideoRef.current) continue;
+      el.pause();
+      try {
+        el.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [stopLive]);
+
+  useEffect(() => {
+    stopLive();
     const v = liveVideoRef.current;
     if (!v) return;
-    try {
-      v.preload = "auto";
-      v.load();
-    } catch {
-      /* ignore */
-    }
-  }, [active?.id, activeIsLive, active?.liveVideoFilename]);
+    v.pause();
+    v.muted = true;
+    v.preload = "metadata";
+  }, [active?.id, stopLive]);
 
   const goPrev = useCallback(() => {
     pswpRef.current?.prev();
@@ -799,8 +822,16 @@ export function MediaViewer({
                 poster={photoFullPublicUrl(active)}
                 className="media-viewer__live-video max-h-full max-w-full bg-black object-contain"
                 playsInline
-                preload="auto"
+                muted
+                preload="metadata"
                 onEnded={stopLive}
+                onPlay={(e) => {
+                  // Block accidental autoplay; allow only user-tapped LIVE.
+                  if (!liveIntentRef.current) {
+                    e.currentTarget.pause();
+                    e.currentTarget.muted = true;
+                  }
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (livePlaying || liveBuffering) stopLive();

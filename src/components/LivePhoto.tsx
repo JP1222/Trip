@@ -268,10 +268,15 @@ export function LivePhotoThumb({
   }
 
   function onClickCapture(e: React.MouseEvent) {
-    if (!suppressClick.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    suppressClick.current = false;
+    if (suppressClick.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      suppressClick.current = false;
+      stop();
+      return;
+    }
+    // Opening the lightbox — don't let grid Live audio leak into the preview.
+    stop();
   }
 
   function onContextMenu(e: React.MouseEvent) {
