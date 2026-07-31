@@ -3361,9 +3361,12 @@ button.admin-instant {
     min-height: 148px;
   }
 }
-/* Pin stays grabable; cover clicks open edit via the count link / double-click */
+/* Guestbook: drag from anywhere on the book in edit mode */
 .board-widget--editable.board-widget--guestbook {
-  cursor: default;
+  cursor: grab;
+}
+.board-widget--editable.board-widget--guestbook.board-widget--dragging {
+  cursor: grabbing;
 }
 .board-widget--editable .guestbook-book__pin {
   cursor: grab;

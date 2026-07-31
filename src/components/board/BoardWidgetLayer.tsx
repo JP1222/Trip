@@ -442,7 +442,11 @@ export function BoardWidgetLayer({
     if (!editable) return;
     // Don't start move when interacting with chrome
     const t = e.target as HTMLElement;
-    if (t.closest(".board-widget__handle, .board-widget__remove, .board-widget__rotate")) {
+    if (
+      t.closest(
+        ".board-widget__handle, .board-widget__remove, .board-widget__rotate, .board-widget__edit, .board-widget__colors, .board-widget__swatch",
+      )
+    ) {
       return;
     }
     e.preventDefault();
@@ -709,12 +713,10 @@ export function BoardWidgetLayer({
             return;
           }
           if (editingNote || editingColor) return;
-          // Stickies + guestbook: drag from the pin (or Shift+drag).
-          if ((isNote || isGuestbook) && editable) {
+          // Stickies: drag from the pin (or Shift+drag) so cover taps stay for text edit.
+          if (isNote && editable) {
             const t = e.target as HTMLElement;
-            const fromPin = Boolean(
-              t.closest(".wall-note__pin, .guestbook-book__pin"),
-            );
+            const fromPin = Boolean(t.closest(".wall-note__pin"));
             if (!fromPin && !e.shiftKey) return;
           }
           onMovePointerDown(obj, e);
@@ -769,7 +771,7 @@ export function BoardWidgetLayer({
             ? isNote
               ? `${decor.name}. Double-click to edit text and color; drag the pin to move.`
               : isGuestbook
-                ? `${decor.name}. Double-click to edit notes; drag the pin to move.`
+                ? `${decor.name}. Drag to move; double-click to edit notes.`
                 : colorOptions.length > 1
                   ? `${decor.name}. Double-click to change color; drag to move.`
                   : `${decor.name}. Drag to move, corners to resize, top handle to rotate.`
