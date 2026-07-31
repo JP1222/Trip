@@ -14,10 +14,10 @@ import { AdminLogoutButton } from "@/components/admin/AdminLogoutButton";
 
 /** Frosted glass pill — Wall / Edit / action clusters / Log out. */
 export const adminChromePillClass =
-  "inline-flex h-9 items-center gap-1.5 rounded-full bg-white/60 px-3.5 text-[13px] font-medium tracking-tight text-ink/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 transition hover:bg-white/75 active:scale-[0.96] sm:h-10 sm:px-4 sm:text-[14px]";
+  "inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-white/60 px-2.5 text-[12px] font-medium tracking-tight text-ink/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 transition hover:bg-white/75 active:scale-[0.96] sm:h-10 sm:gap-1.5 sm:px-4 sm:text-[14px]";
 
 export const adminChromeClusterClass =
-  "flex items-center gap-0.5 rounded-full bg-white/60 p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 empty:hidden";
+  "flex items-center gap-0.5 rounded-full bg-white/60 p-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] backdrop-blur-2xl backdrop-saturate-150 empty:hidden sm:p-1";
 
 type ChromeCtx = {
   actionsEl: HTMLElement | null;
@@ -46,6 +46,7 @@ export function AdminChromeShare({ children }: { children: ReactNode }) {
 export function AdminChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const onEditHome = pathname === "/admin";
+  const onGuestbook = pathname === "/admin/guestbook";
   const [actionsEl, setActionsEl] = useState<HTMLElement | null>(null);
   const [shareEl, setShareEl] = useState<HTMLElement | null>(null);
   const value = useMemo(
@@ -56,13 +57,13 @@ export function AdminChrome({ children }: { children: ReactNode }) {
   return (
     <AdminChromeContext.Provider value={value}>
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-center justify-between gap-3 px-3 sm:px-5"
+        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-wrap items-start justify-between gap-x-2 gap-y-2 px-2 sm:px-5"
         style={{
           paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))",
         }}
       >
         {/* Places: leave to public wall ↔ edit home */}
-        <div className="pointer-events-auto flex items-center gap-1.5">
+        <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1 sm:gap-1.5">
           <Link href="/" className={adminChromePillClass}>
             Wall
           </Link>
@@ -75,13 +76,24 @@ export function AdminChrome({ children }: { children: ReactNode }) {
           >
             Edit
           </Link>
+          <Link
+            href="/admin/guestbook"
+            aria-current={onGuestbook ? "page" : undefined}
+            aria-label="Guestbook"
+            className={`${adminChromePillClass} ${
+              onGuestbook ? "bg-white/85 text-ink ring-black/[0.1]" : ""
+            }`}
+          >
+            <span className="sm:hidden">Book</span>
+            <span className="hidden sm:inline">Guestbook</span>
+          </Link>
         </div>
 
-        <div className="pointer-events-auto flex max-w-[min(100%,48rem)] flex-wrap items-center justify-end gap-1.5">
+        <div className="pointer-events-auto flex min-w-0 max-w-full flex-1 flex-wrap items-center justify-end gap-1 sm:max-w-[min(100%,48rem)] sm:gap-1.5">
           {/* Page actions supply their own pill groups (status ≠ visibility ≠ save). */}
           <div
             ref={setActionsEl}
-            className="flex flex-wrap items-center justify-end gap-1.5 empty:hidden"
+            className="flex min-w-0 flex-wrap items-center justify-end gap-1 empty:hidden sm:gap-1.5"
           />
           <div ref={setShareEl} className="contents" />
           <div className={adminChromeClusterClass}>

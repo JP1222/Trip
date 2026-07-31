@@ -1,8 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getDecorById } from "@/lib/board-decor";
-import type { WallObject } from "@/lib/wall-objects";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+import {
+  AdminChromeActions,
+  adminChromePillClass,
+} from "@/components/admin/AdminChrome";
+import { GuestbookBook } from "@/components/guestbook/GuestbookBook";
+import {
+  decorColorOptions,
+  getDecorById,
+  isGuestbookCatalogId,
+} from "@/lib/board-decor";
+import type { WallObject } from "@/lib/wall-object-layout";
+import {
+  WALL_LAYOUT_BREAKPOINT,
+  wallLayoutFromWidth,
+  wallObjectTransform,
+  withWallObjectTransform,
+  type WallLayout,
+} from "@/lib/wall-object-layout";
 import { BoardDecorIcon } from "./BoardDecorIcon";
 import { WallStickyNote } from "./WallStickyNote";
 
@@ -11,6 +29,8 @@ type Props = {
   /** Admin: drag / resize / rotate; click a sticky to edit text */
   editable?: boolean;
   onChange?: (objects: WallObject[]) => void;
+  /** Public guestbook link target (omit on admin — drag only). */
+  guestbookHref?: string;
 };
 
 type MoveState = {
@@ -58,16 +78,31 @@ export function BoardWidgetLayer({
   objects: initial,
   editable = false,
   onChange,
+  guestbookHref,
 }: Props) {
+  const router = useRouter();
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [objects, setObjects] = useState(initial);
+  const [layout, setLayout] = useState<WallLayout>("desktop");
+  const layoutRef = useRef<WallLayout>(layout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   /** Public wall: CSS :hover can't fire (pointer-events:none for click-through) */
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  /** Public press feedback (guestbook tap / click) */
+  const [pressedId, setPressedId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  /** Double-click recolor panel for pins / clips / trinkets / sticky paper. */
+  const [editingColorId, setEditingColorId] = useState<string | null>(null);
+  /**
+   * Defer resize/rotate chrome so the 2nd click of a double-click still
+   * hits the widget (native dblclick often dies when handles appear).
+   */
+  const [chromeReadyId, setChromeReadyId] = useState<string | null>(null);
+  const lastClickRef = useRef<{ id: string; at: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const objectsRef = useRef(objects);
 
@@ -76,8 +111,68 @@ export function BoardWidgetLayer({
   }, [initial]);
 
   useEffect(() => {
+    layoutRef.current = layout;
+  }, [layout]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(
+      `(max-width: ${WALL_LAYOUT_BREAKPOINT - 1}px)`,
+    );
+    function sync() {
+      setLayout(wallLayoutFromWidth(window.innerWidth));
+    }
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const root =
+      surfaceRef.current?.closest(".cork-board__surface") ?? null;
+    setPortalRoot(root instanceof HTMLElement ? root : null);
+  }, []);
+
+  useEffect(() => {
     objectsRef.current = objects;
   }, [objects]);
+
+  // Show transform handles only after a short settle — keeps double-click reliable.
+  useEffect(() => {
+    if (!editable || !selectedId) {
+      setChromeReadyId(null);
+      return;
+    }
+    if (editingNoteId === selectedId || editingColorId === selectedId) {
+      setChromeReadyId(selectedId);
+      return;
+    }
+    setChromeReadyId(null);
+    const t = window.setTimeout(() => setChromeReadyId(selectedId), 320);
+    return () => window.clearTimeout(t);
+  }, [editable, selectedId, editingNoteId, editingColorId]);
+
+  const beginWidgetEdit = useCallback(
+    (obj: WallObject) => {
+      if (isGuestbookCatalogId(obj.catalogId)) {
+        router.push("/admin/guestbook");
+        return;
+      }
+      if (obj.kind === "note") {
+        setSelectedId(obj.id);
+        setEditingNoteId(obj.id);
+        setEditingColorId(obj.id);
+        setChromeReadyId(obj.id);
+        return;
+      }
+      if (decorColorOptions(obj.catalogId).length > 1) {
+        setSelectedId(obj.id);
+        setEditingColorId(obj.id);
+        setChromeReadyId(obj.id);
+      }
+    },
+    [router],
+  );
 
   /**
    * Public homepage: hit-test widget bounds on pointer move so hover
@@ -87,9 +182,6 @@ export function BoardWidgetLayer({
   useEffect(() => {
     if (editable) return;
     if (typeof window === "undefined") return;
-    // Touch / coarse pointers don't get sticky hover — skip work
-    const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
-    if (!fine.matches) return;
 
     const el =
       surfaceRef.current?.closest(".cork-board__surface") ??
@@ -103,19 +195,44 @@ export function BoardWidgetLayer({
     let lastY = -1;
 
     function hitTest(clientX: number, clientY: number) {
-      const layer = surfaceRef.current;
-      if (!layer) {
+      // Prefer real topmost target: skip widgets buried under polaroids.
+      const stack = document.elementsFromPoint(clientX, clientY);
+      for (const node of stack) {
+        if (!(node instanceof HTMLElement)) continue;
+        const widget = node.closest(".board-widget");
+        if (widget instanceof HTMLElement && widget.dataset.widgetId) {
+          const pe = window.getComputedStyle(widget).pointerEvents;
+          if (pe !== "none") {
+            setHoveredId(widget.dataset.widgetId);
+            return;
+          }
+        }
+        if (
+          node.closest(
+            "[data-wall-card], .wall-stack, .instant, .wall-item--note, .admin-grid-note",
+          )
+        ) {
+          setHoveredId(null);
+          return;
+        }
+      }
+
+      // Geometry hit-test for pointer-events:none trinkets in cork gaps
+      // (include front portal guestbook + back-layer decor).
+      const surface =
+        surfaceRef.current?.closest(".cork-board__surface") ??
+        surfaceRef.current;
+      if (!surface) {
         setHoveredId(null);
         return;
       }
-      const nodes = layer.querySelectorAll<HTMLElement>(".board-widget");
+      const nodes = surface.querySelectorAll<HTMLElement>(".board-widget");
       let bestId: string | null = null;
       let bestZ = -Infinity;
       nodes.forEach((node) => {
         const id = node.dataset.widgetId;
         if (!id) return;
         const r = node.getBoundingClientRect();
-        // Small pad so thin washi / edges still catch
         const pad = 4;
         if (
           clientX < r.left - pad ||
@@ -147,6 +264,7 @@ export function BoardWidgetLayer({
 
     function onLeave() {
       setHoveredId(null);
+      setPressedId(null);
     }
 
     root.addEventListener("pointermove", onMove, { passive: true });
@@ -159,17 +277,29 @@ export function BoardWidgetLayer({
   }, [editable, objects]);
 
   const persist = useCallback(
-    async (id: string, patch: Partial<WallObject>) => {
+    async (
+      id: string,
+      patch: Partial<{
+        x: number;
+        y: number;
+        rotate: number;
+        scale: number;
+        label: string;
+        catalogId: string;
+      }>,
+    ) => {
       try {
         const res = await fetch(`/api/admin/wall/objects/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            layout: layoutRef.current,
             x: patch.x,
             y: patch.y,
             rotate: patch.rotate,
             scale: patch.scale,
             label: patch.label,
+            catalogId: patch.catalogId,
             bringToFront: true,
           }),
         });
@@ -187,9 +317,25 @@ export function BoardWidgetLayer({
     [onChange],
   );
 
+  const applyCatalogId = useCallback(
+    (id: string, catalogId: string) => {
+      setObjects((list) => {
+        const next = list.map((o) =>
+          o.id === id ? { ...o, catalogId, kind: getDecorById(catalogId)?.category ?? o.kind } : o,
+        );
+        onChange?.(next);
+        return next;
+      });
+      void persist(id, { catalogId });
+    },
+    [onChange, persist],
+  );
+
   const removeObject = useCallback(
     async (id: string) => {
       if (!editable) return;
+      const target = objectsRef.current.find((o) => o.id === id);
+      if (target && isGuestbookCatalogId(target.catalogId)) return;
       if (!confirm("Remove this from the board?")) return;
       try {
         const res = await fetch(`/api/admin/wall/objects/${id}`, {
@@ -203,6 +349,8 @@ export function BoardWidgetLayer({
         });
         setSelectedId(null);
         setEditingNoteId(null);
+        setEditingColorId(null);
+        setChromeReadyId(null);
       } catch {
         // ignore
       }
@@ -211,34 +359,45 @@ export function BoardWidgetLayer({
   );
 
   useEffect(() => {
-    if (!editable || !selectedId) return;
+    if (!editable || (!selectedId && !editingColorId)) return;
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       if (e.key === "Backspace" || e.key === "Delete") {
+        if (!selectedId) return;
         e.preventDefault();
-        void removeObject(selectedId!);
+        void removeObject(selectedId);
         return;
       }
       if (e.key === "Escape") {
         setSelectedId(null);
         setEditingNoteId(null);
+        setEditingColorId(null);
+        setChromeReadyId(null);
+        lastClickRef.current = null;
         return;
       }
       // Nudge rotation
       if (e.key === "[" || e.key === "]") {
+        if (!selectedId) return;
         e.preventDefault();
         const delta = e.key === "[" ? -5 : 5;
         const step = e.shiftKey ? 15 : delta;
+        const active = layoutRef.current;
         setObjects((list) => {
-          const next = list.map((o) =>
-            o.id === selectedId
-              ? { ...o, rotate: normalizeDeg(o.rotate + step) }
-              : o,
-          );
+          const next = list.map((o) => {
+            if (o.id !== selectedId) return o;
+            const t = wallObjectTransform(o, active);
+            return withWallObjectTransform(o, active, {
+              rotate: normalizeDeg(t.rotate + step),
+            });
+          });
           const obj = next.find((o) => o.id === selectedId);
-          if (obj) void persist(obj.id, { rotate: obj.rotate });
+          if (obj) {
+            const t = wallObjectTransform(obj, active);
+            void persist(obj.id, { rotate: t.rotate });
+          }
           onChange?.(next);
           return next;
         });
@@ -246,20 +405,23 @@ export function BoardWidgetLayer({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [editable, selectedId, removeObject, persist, onChange]);
+  }, [editable, selectedId, editingColorId, removeObject, persist, onChange]);
 
   // Click outside widget deselects
   useEffect(() => {
-    if (!editable || !selectedId) return;
+    if (!editable || (!selectedId && !editingColorId)) return;
     function onDocPointerDown(e: PointerEvent) {
       const t = e.target as HTMLElement | null;
       if (t?.closest?.(".board-widget")) return;
       setSelectedId(null);
       setEditingNoteId(null);
+      setEditingColorId(null);
+      setChromeReadyId(null);
+      lastClickRef.current = null;
     }
     document.addEventListener("pointerdown", onDocPointerDown);
     return () => document.removeEventListener("pointerdown", onDocPointerDown);
-  }, [editable, selectedId]);
+  }, [editable, selectedId, editingColorId]);
 
   function bringToFrontLocal(id: string) {
     setObjects((list) => {
@@ -288,6 +450,7 @@ export function BoardWidgetLayer({
     const surface = surfaceRef.current;
     if (!surface) return;
     const rect = surface.getBoundingClientRect();
+    const transform = wallObjectTransform(obj, layoutRef.current);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setSelectedId(obj.id);
     setDraggingId(obj.id);
@@ -297,8 +460,8 @@ export function BoardWidgetLayer({
       pointerId: e.pointerId,
       startClientX: e.clientX,
       startClientY: e.clientY,
-      originX: obj.x,
-      originY: obj.y,
+      originX: transform.x,
+      originY: transform.y,
       surfaceW: rect.width,
       surfaceH: rect.height,
     };
@@ -316,6 +479,7 @@ export function BoardWidgetLayer({
     const { centerX, centerY } = widgetCenter(el);
     const startDist = Math.hypot(e.clientX - centerX, e.clientY - centerY);
     if (startDist < 4) return;
+    const transform = wallObjectTransform(obj, layoutRef.current);
 
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setSelectedId(obj.id);
@@ -324,7 +488,7 @@ export function BoardWidgetLayer({
       mode: "resize",
       id: obj.id,
       pointerId: e.pointerId,
-      originScale: obj.scale,
+      originScale: transform.scale,
       centerX,
       centerY,
       startDist,
@@ -342,6 +506,7 @@ export function BoardWidgetLayer({
     if (!el) return;
     const { centerX, centerY } = widgetCenter(el);
     const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+    const transform = wallObjectTransform(obj, layoutRef.current);
 
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setSelectedId(obj.id);
@@ -350,7 +515,7 @@ export function BoardWidgetLayer({
       mode: "rotate",
       id: obj.id,
       pointerId: e.pointerId,
-      originRotate: obj.rotate,
+      originRotate: transform.rotate,
       centerX,
       centerY,
       startAngle,
@@ -362,6 +527,7 @@ export function BoardWidgetLayer({
     const drag = dragRef.current;
     if (!drag || e.pointerId !== drag.pointerId) return;
     e.preventDefault();
+    const active = layoutRef.current;
 
     if (drag.mode === "move") {
       const dxPct = ((e.clientX - drag.startClientX) / drag.surfaceW) * 100;
@@ -369,7 +535,9 @@ export function BoardWidgetLayer({
       const x = clamp(drag.originX + dxPct, -5, 105);
       const y = clamp(drag.originY + dyPct, -5, 105);
       setObjects((list) =>
-        list.map((o) => (o.id === drag.id ? { ...o, x, y } : o)),
+        list.map((o) =>
+          o.id === drag.id ? withWallObjectTransform(o, active, { x, y }) : o,
+        ),
       );
       return;
     }
@@ -379,7 +547,11 @@ export function BoardWidgetLayer({
       const ratio = dist / drag.startDist;
       const scale = clamp(drag.originScale * ratio, MIN_SCALE, MAX_SCALE);
       setObjects((list) =>
-        list.map((o) => (o.id === drag.id ? { ...o, scale } : o)),
+        list.map((o) =>
+          o.id === drag.id
+            ? withWallObjectTransform(o, active, { scale })
+            : o,
+        ),
       );
       return;
     }
@@ -389,7 +561,11 @@ export function BoardWidgetLayer({
     const deltaDeg = ((angle - drag.startAngle) * 180) / Math.PI;
     const rotate = normalizeDeg(drag.originRotate + deltaDeg);
     setObjects((list) =>
-      list.map((o) => (o.id === drag.id ? { ...o, rotate } : o)),
+      list.map((o) =>
+        o.id === drag.id
+          ? withWallObjectTransform(o, active, { rotate })
+          : o,
+      ),
     );
   }
 
@@ -410,12 +586,13 @@ export function BoardWidgetLayer({
 
     const obj = objectsRef.current.find((o) => o.id === id);
     if (!obj) return;
+    const t = wallObjectTransform(obj, layoutRef.current);
     if (mode === "move") {
-      void persist(obj.id, { x: obj.x, y: obj.y });
+      void persist(obj.id, { x: t.x, y: t.y });
     } else if (mode === "resize") {
-      void persist(obj.id, { scale: obj.scale });
+      void persist(obj.id, { scale: t.scale });
     } else {
-      void persist(obj.id, { rotate: obj.rotate });
+      void persist(obj.id, { rotate: t.rotate });
     }
   }
 
@@ -428,185 +605,330 @@ export function BoardWidgetLayer({
         draggingId ||
         resizingId ||
         rotatingId ||
-        editingNoteId,
+        editingNoteId ||
+        editingColorId,
     );
 
-  return (
-    <div
-      ref={surfaceRef}
-      className={`board-widget-layer${elevated ? " board-widget-layer--elevated" : ""}`}
-      aria-hidden={!editable}
-    >
-      {objects.map((obj) => {
-        const decor = getDecorById(obj.catalogId);
-        if (!decor) return null;
-        const selected = selectedId === obj.id;
-        const dragging = draggingId === obj.id;
-        const resizing = resizingId === obj.id;
-        const rotating = rotatingId === obj.id;
-        const hovered = !editable && hoveredId === obj.id;
-        const isNote = obj.kind === "note";
-        const editingNote = editingNoteId === obj.id;
-        const baseSize = obj.kind === "widget" ? 88 : 52;
-        // Counter-scale chrome so handles stay finger-friendly
-        const chromeScale = 1 / Math.max(obj.scale, 0.2);
+  const hasGuestbook = objects.some((o) => isGuestbookCatalogId(o.catalogId));
+  const backObjects = objects.filter((o) => !isGuestbookCatalogId(o.catalogId));
+  const frontObjects = objects.filter((o) => isGuestbookCatalogId(o.catalogId));
 
-        return (
-          <div
-            key={obj.id}
-            data-widget-id={obj.id}
-            data-widget-z={obj.z}
-            className={[
-              "board-widget",
-              isNote ? "board-widget--note" : "",
-              selected ? "board-widget--selected" : "",
-              dragging ? "board-widget--dragging" : "",
-              resizing ? "board-widget--resizing" : "",
-              rotating ? "board-widget--rotating" : "",
-              hovered ? "board-widget--hovered" : "",
-              editable ? "board-widget--editable" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            style={{
-              left: `${obj.x}%`,
-              top: `${obj.y}%`,
-              zIndex: 40 + obj.z,
-              transform: `translate(-50%, -50%) rotate(${obj.rotate}deg) scale(${obj.scale})`,
-            }}
-            onPointerDown={(e) => {
-              if (editingNote) return;
-              // Stickies: click body to edit; drag from the pin (or Shift+drag).
-              if (isNote && editable) {
-                const t = e.target as HTMLElement;
-                const fromPin = Boolean(t.closest(".wall-note__pin"));
-                if (!fromPin && !e.shiftKey) return;
-              }
-              onMovePointerDown(obj, e);
-            }}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!editable) return;
-              setSelectedId(obj.id);
-            }}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              if (!editable) return;
-              if (isNote) {
+  function renderWidget(obj: WallObject) {
+    const decor = getDecorById(obj.catalogId);
+    if (!decor) return null;
+    const transform = wallObjectTransform(obj, layout);
+    const selected = selectedId === obj.id;
+    const dragging = draggingId === obj.id;
+    const resizing = resizingId === obj.id;
+    const rotating = rotatingId === obj.id;
+    const hovered = !editable && hoveredId === obj.id;
+    const pressed = !editable && pressedId === obj.id;
+    const isNote = obj.kind === "note";
+    const isGuestbook = isGuestbookCatalogId(obj.catalogId);
+    const editingNote = editingNoteId === obj.id;
+    const colorOptions = decorColorOptions(obj.catalogId);
+    const editingColor =
+      editingColorId === obj.id && colorOptions.length > 1;
+    const showTransformChrome =
+      editable && selected && chromeReadyId === obj.id && !editingNote;
+    const baseSize = isGuestbook ? 112 : obj.kind === "widget" ? 88 : 52;
+    const chromeScale = 1 / Math.max(transform.scale, 0.2);
+
+    const art = isGuestbook ? (
+      <GuestbookBook
+        countLabel={obj.label || decor.label}
+        href={editable ? undefined : guestbookHref || "/guestbook"}
+      />
+    ) : isNote ? (
+      <WallStickyNote
+        label={obj.label || decor.defaultText || "Note"}
+        paper={decor.accent}
+        editing={editable && editingNote}
+        onEditStart={
+          editable
+            ? () => {
                 setSelectedId(obj.id);
                 setEditingNoteId(obj.id);
-                return;
+                setEditingColorId(obj.id);
+                setChromeReadyId(obj.id);
               }
-              void removeObject(obj.id);
-            }}
-            role={editable ? "button" : "img"}
-            aria-label={
-              editable
-                ? isNote
-                  ? `${decor.name}. Click to edit text; drag the pin to move.`
+            : undefined
+        }
+        onSave={(next) => {
+          setObjects((list) => {
+            const updated = list.map((o) =>
+              o.id === obj.id ? { ...o, label: next } : o,
+            );
+            onChange?.(updated);
+            return updated;
+          });
+          void persist(obj.id, { label: next });
+          setEditingNoteId(null);
+        }}
+        onCancel={() => setEditingNoteId(null)}
+      />
+    ) : (
+      <BoardDecorIcon
+        item={{
+          ...decor,
+          vinylLabel: obj.label || decor.vinylLabel,
+          defaultText: obj.label || decor.defaultText,
+        }}
+        size={baseSize}
+      />
+    );
+
+    return (
+      <div
+        key={obj.id}
+        data-widget-id={obj.id}
+        data-widget-z={obj.z}
+        className={[
+          "board-widget",
+          isNote ? "board-widget--note" : "",
+          isGuestbook ? "board-widget--guestbook" : "",
+          selected ? "board-widget--selected" : "",
+          dragging ? "board-widget--dragging" : "",
+          resizing ? "board-widget--resizing" : "",
+          rotating ? "board-widget--rotating" : "",
+          hovered ? "board-widget--hovered" : "",
+          pressed ? "board-widget--pressed" : "",
+          editable ? "board-widget--editable" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        style={{
+          left: `${transform.x}%`,
+          top: `${transform.y}%`,
+          zIndex: 40 + obj.z,
+          transform: `translate(-50%, -50%) rotate(${transform.rotate}deg) scale(${transform.scale})`,
+        }}
+        onPointerDown={(e) => {
+          if (!editable && isGuestbook) {
+            setPressedId(obj.id);
+            return;
+          }
+          if (editingNote || editingColor) return;
+          // Stickies + guestbook: drag from the pin (or Shift+drag).
+          if ((isNote || isGuestbook) && editable) {
+            const t = e.target as HTMLElement;
+            const fromPin = Boolean(
+              t.closest(".wall-note__pin, .guestbook-book__pin"),
+            );
+            if (!fromPin && !e.shiftKey) return;
+          }
+          onMovePointerDown(obj, e);
+        }}
+        onPointerMove={onPointerMove}
+        onPointerUp={(e) => {
+          if (!editable) setPressedId(null);
+          onPointerUp(e);
+        }}
+        onPointerCancel={(e) => {
+          if (!editable) setPressedId(null);
+          onPointerUp(e);
+        }}
+        onPointerLeave={() => {
+          if (!editable) setPressedId((id) => (id === obj.id ? null : id));
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!editable) return;
+          const t = e.target as HTMLElement;
+          if (
+            t.closest(
+              ".board-widget__remove, .board-widget__rotate, .board-widget__handle, .board-widget__colors, .board-widget__swatch, .board-widget__edit",
+            )
+          ) {
+            return;
+          }
+          // Manual double-click: survives the select → re-render between clicks.
+          const now = performance.now();
+          const last = lastClickRef.current;
+          if (last && last.id === obj.id && now - last.at < 450) {
+            lastClickRef.current = null;
+            beginWidgetEdit(obj);
+            return;
+          }
+          lastClickRef.current = { id: obj.id, at: now };
+          setSelectedId(obj.id);
+          if (editingColorId && editingColorId !== obj.id) {
+            setEditingColorId(null);
+          }
+        }}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!editable) return;
+          lastClickRef.current = null;
+          beginWidgetEdit(obj);
+        }}
+        role={editable ? "button" : isGuestbook ? undefined : "img"}
+        aria-label={
+          editable
+            ? isNote
+              ? `${decor.name}. Double-click to edit text and color; drag the pin to move.`
+              : isGuestbook
+                ? `${decor.name}. Double-click to edit notes; drag the pin to move.`
+                : colorOptions.length > 1
+                  ? `${decor.name}. Double-click to change color; drag to move.`
                   : `${decor.name}. Drag to move, corners to resize, top handle to rotate.`
-                : decor.name
-            }
-            tabIndex={editable ? 0 : undefined}
+            : isGuestbook
+              ? undefined
+              : decor.name
+        }
+        tabIndex={editable ? 0 : undefined}
+      >
+        <div className="board-widget__art">{art}</div>
+        {editable && editingColor ? (
+          <div
+            className="board-widget__colors"
+            style={{
+              transform: `translateX(-50%) scale(${chromeScale}) rotate(${-transform.rotate}deg)`,
+            }}
+            role="listbox"
+            aria-label={`Color for ${decor.name}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
-            {isNote ? (
-              <WallStickyNote
-                label={obj.label || decor.defaultText || "Note"}
-                editing={editable && editingNote}
-                onEditStart={
-                  editable
-                    ? () => {
-                        setSelectedId(obj.id);
-                        setEditingNoteId(obj.id);
-                      }
-                    : undefined
-                }
-                onSave={(next) => {
-                  setObjects((list) => {
-                    const updated = list.map((o) =>
-                      o.id === obj.id ? { ...o, label: next } : o,
-                    );
-                    onChange?.(updated);
-                    return updated;
-                  });
-                  void persist(obj.id, { label: next });
-                  setEditingNoteId(null);
-                }}
-                onCancel={() => setEditingNoteId(null)}
-              />
-            ) : (
-              <BoardDecorIcon
-                item={{
-                  ...decor,
-                  vinylLabel: obj.label || decor.vinylLabel,
-                  defaultText: obj.label || decor.defaultText,
-                }}
-                size={baseSize}
-              />
-            )}
-            {editable && selected && !editingNote && (
-              <>
+            {colorOptions.map((opt) => {
+              const active = opt.id === obj.catalogId;
+              return (
                 <button
+                  key={opt.id}
                   type="button"
-                  className="board-widget__remove"
-                  style={{ transform: `scale(${chromeScale})` }}
-                  aria-label="Remove from board"
+                  role="option"
+                  aria-selected={active}
+                  className={[
+                    "board-widget__swatch",
+                    active ? "board-widget__swatch--active" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  style={{ background: opt.accent || "#8a847c" }}
+                  title={opt.name}
+                  aria-label={opt.name}
                   onClick={(e) => {
                     e.stopPropagation();
-                    void removeObject(obj.id);
+                    if (opt.id === obj.catalogId) return;
+                    applyCatalogId(obj.id, opt.id);
                   }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  ×
-                </button>
-                <span
-                  className="board-widget__rotate"
-                  style={{ transform: `translateX(-50%) scale(${chromeScale})` }}
-                  role="slider"
-                  aria-label={`Rotate ${decor.name}`}
-                  aria-valuemin={-180}
-                  aria-valuemax={180}
-                  aria-valuenow={Math.round(obj.rotate)}
-                  title="Drag to rotate · [ ] keys"
-                  onPointerDown={(e) => onRotatePointerDown(obj, e)}
-                  onPointerMove={onPointerMove}
-                  onPointerUp={onPointerUp}
-                  onPointerCancel={onPointerUp}
-                >
-                  <RotateGlyph />
-                </span>
-                {(
-                  [
-                    ["nw", "board-widget__handle--nw"],
-                    ["ne", "board-widget__handle--ne"],
-                    ["sw", "board-widget__handle--sw"],
-                    ["se", "board-widget__handle--se"],
-                  ] as const
-                ).map(([corner, cls]) => (
-                  <span
-                    key={corner}
-                    className={`board-widget__handle ${cls}`}
-                    style={{ transform: `scale(${chromeScale})` }}
-                    role="slider"
-                    aria-label={`Resize ${decor.name} (proportional)`}
-                    aria-valuemin={MIN_SCALE}
-                    aria-valuemax={MAX_SCALE}
-                    aria-valuenow={Number(obj.scale.toFixed(2))}
-                    onPointerDown={(e) => onResizePointerDown(obj, e)}
-                    onPointerMove={onPointerMove}
-                    onPointerUp={onPointerUp}
-                    onPointerCancel={onPointerUp}
-                  />
-                ))}
-              </>
-            )}
+                />
+              );
+            })}
           </div>
-        );
-      })}
-    </div>
+        ) : null}
+        {showTransformChrome ? (
+          <>
+            {isGuestbook ? (
+              <button
+                type="button"
+                className="board-widget__edit"
+                style={{
+                  transform: `translateX(-50%) scale(${chromeScale}) rotate(${-transform.rotate}deg)`,
+                }}
+                aria-label="Edit guestbook notes"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push("/admin/guestbook");
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                Edit
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="board-widget__remove"
+                style={{ transform: `scale(${chromeScale})` }}
+                aria-label="Remove from board"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void removeObject(obj.id);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                ×
+              </button>
+            )}
+            <span
+              className="board-widget__rotate"
+              style={{ transform: `translateX(-50%) scale(${chromeScale})` }}
+              role="slider"
+              aria-label={`Rotate ${decor.name}`}
+              aria-valuemin={-180}
+              aria-valuemax={180}
+              aria-valuenow={Math.round(transform.rotate)}
+              title="Drag to rotate · [ ] keys"
+              onPointerDown={(e) => onRotatePointerDown(obj, e)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            >
+              <RotateGlyph />
+            </span>
+            {(
+              [
+                ["nw", "board-widget__handle--nw"],
+                ["ne", "board-widget__handle--ne"],
+                ["sw", "board-widget__handle--sw"],
+                ["se", "board-widget__handle--se"],
+              ] as const
+            ).map(([corner, cls]) => (
+              <span
+                key={corner}
+                className={`board-widget__handle ${cls}`}
+                style={{ transform: `scale(${chromeScale})` }}
+                role="slider"
+                aria-label={`Resize ${decor.name} (proportional)`}
+                aria-valuemin={MIN_SCALE}
+                aria-valuemax={MAX_SCALE}
+                aria-valuenow={Number(transform.scale.toFixed(2))}
+                onPointerDown={(e) => onResizePointerDown(obj, e)}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+              />
+            ))}
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {editable ? (
+        <AdminChromeActions>
+          <p
+            className={`${adminChromePillClass} !cursor-default text-ink-soft`}
+            title="Widget positions are saved separately for phone and desktop"
+          >
+            <span className="sm:hidden">
+              {layout === "mobile" ? "Phone" : "Desktop"}
+            </span>
+            <span className="hidden sm:inline">
+              {layout === "mobile" ? "Phone layout" : "Desktop layout"}
+            </span>
+          </p>
+        </AdminChromeActions>
+      ) : null}
+      <div
+        ref={surfaceRef}
+        className={`board-widget-layer${elevated ? " board-widget-layer--elevated" : ""}`}
+        aria-hidden={editable || hasGuestbook ? undefined : true}
+      >
+        {backObjects.map(renderWidget)}
+      </div>
+      {frontObjects.length > 0 && portalRoot
+        ? createPortal(
+            <div className="board-widget-layer board-widget-layer--front">
+              {frontObjects.map(renderWidget)}
+            </div>,
+            portalRoot,
+          )
+        : null}
+    </>
   );
 }
 

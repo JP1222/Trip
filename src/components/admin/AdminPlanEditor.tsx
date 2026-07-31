@@ -970,23 +970,31 @@ export function AdminPlanEditor({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-        <TripBudgetPanel budget={budget} editable onChange={setBudget} />
-        <div className="rounded-3xl border border-sand-200/80 bg-white/70 px-4 py-4 shadow-[0_8px_30px_rgba(42,38,34,0.04)] sm:px-5">
-          <p className="text-[11px] font-medium tracking-[0.12em] text-ink-muted uppercase">
-            Checklist (one per line)
-          </p>
-          <p className="mt-1 text-xs text-ink-muted">
-            Shows on the public trip page for everyone.
-          </p>
-          <textarea
-            value={tipsText}
-            onChange={(e) => setTipsText(e.target.value)}
-            rows={6}
-            className="mt-3 w-full resize-y rounded-xl border border-sand-200 bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-sea/40 focus:ring-2 focus:ring-sea/10"
-            placeholder={"Book lodging\nWho’s in?"}
-          />
-        </div>
+      <div className="mt-6 space-y-6 lg:mt-8">
+        <TripBudgetPanel
+          budget={budget}
+          members={trip.members}
+          editable
+          onChange={setBudget}
+        />
+
+        <section className="overflow-hidden rounded-3xl border border-sand-200/80 bg-white/70">
+          <div className="border-b border-sand-200/70 px-4 py-3.5 sm:px-5">
+            <h3 className="font-serif text-xl text-ink">Checklist</h3>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              One tip per line · on the public trip page
+            </p>
+          </div>
+          <div className="px-4 py-3.5 sm:px-5">
+            <textarea
+              value={tipsText}
+              onChange={(e) => setTipsText(e.target.value)}
+              rows={5}
+              className="w-full resize-y rounded-2xl border border-sand-200 bg-sand-50/50 px-3.5 py-3 text-sm leading-relaxed text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-sea/40 focus:bg-white focus:ring-2 focus:ring-sea/10"
+              placeholder={"Book lodging\nWho’s in?"}
+            />
+          </div>
+        </section>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ export function NotesSection({
         .filter(Boolean)
         .join(" ")}
     >
-      <div className="mb-5 max-w-2xl">
+      <div className="mb-5">
         {eyebrow ? (
           <p className="text-[11px] font-medium tracking-[0.16em] text-ink-muted uppercase">
             {eyebrow}
@@ -38,17 +38,15 @@ export function NotesSection({
         >
           Notes
         </h2>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-muted">
           {description}
         </p>
       </div>
-      <div className="max-w-2xl">
-        <Comments
-          tripId={tripId}
-          articleId={articleId}
-          initialComments={initialComments}
-        />
-      </div>
+      <Comments
+        tripId={tripId}
+        articleId={articleId}
+        initialComments={initialComments}
+      />
     </section>
   );
 }

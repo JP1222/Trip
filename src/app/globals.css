@@ -626,18 +626,17 @@ html.page-home body::before {
 }
 
 /*
- * Admin: widgets sit under polaroids by default (same as public) so vinyl /
- * washi never cover trip/article cards. Photo list ignores pointer events in
- * the gaps so trinkets in the cork margins stay draggable; elevate the layer
- * only while a widget is selected / mid-gesture.
+ * Admin: widgets sit *above* polaroids so trinkets (and guestbook) stay
+ * selectable even when they overlap a trip card. Public keeps decor under
+ * photos; guestbook alone uses `--front` above the photo stack.
  */
 .gallery-wall--admin .board-widget-layer {
-  z-index: 2;
+  z-index: 12;
   overflow: visible;
 }
 
 .gallery-wall--admin .board-widget-layer--elevated {
-  z-index: 12;
+  z-index: 16;
 }
 
 .gallery-wall--admin .cork-board__photos {
@@ -646,6 +645,23 @@ html.page-home body::before {
 
 .gallery-wall--admin .cork-board__photos > li {
   pointer-events: auto;
+}
+
+/* Guestbook: always above polaroids so it stays clickable / selectable. */
+.board-widget-layer--front {
+  z-index: 20 !important;
+  overflow: visible !important;
+  pointer-events: none;
+}
+.board-widget-layer--front .board-widget {
+  pointer-events: auto;
+}
+.gallery-wall--public .board-widget-layer--front {
+  z-index: 20 !important;
+  overflow: visible !important;
+}
+.gallery-wall--admin .board-widget-layer--front {
+  z-index: 20 !important;
 }
 
 .board-widget {
@@ -657,6 +673,49 @@ html.page-home body::before {
   will-change: left, top, transform;
   filter: drop-shadow(0 2px 4px rgba(40, 30, 15, 0.12));
   transition: filter 0.2s ease;
+}
+
+/* Inner art lifts like polaroids — placement transform stays on .board-widget */
+.board-widget__art {
+  display: block;
+  transform-origin: 50% 60%;
+  transition:
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, filter;
+}
+
+/* Public wall: photo-like hover / press (JS --hovered for pointer-events:none) */
+.gallery-wall--public .board-widget--hovered .board-widget__art,
+.gallery-wall--public .board-widget--pressed .board-widget__art,
+.gallery-wall--public .board-widget--guestbook:hover .board-widget__art,
+.gallery-wall--public .board-widget--guestbook:active .board-widget__art,
+.gallery-wall--public .board-widget--guestbook:focus-within .board-widget__art {
+  transform: translateY(-8px) scale(1.055);
+  filter: drop-shadow(0 12px 22px rgba(40, 30, 15, 0.28));
+}
+
+.gallery-wall--public .board-widget--hovered,
+.gallery-wall--public .board-widget--pressed,
+.gallery-wall--public .board-widget--guestbook:hover,
+.gallery-wall--public .board-widget--guestbook:active {
+  z-index: 30 !important;
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-widget__art {
+    transition: none;
+  }
+
+  .gallery-wall--public .board-widget--hovered .board-widget__art,
+  .gallery-wall--public .board-widget--pressed .board-widget__art,
+  .gallery-wall--public .board-widget--guestbook:hover .board-widget__art,
+  .gallery-wall--public .board-widget--guestbook:active .board-widget__art,
+  .gallery-wall--public .board-widget--guestbook:focus-within .board-widget__art {
+    transform: none;
+    filter: none;
+  }
 }
 
 .board-widget--editable {
@@ -801,6 +860,78 @@ html.page-home body::before {
 .board-widget__handle:hover {
   background: color-mix(in srgb, var(--sea) 18%, #fffef9);
   border-color: var(--sea);
+}
+
+.board-widget__colors {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 14px);
+  bottom: auto;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  max-width: 160px;
+  padding: 6px 7px;
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.96);
+  border: 1px solid rgba(44, 40, 36, 0.12);
+  box-shadow: 0 6px 18px rgba(44, 40, 36, 0.16);
+  pointer-events: auto;
+}
+
+.board-widget__swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(44, 40, 36, 0.18);
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.board-widget__swatch:hover {
+  transform: scale(1.12);
+}
+
+.board-widget__swatch--active {
+  box-shadow:
+    0 0 0 2px rgba(255, 252, 246, 1),
+    0 0 0 3.5px rgba(61, 102, 100, 0.85);
+}
+
+.board-widget__edit {
+  position: absolute;
+  left: 50%;
+  bottom: auto;
+  top: calc(100% + 14px);
+  z-index: 5;
+  display: flex;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.7rem;
+  border: 1.5px solid rgba(61, 102, 100, 0.85);
+  border-radius: 999px;
+  background: #fffef9;
+  color: rgba(45, 70, 68, 0.95);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
+  transform-origin: center;
+  box-shadow: 0 1px 4px rgba(40, 30, 15, 0.18);
+  pointer-events: auto;
+}
+
+.board-widget__edit:hover {
+  background: color-mix(in srgb, var(--sea) 18%, #fffef9);
+  border-color: var(--sea);
+  color: var(--sea);
 }
 
 .cork-board__surface::before {
@@ -2145,7 +2276,13 @@ html.page-home body::before {
   width: min(68vw, 230px);
   min-height: 220px;
   padding: 1.55rem 1.25rem 1.25rem;
-  background: linear-gradient(165deg, #fff6c8 0%, #f5e6a0 55%, #efd88a 100%);
+  --note-paper: #f5e6a0;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--note-paper) 72%, #fff) 0%,
+    var(--note-paper) 55%,
+    color-mix(in srgb, var(--note-paper) 82%, #c9a24a) 100%
+  );
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.65) inset,
     0 2px 4px rgba(80, 55, 30, 0.12),
@@ -2766,7 +2903,10 @@ button.admin-instant {
 /* While dragging / resizing / rotating, freeze hover jiggle */
 .board-widget--dragging .board-decor,
 .board-widget--resizing .board-decor,
-.board-widget--rotating .board-decor {
+.board-widget--rotating .board-decor,
+.board-widget--dragging .board-widget__art,
+.board-widget--resizing .board-widget__art,
+.board-widget--rotating .board-widget__art {
   transition: none !important;
   transform: none !important;
   filter: none !important;
@@ -3082,5 +3222,631 @@ button.admin-instant {
 @media (prefers-reduced-motion: reduce) {
   .article-page__header.animate-fade-up {
     animation: none;
+  }
+}
+
+/* ─── Guestbook (cork entry + visitor book page) ─── */
+
+.guestbook-book {
+  position: relative;
+  display: block;
+  width: 108px;
+  text-decoration: none;
+  color: inherit;
+  opacity: 1;
+  filter: drop-shadow(0 8px 14px rgba(40, 28, 14, 0.28));
+  transition: filter 0.25s ease;
+}
+.guestbook-book:hover,
+.guestbook-book:focus-visible {
+  filter: drop-shadow(0 12px 20px rgba(40, 28, 14, 0.34));
+  outline: none;
+}
+.guestbook-book__pin {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, #f0d9a8, #b8864a 55%, #7a5428);
+  box-shadow:
+    0 1px 2px rgba(40, 25, 10, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+.guestbook-book__cover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  min-height: 132px;
+  padding: 1.1rem 0.75rem 0.85rem 1.05rem;
+  border-radius: 3px 6px 6px 3px;
+  /* Solid cover — never translucent over cork / polaroids */
+  background: #3d6664;
+  background-image: linear-gradient(
+    105deg,
+    #2f4a48 0%,
+    #3d6664 40%,
+    #4a7572 78%,
+    #355956 100%
+  );
+  box-shadow:
+    inset 3px 0 0 rgba(255, 255, 255, 0.1),
+    inset -1px 0 0 rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #f4efe6;
+  opacity: 1;
+  isolation: isolate;
+}
+.guestbook-book__spine {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 10px;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.18),
+    rgba(0, 0, 0, 0.08) 40%,
+    rgba(0, 0, 0, 0.22)
+  );
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.1);
+}
+.guestbook-book__title {
+  position: relative;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.35rem;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: #f7f2e8;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+.guestbook-book__count {
+  position: relative;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(244, 239, 230, 0.72);
+}
+@media (min-width: 768px) {
+  .guestbook-book {
+    width: 124px;
+  }
+  .guestbook-book__cover {
+    min-height: 152px;
+    padding: 1.25rem 0.85rem 1rem 1.2rem;
+  }
+  .guestbook-book__title {
+    font-size: 1.55rem;
+  }
+}
+
+/* Guestbook widget: opaque + above photos on phone and desktop. */
+.gallery-wall--public .board-widget--guestbook,
+.gallery-wall--admin .board-widget--guestbook,
+.board-widget--guestbook {
+  pointer-events: auto;
+  opacity: 1 !important;
+}
+.board-widget--guestbook .guestbook-book {
+  width: 100px;
+  opacity: 1;
+  filter: drop-shadow(0 6px 12px rgba(40, 28, 14, 0.32));
+  transition: filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (min-width: 768px) {
+  .board-widget--guestbook .guestbook-book {
+    width: 118px;
+  }
+}
+.board-widget--guestbook.board-widget--hovered .guestbook-book,
+.board-widget--guestbook.board-widget--pressed .guestbook-book,
+.board-widget--guestbook.board-widget--selected .guestbook-book,
+.gallery-wall--public .board-widget--guestbook:hover .guestbook-book,
+.gallery-wall--public .board-widget--guestbook:active .guestbook-book {
+  filter: drop-shadow(0 14px 24px rgba(40, 28, 14, 0.42));
+}
+.board-widget--guestbook .guestbook-book__cover {
+  min-height: 128px;
+}
+@media (min-width: 768px) {
+  .board-widget--guestbook .guestbook-book__cover {
+    min-height: 148px;
+  }
+}
+/* Pin stays grabable; cover clicks open edit via the count link / double-click */
+.board-widget--editable.board-widget--guestbook {
+  cursor: default;
+}
+.board-widget--editable .guestbook-book__pin {
+  cursor: grab;
+  pointer-events: auto;
+}
+.board-widget--editable.board-widget--dragging .guestbook-book__pin {
+  cursor: grabbing;
+}
+.guestbook-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  color: #2c2419;
+  background-color: #b89568;
+  background-image:
+    radial-gradient(
+      ellipse 80% 55% at 50% 30%,
+      rgba(255, 236, 200, 0.22),
+      transparent 60%
+    ),
+    url("/textures/cork-tile.jpg");
+  background-size: auto, 220px 220px;
+  background-repeat: no-repeat, repeat;
+}
+.guestbook-desk {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse 70% 50% at 50% 45%,
+      transparent 40%,
+      rgba(60, 40, 20, 0.28) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(80, 55, 30, 0.08),
+      rgba(80, 55, 30, 0.18)
+    );
+}
+.guestbook-shell {
+  position: relative;
+  z-index: 1;
+  width: min(58rem, calc(100% - 1.25rem));
+  margin: 0 auto;
+  padding: 4.75rem 0 3.5rem;
+}
+@media (min-width: 640px) {
+  .guestbook-shell {
+    padding: 5.75rem 0 4rem;
+  }
+}
+
+.guestbook-open {
+  position: relative;
+  animation: guestbook-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.guestbook-open__shadow {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: -1.1rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(40, 25, 12, 0.38),
+    transparent 70%
+  );
+  filter: blur(4px);
+}
+.guestbook-spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  height: min(36rem, calc(100dvh - 6.5rem));
+  border-radius: 2px 12px 12px 2px;
+  background: #ebe1cf;
+  box-shadow:
+    0 1px 0 rgba(255, 250, 240, 0.55) inset,
+    0 22px 48px rgba(40, 25, 12, 0.28),
+    0 2px 0 rgba(90, 60, 30, 0.18);
+  overflow: hidden;
+}
+@media (min-width: 860px) {
+  .guestbook-spread {
+    grid-template-columns: 1fr 14px 1fr;
+    border-radius: 4px 12px 12px 4px;
+    height: min(38rem, calc(100dvh - 7.5rem));
+  }
+}
+
+/* Mobile left binding — hardcover spine + stitch holes */
+.guestbook-spine {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 18px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 1.75rem 0;
+  background:
+    linear-gradient(
+      90deg,
+      #2a423f 0%,
+      #3d6664 42%,
+      #355956 78%,
+      #2f4a48 100%
+    );
+  box-shadow:
+    inset -2px 0 0 rgba(255, 255, 255, 0.08),
+    4px 0 10px rgba(40, 25, 12, 0.18);
+}
+.guestbook-spine__stitch {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6a5340, #2a1c12);
+  box-shadow:
+    0 0 0 1px rgba(255, 245, 220, 0.08),
+    inset 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+@media (min-width: 860px) {
+  /* Desktop already has the center gutter; hide the mobile spine strip */
+  .guestbook-spine {
+    display: none;
+  }
+}
+
+.guestbook-leaf {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 1.75rem 1.35rem 1.15rem 1.85rem;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(90, 60, 30, 0.07),
+      transparent 10%,
+      transparent 92%,
+      rgba(90, 60, 30, 0.04)
+    ),
+    repeating-linear-gradient(
+      transparent,
+      transparent 1.7rem,
+      rgba(120, 90, 55, 0.11) 1.7rem,
+      rgba(120, 90, 55, 0.11) calc(1.7rem + 1px)
+    ),
+    linear-gradient(180deg, #f7f0e2 0%, #f1e6d2 100%);
+  background-position: 0 0, 0 3.6rem, 0 0;
+}
+.guestbook-leaf--write {
+  background-position: 0 0, 0 5.8rem, 0 0;
+}
+.guestbook-leaf--read {
+  border-top: none;
+}
+.guestbook-leaf__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+@media (max-width: 859px) {
+  .guestbook-leaf {
+    /* Clear the bound spine on the left */
+    padding-left: 1.95rem;
+    box-shadow: inset 14px 0 18px -16px rgba(40, 25, 12, 0.35);
+  }
+}
+@media (min-width: 860px) {
+  .guestbook-leaf {
+    padding: 2.1rem 1.85rem 1.25rem 2rem;
+  }
+  .guestbook-leaf--write {
+    box-shadow: inset -10px 0 18px -14px rgba(60, 40, 20, 0.28);
+  }
+  .guestbook-leaf--read {
+    box-shadow: inset 10px 0 18px -14px rgba(60, 40, 20, 0.28);
+  }
+}
+.guestbook-leaf__folio {
+  position: absolute;
+  top: 0.85rem;
+  right: 1.1rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: rgba(90, 70, 45, 0.45);
+}
+.guestbook-leaf--read .guestbook-leaf__folio {
+  left: 1.1rem;
+  right: auto;
+}
+.guestbook-leaf__inscription {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: clamp(2.35rem, 7vw, 3.1rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #2a2218;
+}
+.guestbook-leaf__epigraph {
+  margin: 0.65rem 0 1.35rem;
+  max-width: 18rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.98rem;
+  font-style: italic;
+  line-height: 1.45;
+  color: rgba(70, 55, 38, 0.72);
+}
+.guestbook-leaf__running {
+  margin: 0.2rem 0 1.1rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.92rem;
+  font-style: italic;
+  color: rgba(90, 70, 45, 0.55);
+}
+
+.guestbook-gutter {
+  display: none;
+}
+@media (min-width: 860px) {
+  .guestbook-gutter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    padding: 2.5rem 0;
+    background:
+      linear-gradient(
+        90deg,
+        #d9cbb3 0%,
+        #c9b89a 18%,
+        #b9a686 50%,
+        #c9b89a 82%,
+        #d9cbb3 100%
+      );
+    box-shadow:
+      inset 3px 0 6px rgba(60, 40, 20, 0.18),
+      inset -3px 0 6px rgba(60, 40, 20, 0.18);
+  }
+  .guestbook-gutter__stitch {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #6a4f34, #3d2a18);
+    box-shadow: 0 1px 1px rgba(255, 245, 220, 0.25);
+  }
+}
+
+.guestbook-write {
+  margin-top: 0.25rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.guestbook-write__block {
+  display: block;
+  flex: 1;
+  min-height: 0;
+}
+.guestbook-write__lines {
+  width: 100%;
+  height: 100%;
+  min-height: 7rem;
+  max-height: 100%;
+  resize: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.15rem 0.15rem 0.4rem;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.45rem;
+  line-height: 1.7rem;
+  color: #2a2218;
+  outline: none;
+  caret-color: #5a4030;
+}
+.guestbook-write__lines::placeholder {
+  color: rgba(110, 90, 65, 0.38);
+  font-style: italic;
+}
+.guestbook-write__sign {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-top: 1.35rem;
+  padding-top: 0.35rem;
+}
+.guestbook-write__dash {
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.55rem;
+  color: #3d3226;
+}
+.guestbook-write__name {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1px solid rgba(120, 90, 55, 0.35);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.2rem 0.15rem 0.35rem;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  color: #2a2218;
+  outline: none;
+}
+.guestbook-write__name::placeholder {
+  color: rgba(110, 90, 65, 0.38);
+}
+.guestbook-write__status {
+  margin-top: 0.75rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.95rem;
+  font-style: italic;
+  color: #3d6664;
+}
+.guestbook-write__status--error {
+  color: #9a4f38;
+}
+.guestbook-write__ink {
+  display: inline-block;
+  margin-top: 1.35rem;
+  border: none;
+  border-bottom: 1.5px solid rgba(60, 45, 30, 0.55);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.15rem 0.1rem 0.2rem;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.25rem;
+  color: #2a2218;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
+}
+.guestbook-write__ink:hover:not(:disabled) {
+  color: #3d6664;
+  border-bottom-color: color-mix(in srgb, #3d6664 70%, transparent);
+}
+.guestbook-write__ink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.guestbook-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.guestbook-hand {
+  position: relative;
+  padding-bottom: 0.15rem;
+  animation: guestbook-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.guestbook-hand--2 {
+  transform: rotate(-0.35deg);
+}
+.guestbook-hand--3 {
+  transform: rotate(0.4deg);
+}
+.guestbook-hand__date {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: rgba(90, 70, 45, 0.5);
+}
+.guestbook-hand__body {
+  margin: 0;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.28rem;
+  line-height: 1.4;
+  color: #2c2419;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.guestbook-hand__sign {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.2rem;
+  color: #3d3226;
+}
+.guestbook-hand__erase {
+  margin-top: 0.35rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: rgba(154, 79, 56, 0.8);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.guestbook-hand__erase:disabled {
+  opacity: 0.5;
+}
+.guestbook-blank {
+  margin: 1.5rem 0 0.5rem;
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.1rem;
+  font-style: italic;
+  line-height: 1.55;
+  color: rgba(90, 70, 45, 0.55);
+}
+
+.guestbook-turn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(120, 90, 55, 0.18);
+}
+.guestbook-turn__btn {
+  border: none;
+  border-bottom: 1px solid rgba(60, 45, 30, 0.4);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.15rem 0.05rem;
+  font-family: var(--font-hand), "Segoe Print", cursive;
+  font-size: 1.15rem;
+  color: #2a2218;
+  cursor: pointer;
+  transition: color 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+.guestbook-turn__btn:hover:not(:disabled) {
+  color: #3d6664;
+  border-bottom-color: color-mix(in srgb, #3d6664 70%, transparent);
+}
+.guestbook-turn__btn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+.guestbook-turn__mark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: rgba(90, 70, 45, 0.55);
+}
+
+@keyframes guestbook-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guestbook-open,
+  .guestbook-hand,
+  .guestbook-book {
+    animation: none;
+    transition: none;
+  }
+  .guestbook-hand--2,
+  .guestbook-hand--3 {
+    transform: none;
   }
 }

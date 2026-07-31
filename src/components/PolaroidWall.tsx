@@ -6,7 +6,7 @@ import { BoardWidgetLayer } from "@/components/board/BoardWidgetLayer";
 import { Pushpin } from "@/components/Pushpin";
 import { useWallSwayGuard } from "@/hooks/useWallSwayGuard";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
-import type { WallObject } from "@/lib/wall-objects";
+import type { WallObject } from "@/lib/wall-object-layout";
 import { randomSway } from "@/lib/wall-sway";
 
 function orientationFor(image: HTMLImageElement): WallPhotoOrientation {
@@ -138,7 +138,7 @@ export function PolaroidWall({ items, widgets = [] }: Props) {
             <span className="cork-tape cork-tape--b" />
           </div>
 
-          <BoardWidgetLayer objects={widgets} />
+          <BoardWidgetLayer objects={widgets} guestbookHref="/guestbook" />
 
           <ul ref={listRef} className="cork-board__photos">
             {laidOut.map(({ item, rotate }, index) => {

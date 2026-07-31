@@ -20,8 +20,9 @@ import {
   wallSlotKey,
 } from "@/lib/wall-order";
 import { ensureDefaultWallNotes } from "@/lib/wall-notes";
-import { listWallObjects } from "@/lib/wall-objects";
+import { ensureDefaultGuestbookObject } from "@/lib/wall-objects";
 import { ensureDefaultWallPhotos } from "@/lib/wall-photos";
+import { countGuestbookEntries } from "@/lib/guestbook";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +36,21 @@ function formatArticleDate(iso?: string): string {
 }
 
 export default async function AdminHomePage() {
-  const [trips, boardPhotos, widgets, articles, wallOrder] = await Promise.all([
-    getTrips(),
-    ensureDefaultWallPhotos(),
-    listWallObjects(),
-    listArticles({ status: "all" }),
-    getWallOrder(),
+  const [trips, boardPhotos, articles, wallOrder, guestbookCount] =
+    await Promise.all([
+      getTrips(),
+      ensureDefaultWallPhotos(),
+      listArticles({ status: "all" }),
+      getWallOrder(),
+      countGuestbookEntries(),
+    ]);
+  const [boardNotes, widgets] = await Promise.all([
+    ensureDefaultWallNotes({
+      trips,
+      boardPhotoCount: boardPhotos.length,
+    }),
+    ensureDefaultGuestbookObject(guestbookCount),
   ]);
-  const boardNotes = await ensureDefaultWallNotes({
-    trips,
-    boardPhotoCount: boardPhotos.length,
-  });
 
   const tripCards: AdminWallCard[] = await Promise.all(
     trips.map(async (t) => {

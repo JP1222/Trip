@@ -457,11 +457,25 @@ export const BOARD_WIDGETS: BoardDecorItem[] = [
   },
 ];
 
+/** Seeded guestbook book on the cork — not in the add-tray catalog. */
+export const GUESTBOOK_CATALOG_ID = "widget-guestbook";
+
+export const GUESTBOOK_DECOR: BoardDecorItem = {
+  id: GUESTBOOK_CATALOG_ID,
+  category: "widget",
+  name: "Guestbook",
+  label: "Book",
+  description: "Visitor guestbook — drag to place on the cork",
+  accent: "#3d6664",
+  defaultScale: 1.35,
+};
+
 export const ALL_BOARD_DECOR: BoardDecorItem[] = [
   ...BOARD_PINS,
   ...BOARD_CLIPS,
   ...BOARD_NOTES,
   ...BOARD_WIDGETS,
+  GUESTBOOK_DECOR,
 ];
 
 export function getDecorById(id: string): BoardDecorItem | undefined {
@@ -470,4 +484,37 @@ export function getDecorById(id: string): BoardDecorItem | undefined {
 
 export function decorByCategory(category: DecorCategory): BoardDecorItem[] {
   return ALL_BOARD_DECOR.filter((d) => d.category === category);
+}
+
+export function isGuestbookCatalogId(id: string): boolean {
+  return id === GUESTBOOK_CATALOG_ID;
+}
+
+/**
+ * Color-swatch family for double-click recolor in edit mode.
+ * Same shape / role only — never mix vinyl with washi, binder with wood pin, etc.
+ */
+export function decorRecolorFamily(id: string): string | null {
+  if (isGuestbookCatalogId(id)) return null;
+  if (id.startsWith("pin-")) return "pin";
+  if (id.startsWith("clip-binder-")) return "clip-binder";
+  if (id.startsWith("clip-wood")) return "clip-wood";
+  if (id.startsWith("note-")) return "note";
+  if (id.startsWith("vinyl-")) return "vinyl";
+  if (id === "tape-cross") return null;
+  if (id.startsWith("tape-")) return "tape";
+  if (id.startsWith("ticket-")) return "ticket";
+  if (id.startsWith("sticker-heart")) return "sticker-heart";
+  if (id.startsWith("sticker-star")) return "sticker-star";
+  if (id.startsWith("stamp-")) return "stamp";
+  if (id.startsWith("leaf-")) return "leaf";
+  if (id.startsWith("badge-")) return "badge";
+  return null;
+}
+
+/** Sibling catalog items that differ mainly by accent/color. */
+export function decorColorOptions(catalogId: string): BoardDecorItem[] {
+  const family = decorRecolorFamily(catalogId);
+  if (!family) return [];
+  return ALL_BOARD_DECOR.filter((d) => decorRecolorFamily(d.id) === family);
 }

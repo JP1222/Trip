@@ -7,6 +7,7 @@ import { validateRequestOrigin } from "@/lib/security/origin";
 import {
   deleteWallObject,
   getWallObject,
+  GUESTBOOK_OBJECT_ID,
   updateWallObject,
 } from "@/lib/wall-objects";
 
@@ -41,29 +42,37 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   try {
     const body = (await req.json()) as {
+      layout?: unknown;
       x?: unknown;
       y?: unknown;
       rotate?: unknown;
       scale?: unknown;
       z?: unknown;
       label?: unknown;
+      catalogId?: unknown;
       bringToFront?: unknown;
     };
     const patch: {
+      layout?: "desktop" | "mobile";
       x?: number;
       y?: number;
       rotate?: number;
       scale?: number;
       z?: number;
       label?: string;
+      catalogId?: string;
       bringToFront?: boolean;
     } = {};
+    if (body.layout === "mobile" || body.layout === "desktop") {
+      patch.layout = body.layout;
+    }
     if (typeof body.x === "number") patch.x = body.x;
     if (typeof body.y === "number") patch.y = body.y;
     if (typeof body.rotate === "number") patch.rotate = body.rotate;
     if (typeof body.scale === "number") patch.scale = body.scale;
     if (typeof body.z === "number") patch.z = body.z;
     if (typeof body.label === "string") patch.label = body.label;
+    if (typeof body.catalogId === "string") patch.catalogId = body.catalogId;
     if (body.bringToFront === true) patch.bringToFront = true;
 
     if (
@@ -73,6 +82,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       patch.scale === undefined &&
       patch.z === undefined &&
       patch.label === undefined &&
+      patch.catalogId === undefined &&
       !patch.bringToFront
     ) {
       return attachRequestId(
@@ -116,6 +126,15 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   }
 
   const { id } = await ctx.params;
+  if (id === GUESTBOOK_OBJECT_ID) {
+    return attachRequestId(
+      NextResponse.json(
+        { error: "Guestbook stays on the board" },
+        { status: 400 },
+      ),
+      requestId,
+    );
+  }
   const ok = await deleteWallObject(id);
   if (!ok) {
     return attachRequestId(

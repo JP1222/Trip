@@ -5,6 +5,8 @@ import { parseStickyNoteLabel } from "@/lib/sticky-note";
 
 type Props = {
   label: string;
+  /** Paper color from catalog accent (sticky variants). */
+  paper?: string;
   /** Admin: show textarea instead of static text */
   editing?: boolean;
   onEditStart?: () => void;
@@ -20,6 +22,7 @@ type Props = {
  */
 export function WallStickyNote({
   label,
+  paper,
   editing = false,
   onEditStart,
   onSave,
@@ -53,7 +56,11 @@ export function WallStickyNote({
   return (
     <div
       className={`wall-note wall-note--board ${className}`.trim()}
-      style={style}
+      style={
+        paper
+          ? ({ ...style, ["--note-paper" as string]: paper } as React.CSSProperties)
+          : style
+      }
       onClick={(e) => {
         if (editing) e.stopPropagation();
         else if (onEditStart) {

@@ -503,12 +503,12 @@ export function TripPlanner({ trip, planned, dayCount }: Props) {
         </div>
       </div>
 
-      {/* Budget as its own full-width block under the workspace */}
+      {/* Budget workspace under the plan */}
       {trip.budget &&
         (trip.budget.items.length > 0 ||
           (trip.budget.limit != null && trip.budget.limit > 0)) && (
           <div className="mt-6 lg:mt-8">
-            <TripBudgetPanel budget={trip.budget} />
+            <TripBudgetPanel budget={trip.budget} members={trip.members} />
           </div>
         )}
     </section>

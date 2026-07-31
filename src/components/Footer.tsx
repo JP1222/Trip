@@ -5,7 +5,13 @@ import { usePathname } from "next/navigation";
 export function Footer() {
   const pathname = usePathname();
 
-  if (pathname === "/" || pathname.startsWith("/admin")) return null;
+  if (
+    pathname === "/" ||
+    pathname === "/guestbook" ||
+    pathname.startsWith("/admin")
+  ) {
+    return null;
+  }
 
   return (
     <footer className="mt-auto border-t border-sand-200/70 bg-sand-100/50">

@@ -109,6 +109,8 @@ const TRIP_SELECT = `
                     'id', item.id,
                     'label', item.label,
                     'amount', item.amount,
+                    'amountMode', item.amount_mode,
+                    'splitMode', item.split_mode,
                     'category', item.category,
                     'paidBy', item.paid_by
                   )
@@ -400,9 +402,10 @@ async function replaceBudget(
     await executor.query(
       `
         INSERT INTO budget_items (
-          id, trip_id, position, label, amount, category, paid_by
+          id, trip_id, position, label, amount, amount_mode, split_mode,
+          category, paid_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
       [
         item.id,
@@ -410,6 +413,8 @@ async function replaceBudget(
         position,
         item.label,
         item.amount,
+        item.amountMode === "each" ? "each" : "total",
+        item.splitMode === "none" ? "none" : "equal",
         item.category || null,
         item.paidBy || null,
       ],

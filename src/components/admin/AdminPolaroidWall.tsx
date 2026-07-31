@@ -21,7 +21,7 @@ import { WallStickyNote } from "@/components/board/WallStickyNote";
 import { Pushpin } from "@/components/Pushpin";
 import { parseStickyNoteLabel } from "@/lib/sticky-note";
 import type { WallItem, WallPhotoOrientation } from "@/lib/wall";
-import type { WallObject } from "@/lib/wall-objects";
+import type { WallObject } from "@/lib/wall-object-layout";
 import type {
   WallAspect,
   WallDisplaySize,
@@ -442,6 +442,12 @@ export function AdminPolaroidWall({
       : dateSort === "oldest"
         ? "Newest first"
         : "Sort by date";
+  const sortLabelShort =
+    dateSort === "newest"
+      ? "Oldest"
+      : dateSort === "oldest"
+        ? "Newest"
+        : "Sort";
 
   return (
     <div className="gallery-wall gallery-wall--admin">
@@ -453,7 +459,8 @@ export function AdminPolaroidWall({
           disabled={saving || datedPinCount < 2}
           title="Sort trips and articles by date"
         >
-          {sortLabel}
+          <span className="sm:hidden">{sortLabelShort}</span>
+          <span className="hidden sm:inline">{sortLabel}</span>
         </button>
         {(saving || status) && (
           <p

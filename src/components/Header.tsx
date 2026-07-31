@@ -75,6 +75,9 @@ export function Header({ signedIn = false }: Props) {
         <Link href="/blog" className={`${pill} px-3.5 sm:px-4`}>
           Blog
         </Link>
+        <Link href="/guestbook" className={`${pill} px-3.5 sm:px-4`}>
+          Guestbook
+        </Link>
         {signedIn ? (
           <Link
             href="/admin"

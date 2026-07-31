@@ -82,11 +82,27 @@ struct TripLocation: Codable, Sendable, Hashable {
 
 // MARK: - Budget
 
+/// Whether `amount` is the group total or a per-person price.
+enum BudgetAmountMode: String, Codable, Sendable, Hashable {
+    case total
+    case each
+}
+
+/// How the group cost is shared among travelers.
+enum BudgetSplitMode: String, Codable, Sendable, Hashable {
+    case equal
+    case none
+}
+
 /// Expense line for the trip budget
 struct BudgetItem: Codable, Sendable, Identifiable, Hashable {
     var id: String
     var label: String
+    /// Dollar amount as entered. If amountMode is each, per-person price.
     var amount: Double
+    var amountMode: BudgetAmountMode?
+    /// Default equal AA; none = personal / not settled.
+    var splitMode: BudgetSplitMode?
     /// stay | food | transport | activity | other
     var category: String?
     var paidBy: String?

@@ -66,11 +66,29 @@ export type TripStatus = "lived" | "planned";
 /** Who can see the trip page / wall pin. Admin always sees every trip. */
 export type TripVisibility = "public" | "private";
 
+/** Whether `amount` is the group total or a per-person price. */
+export type BudgetAmountMode = "total" | "each";
+
+/**
+ * How the group cost is shared among travelers.
+ * `equal` (default) = AA among trip members; `none` = personal / not settled.
+ */
+export type BudgetSplitMode = "equal" | "none";
+
 /** Expense line for the trip budget */
 export type BudgetItem = {
   id: string;
   label: string;
+  /**
+   * Dollar amount as entered.
+   * If amountMode is "each", this is the per-person price;
+   * group cost = amount × traveler count.
+   */
   amount: number;
+  /** Default "total". */
+  amountMode?: BudgetAmountMode;
+  /** Default "equal". */
+  splitMode?: BudgetSplitMode;
   /** stay | food | transport | activity | other */
   category?: string;
   paidBy?: string;
