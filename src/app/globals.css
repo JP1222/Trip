@@ -587,7 +587,7 @@ html.page-home body::before {
  * Public wall: trinkets sit *under* polaroids so they never cover photos.
  * They still show in cork gaps / margins. Layer is pointer-events: none
  * so clicks reach photos. Hover motion: `.board-widget--hovered` (JS).
- * Admin keeps widgets above photos for drag/resize (see below).
+ * Admin uses the same under-photos stacking unless a widget is elevated.
  */
 .gallery-wall--public .board-widget-layer {
   z-index: 2; /* below .cork-board__photos (z-index: 3) */
@@ -625,10 +625,27 @@ html.page-home body::before {
   }
 }
 
-/* Admin: interactive layer above photos */
+/*
+ * Admin: widgets sit under polaroids by default (same as public) so vinyl /
+ * washi never cover trip/article cards. Photo list ignores pointer events in
+ * the gaps so trinkets in the cork margins stay draggable; elevate the layer
+ * only while a widget is selected / mid-gesture.
+ */
 .gallery-wall--admin .board-widget-layer {
-  z-index: 12;
+  z-index: 2;
   overflow: visible;
+}
+
+.gallery-wall--admin .board-widget-layer--elevated {
+  z-index: 12;
+}
+
+.gallery-wall--admin .cork-board__photos {
+  pointer-events: none;
+}
+
+.gallery-wall--admin .cork-board__photos > li {
+  pointer-events: auto;
 }
 
 .board-widget {

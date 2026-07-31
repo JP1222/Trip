@@ -421,10 +421,20 @@ export function BoardWidgetLayer({
 
   if (objects.length === 0 && !editable) return null;
 
+  const elevated =
+    editable &&
+    Boolean(
+      selectedId ||
+        draggingId ||
+        resizingId ||
+        rotatingId ||
+        editingNoteId,
+    );
+
   return (
     <div
       ref={surfaceRef}
-      className="board-widget-layer"
+      className={`board-widget-layer${elevated ? " board-widget-layer--elevated" : ""}`}
       aria-hidden={!editable}
     >
       {objects.map((obj) => {
